@@ -12,9 +12,12 @@
 
 -- Opaque public token generator, shared by every module that needs one.
 -- 24 random bytes, base64url — the same shape the application produces.
+-- search_path spans both schemas because pgcrypto lives in `extensions` on
+-- Supabase and in `public` on a plain PostgreSQL, and this function has to
+-- work on either.
 create or replace function app.new_public_token()
-returns text language sql volatile set search_path = '' as $$
-  select translate(encode(public.gen_random_bytes(24), 'base64'), '+/=', '-_');
+returns text language sql volatile set search_path = extensions, public as $$
+  select translate(encode(gen_random_bytes(24), 'base64'), '+/=', '-_');
 $$;
 
 create or replace function public.provision_workspace(
