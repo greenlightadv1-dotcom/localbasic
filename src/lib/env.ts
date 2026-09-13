@@ -15,7 +15,10 @@ const clientSchema = z.object({
 });
 
 const serverSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+  // Optional: only the admin client (background workers) needs it. The site
+  // runs fine without it, and createSupabaseAdminClient() fails loudly if it
+  // is ever called while unset.
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal('')),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional().or(z.literal('')),
 });

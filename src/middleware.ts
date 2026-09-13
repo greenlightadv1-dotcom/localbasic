@@ -22,9 +22,16 @@ export async function middleware(request: NextRequest) {
   const localDb =
     process.env.LOCALBASIC_LOCAL_DB === '1' && process.env.NODE_ENV !== 'production';
 
-  const supabase = localDb ? null : createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Without usable credentials there is no session to refresh. Returning the
+  // response with its security headers beats throwing, which would turn every
+  // route — including the sign-in page that explains the problem — into a 500.
+  const configured = Boolean(supabaseUrl && supabaseKey);
+
+  const supabase = localDb || !configured ? null : createServerClient(
+    supabaseUrl!,
+    supabaseKey!,
     {
       cookies: {
         get: (name: string) => request.cookies.get(name)?.value,

@@ -15,9 +15,14 @@ import type { Database } from '@/types/database';
  * this into client code a build error rather than a silent leak.
  */
 export function createSupabaseAdminClient() {
-  return createClient<Database>(
-    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv().SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
+  const key = serverEnv().SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not set. It is required only for background ' +
+        'workers and platform maintenance, and must never be exposed to the client.',
+    );
+  }
+  return createClient<Database>(clientEnv.NEXT_PUBLIC_SUPABASE_URL, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
