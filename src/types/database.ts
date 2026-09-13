@@ -843,6 +843,261 @@ export type Database = {
         };
         Relationships: [];
       };
+      retail_categories: {
+        Row: {
+          id: string;
+          organization_id: string;
+          parent_id: string | null;
+          name: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          parent_id?: string | null;
+          name: string;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          parent_id?: string | null;
+          name?: string;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      retail_products: {
+        Row: {
+          id: string;
+          organization_id: string;
+          category_id: string | null;
+          name: string;
+          description: string | null;
+          image_url: string | null;
+          unit: string;
+          tax_rate_bp: number;
+          is_active: boolean;
+          is_online: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          category_id?: string | null;
+          name: string;
+          description?: string | null;
+          image_url?: string | null;
+          unit?: string;
+          tax_rate_bp?: number;
+          is_active?: boolean;
+          is_online?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          category_id?: string | null;
+          name?: string;
+          description?: string | null;
+          image_url?: string | null;
+          unit?: string;
+          tax_rate_bp?: number;
+          is_active?: boolean;
+          is_online?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      retail_stock_levels: {
+        Row: {
+          organization_id: string;
+          branch_id: string;
+          variant_id: string;
+          quantity: number;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          branch_id: string;
+          variant_id: string;
+          quantity?: number;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: string;
+          branch_id?: string;
+          variant_id?: string;
+          quantity?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      retail_stock_movements: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          variant_id: string;
+          quantity_delta: number;
+          reason: string;
+          ref_type: string | null;
+          ref_id: string | null;
+          unit_cost_cents: number | null;
+          note: string | null;
+          occurred_at: string;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          branch_id: string;
+          variant_id: string;
+          quantity_delta: number;
+          reason: string;
+          ref_type?: string | null;
+          ref_id?: string | null;
+          unit_cost_cents?: number | null;
+          note?: string | null;
+          occurred_at?: string;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          branch_id?: string;
+          variant_id?: string;
+          quantity_delta?: number;
+          reason?: string;
+          ref_type?: string | null;
+          ref_id?: string | null;
+          unit_cost_cents?: number | null;
+          note?: string | null;
+          occurred_at?: string;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      retail_suppliers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          phone: string | null;
+          email: string | null;
+          address: string | null;
+          tax_id: string | null;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          tax_id?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          name?: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          tax_id?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      retail_variants: {
+        Row: {
+          id: string;
+          organization_id: string;
+          product_id: string;
+          name: string;
+          sku: string | null;
+          barcode: string | null;
+          price_cents: number;
+          cost_cents: number;
+          options: Json;
+          reorder_point: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          product_id: string;
+          name?: string;
+          sku?: string | null;
+          barcode?: string | null;
+          price_cents: number;
+          cost_cents?: number;
+          options?: Json;
+          reorder_point?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          product_id?: string;
+          name?: string;
+          sku?: string | null;
+          barcode?: string | null;
+          price_cents?: number;
+          cost_cents?: number;
+          options?: Json;
+          reorder_point?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
       role_permissions: {
         Row: {
           role_id: string;
@@ -1109,6 +1364,7 @@ export type Database = {
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
+      retail_stock_of: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
     };
     Enums: { [_ in never]: never };

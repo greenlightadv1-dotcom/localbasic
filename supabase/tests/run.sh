@@ -26,4 +26,11 @@ for f in "$HERE"/[0-9]*.sql; do
   "${PSQL[@]}" -d "$DB" -f "$f"
 done
 
+# Shell-based tests need more than one connection (concurrency), so they run
+# after the SQL suite against the same database.
+for f in "$HERE"/[0-9]*.sh; do
+  echo "→ test $(basename "$f")"
+  "$f"
+done
+
 echo "ALL DATABASE TESTS PASSED"
