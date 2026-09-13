@@ -5,9 +5,15 @@ resuming work.
 
 ## Current phase
 
-**Phase 1 — Foundation: COMPLETE.**
-**Phase 2 — Retail catalog, inventory, POS and returns: COMPLETE.**
-Next: Phase 3 — purchasing, then the remaining Core screens.
+**Restaurant & Cafe is the active vertical.** Medical, Workshop and further
+Retail work are paused by decision.
+
+- **Phase 1 — Foundation: COMPLETE.**
+- **Retail (earlier pilot): catalog, inventory, POS, returns — COMPLETE**, left
+  in place and untouched. No further retail work until Restaurant ships.
+- **Restaurant MVP: database, ordering, payments, QR, and all operational
+  screens COMPLETE.** Remaining: staff/roles/branding settings screens,
+  notification delivery, and an end-to-end browser test.
 
 ## Decisions in force
 
@@ -56,6 +62,25 @@ Retail application code: `src/modules/retail/{products,inventory,pos}`,
 actions in the branch route, and screens for products, new product,
 inventory (with stock adjustment) and the POS till.
 
+### Restaurant — `supabase/migrations/0016`–`0026`
+- **0016** sections and tables + table state machine
+- **0017** menu: categories, products, variants, modifier groups, modifiers,
+  per-branch availability
+- **0018** orders, items, item modifiers, price snapshots, order state machine
+- **0019** restaurant permissions + cashier/kitchen/waiter templates
+- **0020** restaurant RLS and grants
+- **0021** order creation and status transitions
+- **0022** public surface: QR context, menu, guest ordering, order status
+- **0023** payment (Core invoice + payment + treasury) and QR issuing
+- **0024** Core module bootstrap hook (reusable, names no vertical)
+- **0025** restaurant bootstrap: a section, six tables and a QR each
+- **0026** order totals derived from lines by trigger
+
+Restaurant application code: `src/modules/restaurant/{menu,tables,orders,public,reports}`,
+`restaurant-actions.ts`, and screens for cashier, kitchen, waiter, orders,
+tables + QR print, menu, reports, expenses and treasury, plus the public
+guest menu at `/p/[token]`.
+
 ### Application
 - `src/lib/` — env parsing, typed errors, integer money, rate limiting,
   opaque tokens, `cn`
@@ -86,7 +111,8 @@ inventory (with stock adjustment) and the POS till.
 ## Verified
 
 - `npx tsc --noEmit` — clean
-- `npx next build` — succeeds, 12 routes
+- `npx next build` — succeeds, 20 routes
+- `node scripts/check-permissions.mjs` — TypeScript and SQL catalogs in sync
 - `npx vitest run` — 9 tests pass (integer money arithmetic)
 - `supabase/tests/run.sh` — all pass:
   - `00_schema_guards` structural invariants
@@ -97,13 +123,22 @@ inventory (with stock adjustment) and the POS till.
   - `03_inventory_concurrency` two real connections sell the last unit;
     exactly one commits
   - `04_retail_sale` database-authoritative pricing, mixed tax basket,
-    tender/change, failed sale leaves nothing, discount privilege,
-    returns
+    tender/change, failed sale leaves nothing, discount privilege, returns
+  - `05_restaurant_flow` the full 15-step journey end to end
+  - `06_restaurant_security` cross-tenant and cross-branch isolation,
+    kitchen/waiter financial lockout, invalid transitions, client price,
+    total and discount manipulation, duplicate payment, public token scope
+    and revocation
+  - `07_permission_catalog` no orphan grants, owners hold the full catalog,
+    kitchen and waiter templates hold nothing sensitive
 
 ## Known gaps (tracked in TODO.md)
 
-- Purchasing, online store, shipping, analytics: not started
-- Members/roles/branches/branding settings screens: routes not built yet
+- Settings screens: staff/members, roles, branches, branding, audit viewer
+- Notification delivery worker (queue and templates exist, no sender)
+- Printable receipt page for a completed order (the data is all there)
+- Browser end-to-end test of the guest → kitchen → payment journey
+- Retail purchasing / online store: paused by decision, not abandoned
 - Customers / invoices / payments / treasury screens: services exist only for
   the dashboard summary so far
 - Notification delivery worker: table and queue exist, no sender
@@ -125,3 +160,10 @@ inventory (with stock adjustment) and the POS till.
 5. **`SET LOCAL ROLE` does not propagate out of a PL/pgSQL function.** The test
    harness uses `set_config('role', …)`, otherwise assertions run as the table
    owner and FORCE RLS is silently untested.
+6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
+   restaurant flow test hit this with `order_id`; local variables are prefixed
+   `v_` for that reason.
+7. **Stored totals invite tampering.** Restaurant order totals are derived from
+   the lines by trigger for the same reason treasury balances are derived from
+   the ledger — if a number can be written directly, eventually something
+   writes the wrong one.

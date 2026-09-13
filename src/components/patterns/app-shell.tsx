@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn';
 import { coreNavigationFor, SETTINGS_NAVIGATION, getModule, type NavItem } from '@/config/modules';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { hexToRgbChannels, type Branding } from '@/modules/core/branding/service';
+import { ToastProvider } from '@/components/ui/toast';
 import { BranchSwitcher } from './branch-switcher';
 import { UserMenu } from './user-menu';
 import { MobileNav } from './mobile-nav';
@@ -59,6 +60,7 @@ export function AppShell({
     .filter((m) => m.items.length > 0);
 
   return (
+    <ToastProvider>
     <div
       className="min-h-dvh"
       // Per-organization branding, applied as a scoped variable override. One
@@ -132,5 +134,6 @@ export function AppShell({
 
       <MobileNav items={[...coreNav, ...moduleNavs.flatMap((m) => m.items)].slice(0, 5)} base={base} />
     </div>
+    </ToastProvider>
   );
 }
