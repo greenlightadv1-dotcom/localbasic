@@ -114,7 +114,7 @@ export function ServiceBoard({
                 <li key={order.id} className="flex items-center justify-between gap-3 p-4">
                   <div>
                     <p className="text-lg font-bold">
-                      {order.tableName ? `طاولة ${order.tableName}` : 'سفري'}
+                      {order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : 'سفري'}
                     </p>
                     <p className="lb-numeric text-sm text-muted">
                       #{order.number} · {order.itemCount} أصناف
@@ -202,7 +202,7 @@ export function ServiceBoard({
                 {inFlight.map((order) => (
                   <li key={order.id} className="flex items-center justify-between gap-3 p-3 text-sm">
                     <span className="font-medium">
-                      {order.tableName ? `طاولة ${order.tableName}` : 'سفري'}
+                      {order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : 'سفري'}
                       <span className="lb-numeric ms-2 text-muted">#{order.number}</span>
                     </span>
                     <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>

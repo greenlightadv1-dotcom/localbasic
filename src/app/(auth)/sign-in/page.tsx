@@ -1,12 +1,17 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Card, CardBody } from '@/components/ui/card';
 import { AuthForm } from '../auth-form';
 import { signInAction } from '../actions';
+import { isLocalDb } from '@/lib/supabase/local/db';
 
 export const metadata: Metadata = { title: 'تسجيل الدخول' };
 
 export default function SignInPage() {
+  // Locally there is no Supabase Auth; the dev picker stands in for it.
+  if (isLocalDb()) redirect('/dev');
+
   return (
     <Card>
       <CardBody className="space-y-5 p-6">

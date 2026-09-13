@@ -10,3 +10,5 @@ next-env.d.ts
 .DS_Store
 coverage/
 supabase/.temp/
+test-results/
+playwright-report/

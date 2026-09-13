@@ -125,6 +125,7 @@ export function AppShell({
               organizationName={branding.displayName}
               roleKeys={ctx.roleKeys}
               isOwner={ctx.isOwner}
+              fullName={ctx.fullName}
             />
           </header>
 

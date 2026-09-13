@@ -43,12 +43,12 @@ export function KitchenBoard({
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
-  const [now, setNow] = useState(() => Date.now());
+  const [, setTick] = useState(0);
 
   // Ticket ages tick without a request; the board itself refreshes on a slower
   // beat so a new order appears without anyone touching the screen.
   useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 30_000);
+    const tick = setInterval(() => setTick((t) => t + 1), 30_000);
     const refresh = setInterval(() => router.refresh(), 20_000);
     return () => {
       clearInterval(tick);
@@ -115,7 +115,7 @@ export function KitchenBoard({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="text-xl font-bold">
-                            {summary.tableName ? `طاولة ${summary.tableName}` : 'سفري'}
+                            {summary.tableName ? <>طاولة <bdi>{summary.tableName}</bdi></> : 'سفري'}
                           </p>
                           <p className="lb-numeric text-sm text-muted">#{summary.number}</p>
                         </div>
@@ -137,12 +137,14 @@ export function KitchenBoard({
                       <ul className="mt-3 space-y-2 border-t border-line pt-3">
                         {lines.map((line) => (
                           <li key={line.id} className="text-base">
-                            <p className="font-semibold">
-                              <span className="lb-numeric me-2 text-primary">{line.quantity}×</span>
-                              {line.productName}
-                              {line.variantName !== 'default' && (
-                                <span className="text-muted"> — {line.variantName}</span>
-                              )}
+                            <p className="flex gap-2 font-semibold">
+                              <span className="lb-numeric shrink-0 text-primary">{line.quantity}×</span>
+                              <span>
+                                <bdi>{line.productName}</bdi>
+                                {line.variantName !== 'default' && (
+                                  <span className="text-muted"> — {line.variantName}</span>
+                                )}
+                              </span>
                             </p>
                             {line.modifiers.length > 0 && (
                               <p className="ps-6 text-sm text-muted">
@@ -185,7 +187,7 @@ export function KitchenBoard({
         );
       })}
       <p className="sr-only" aria-live="polite">
-        {tickets.length} طلب في المطبخ، آخر تحديث {new Date(now).toLocaleTimeString('ar-EG')}
+        {tickets.length} طلب في المطبخ
       </p>
     </div>
   );

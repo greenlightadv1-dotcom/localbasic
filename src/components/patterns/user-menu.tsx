@@ -5,14 +5,27 @@ import { LogOut, UserCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { signOutAction } from '@/app/(auth)/actions';
 
+const ROLE_NAMES: Record<string, string> = {
+  owner: 'المالك',
+  admin: 'مدير النظام',
+  manager: 'مدير فرع',
+  accountant: 'محاسب',
+  cashier: 'كاشير',
+  kitchen: 'المطبخ',
+  waiter: 'كابتن',
+  staff: 'موظف',
+};
+
 export function UserMenu({
   organizationName,
   roleKeys,
   isOwner,
+  fullName,
 }: {
   organizationName: string;
   roleKeys: string[];
   isOwner: boolean;
+  fullName: string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -26,7 +39,9 @@ export function UserMenu({
         className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface"
       >
         <UserCircle2 className="h-6 w-6 text-muted" aria-hidden="true" />
-        <span className="hidden sm:inline">{isOwner ? 'المالك' : roleKeys[0] ?? 'عضو'}</span>
+        <span className="hidden sm:inline">
+          {fullName ?? (isOwner ? 'المالك' : (roleKeys[0] && ROLE_NAMES[roleKeys[0]]) || 'عضو')}
+        </span>
       </button>
 
       {open && (
@@ -39,7 +54,7 @@ export function UserMenu({
             <div className="mt-1 flex flex-wrap gap-1">
               {isOwner && <Badge tone="info">مالك</Badge>}
               {roleKeys.map((r) => (
-                <Badge key={r}>{r}</Badge>
+                <Badge key={r}>{ROLE_NAMES[r] ?? r}</Badge>
               ))}
             </div>
           </div>

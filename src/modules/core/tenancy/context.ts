@@ -14,6 +14,8 @@ import type { Permission } from '@/modules/core/rbac/permissions';
  */
 export type TenantContext = {
   userId: string;
+  /** The signed-in person's name, for the header. */
+  fullName: string | null;
   organizationId: string;
   organizationSlug: string;
   organizationName: string;
@@ -124,6 +126,7 @@ export const resolveTenantContext = cache(
 
     return {
       userId: user.id,
+      fullName: user.fullName,
       organizationId: org.id,
       organizationSlug: org.slug,
       organizationName: org.name,

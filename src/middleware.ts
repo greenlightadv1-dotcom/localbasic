@@ -17,7 +17,12 @@ export async function middleware(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const supabase = createServerClient(
+  // The local development adapter has no Supabase session to refresh; security
+  // headers below still apply. Never active in production.
+  const localDb =
+    process.env.LOCALBASIC_LOCAL_DB === '1' && process.env.NODE_ENV !== 'production';
+
+  const supabase = localDb ? null : createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -43,16 +48,16 @@ export async function middleware(request: NextRequest) {
   // Refreshes the access token when it is close to expiry and rewrites the
   // cookie on `response`. Without this call Server Components can observe a
   // stale session.
-  await supabase.auth.getUser();
+  if (supabase) await supabase.auth.getUser();
 
   const isDev = process.env.NODE_ENV !== 'production';
   const csp = [
     `default-src 'self'`,
     // 'unsafe-eval' is required by the Next.js dev overlay only.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
-    `style-src 'self' 'unsafe-inline'`,
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `img-src 'self' data: blob: https://*.supabase.co`,
-    `font-src 'self' data:`,
+    `font-src 'self' data: https://fonts.gstatic.com`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co`,
     `frame-ancestors 'none'`,
     `base-uri 'self'`,

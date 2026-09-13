@@ -77,12 +77,14 @@ export default async function OrderDetailPage({
             {lines.map((line) => (
               <li key={line.id} className="flex items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="font-medium">
-                    <span className="lb-numeric me-2 text-primary">{line.quantity}×</span>
-                    {line.productName}
-                    {line.variantName !== 'default' && (
-                      <span className="text-muted"> — {line.variantName}</span>
-                    )}
+                  <p className="flex gap-2 font-medium">
+                    <span className="lb-numeric shrink-0 text-primary">{line.quantity}×</span>
+                    <span>
+                      <bdi>{line.productName}</bdi>
+                      {line.variantName !== 'default' && (
+                        <span className="text-muted"> — {line.variantName}</span>
+                      )}
+                    </span>
                   </p>
                   {line.modifiers.length > 0 && (
                     <p className="mt-0.5 text-sm text-muted">

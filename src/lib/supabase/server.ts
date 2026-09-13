@@ -2,6 +2,8 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { clientEnv } from '@/lib/env';
+import { isLocalDb } from './local/db';
+import { createLocalClient } from './local/client';
 import type { Database } from '@/types/database';
 
 /**
@@ -11,6 +13,13 @@ import type { Database } from '@/types/database';
  * Server Components, Server Actions and Route Handlers all use this.
  */
 export function createSupabaseServerClient() {
+  // Development escape hatch: with LOCALBASIC_LOCAL_DB=1 the app talks to a
+  // local PostgreSQL directly so it can be run without a Supabase project.
+  // RLS still applies — only the transport differs. Never active in production.
+  if (isLocalDb()) {
+    return createLocalClient() as unknown as ReturnType<typeof createServerClient<Database>>;
+  }
+
   const cookieStore = cookies();
 
   return createServerClient<Database>(

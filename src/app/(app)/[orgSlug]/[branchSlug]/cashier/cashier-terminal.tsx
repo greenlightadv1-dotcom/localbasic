@@ -315,7 +315,7 @@ export function CashierTerminal({
                   <li key={order.id} className="flex flex-wrap items-center gap-2 p-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">
-                        {order.tableName ? `طاولة ${order.tableName}` : 'سفري'}
+                        {order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : 'سفري'}
                         <span className="lb-numeric ms-2 text-sm text-muted">#{order.number}</span>
                         {order.channel === 'qr' && (
                           <Badge tone="info" className="ms-2">

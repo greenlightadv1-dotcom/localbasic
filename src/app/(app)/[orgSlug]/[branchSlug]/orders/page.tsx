@@ -88,7 +88,7 @@ export default async function OrdersPage({
                         #{order.number}
                       </Link>
                     </td>
-                    <td className="p-3">{order.tableName ? `طاولة ${order.tableName}` : 'سفري'}</td>
+                    <td className="p-3">{order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : 'سفري'}</td>
                     <td className="p-3">
                       {order.channel === 'qr' ? (
                         <Badge tone="info">QR</Badge>
