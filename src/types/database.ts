@@ -1364,6 +1364,8 @@ export type Database = {
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
+      retail_create_return: { Args: Record<string, unknown>; Returns: Json };
+      retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
     };
