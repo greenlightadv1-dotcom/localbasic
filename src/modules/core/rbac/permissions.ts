@@ -45,6 +45,19 @@ export const PERMISSIONS = [
   'retail.order.read',
   'retail.order.manage',
   'retail.store.manage',
+  'restaurant.menu.read',
+  'restaurant.menu.manage',
+  'restaurant.table.read',
+  'restaurant.table.manage',
+  'restaurant.table.status',
+  'restaurant.order.read',
+  'restaurant.order.create',
+  'restaurant.order.update',
+  'restaurant.order.cancel',
+  'restaurant.kitchen.use',
+  'restaurant.service.use',
+  'restaurant.pos.use',
+  'restaurant.pos.discount',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

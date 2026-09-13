@@ -2,7 +2,7 @@ import Link from 'next/link';
 import * as Icons from 'lucide-react';
 import { Logo, PoweredBy } from '@/components/brand/logo';
 import { cn } from '@/lib/cn';
-import { CORE_NAVIGATION, SETTINGS_NAVIGATION, getModule, type NavItem } from '@/config/modules';
+import { coreNavigationFor, SETTINGS_NAVIGATION, getModule, type NavItem } from '@/config/modules';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { hexToRgbChannels, type Branding } from '@/modules/core/branding/service';
 import { BranchSwitcher } from './branch-switcher';
@@ -50,7 +50,7 @@ export function AppShell({
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
   const allowed = (items: NavItem[]) => items.filter((i) => ctx.permissions.has(i.permission));
 
-  const coreNav = allowed(CORE_NAVIGATION);
+  const coreNav = allowed(coreNavigationFor(ctx.enabledModules));
   const settingsNav = allowed(SETTINGS_NAVIGATION);
   const moduleNavs = ctx.enabledModules
     .map((key) => getModule(key))

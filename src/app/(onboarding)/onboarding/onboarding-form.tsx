@@ -13,18 +13,18 @@ import { provisionWorkspaceAction, type OnboardingState } from './actions';
 
 const MODULES = [
   {
-    key: 'retail',
-    name: 'متجر / تجزئة',
-    description: 'منتجات ومخزون ونقطة بيع ومتجر إلكتروني',
-    Icon: ShoppingBag,
+    key: 'restaurant',
+    name: 'مطعم / كافيه',
+    description: 'طاولات وQR ومنيو وطلبات ومطبخ وكاشير',
+    Icon: UtensilsCrossed,
     available: true,
   },
   {
-    key: 'restaurant',
-    name: 'مطعم / كافيه',
-    description: 'طاولات وQR ومنيو وطلبات ومطبخ',
-    Icon: UtensilsCrossed,
-    available: false,
+    key: 'retail',
+    name: 'متجر / تجزئة',
+    description: 'منتجات ومخزون ونقطة بيع',
+    Icon: ShoppingBag,
+    available: true,
   },
   {
     key: 'medical',
@@ -67,7 +67,7 @@ export function OnboardingForm() {
     provisionWorkspaceAction,
     undefined,
   );
-  const [moduleKey, setModuleKey] = useState<string>('retail');
+  const [moduleKey, setModuleKey] = useState<string>('restaurant');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
 
