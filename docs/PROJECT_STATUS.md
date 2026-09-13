@@ -6,7 +6,8 @@ resuming work.
 ## Current phase
 
 **Phase 1 — Foundation: COMPLETE.**
-Next: Phase 2 — Retail module (products → inventory → POS).
+**Phase 2 — Retail catalog, inventory, POS and returns: COMPLETE.**
+Next: Phase 3 — purchasing, then the remaining Core screens.
 
 ## Decisions in force
 
@@ -38,6 +39,23 @@ Applied cleanly to PostgreSQL 16 and covered by tests.
 - **0009** `provision_workspace()` — the whole workspace in one transaction
 - **0010** explicit privilege grants; anon revoked from all tenant tables
 
+### Retail — `supabase/migrations/0011`–`0015`
+- **0011** retail_categories, retail_suppliers, retail_products,
+  retail_variants (SKU/barcode unique per organization)
+- **0012** retail_stock_movements (the ledger) + retail_stock_levels
+  (a projection written only by trigger), non-negative CHECK, row-lock
+  update-then-insert so concurrent sales serialise
+- **0013** retail RLS: sales need retail.pos.use, receiving needs
+  retail.purchase.manage, everything else needs retail.inventory.adjust
+- **0014** `retail_create_sale()` — invoice, items, stock, payment, treasury
+  and audit in one transaction, priced entirely from the database
+- **0015** `retail_create_return()` — linked negative payment, stock back,
+  treasury withdrawal; the original sale is never edited
+
+Retail application code: `src/modules/retail/{products,inventory,pos}`,
+actions in the branch route, and screens for products, new product,
+inventory (with stock adjustment) and the POS till.
+
 ### Application
 - `src/lib/` — env parsing, typed errors, integer money, rate limiting,
   opaque tokens, `cn`
@@ -68,13 +86,23 @@ Applied cleanly to PostgreSQL 16 and covered by tests.
 ## Verified
 
 - `npx tsc --noEmit` — clean
-- `npx next build` — succeeds, 8 routes
-- `supabase/tests/run.sh` — schema guards + tenant isolation, all assertions
-  pass
+- `npx next build` — succeeds, 12 routes
+- `npx vitest run` — 9 tests pass (integer money arithmetic)
+- `supabase/tests/run.sh` — all pass:
+  - `00_schema_guards` structural invariants
+  - `01_tenant_isolation` cross-tenant reads/writes/IDOR, append-only,
+    branch scoping, privilege escalation, anonymous access
+  - `02_retail_inventory` projection tracks ledger, oversell refused,
+    permission separation
+  - `03_inventory_concurrency` two real connections sell the last unit;
+    exactly one commits
+  - `04_retail_sale` database-authoritative pricing, mixed tax basket,
+    tender/change, failed sale leaves nothing, discount privilege,
+    returns
 
 ## Known gaps (tracked in TODO.md)
 
-- Retail module: not started
+- Purchasing, online store, shipping, analytics: not started
 - Members/roles/branches/branding settings screens: routes not built yet
 - Customers / invoices / payments / treasury screens: services exist only for
   the dashboard summary so far

@@ -2,30 +2,31 @@
 
 Ordered. Work top to bottom; check items off as they land.
 
-## Phase 2 — Retail: catalog and inventory
-- [ ] Migration: `retail_categories`, `retail_products`, `retail_variants`
-      (SKU, barcode, price_cents, cost_cents), `retail_suppliers`
-- [ ] Migration: `retail_stock_levels` (projection) + `retail_stock_movements`
-      (the ledger: variant, branch, qty_delta, reason, ref, user, timestamp)
-- [ ] `apply_stock_movement()` — `SELECT … FOR UPDATE` on the stock row inside
-      the transaction, plus `CHECK (quantity >= 0)` as the backstop
-- [ ] RLS policies + grants for every retail table; movements append-only
-- [ ] Regenerate `src/types/database.ts`
-- [ ] Services: product, variant, inventory, supplier
-- [ ] Screens: products list/create/edit, inventory, stock adjustment
+## Phase 2 — Retail: catalog and inventory — DONE
+- [x] Migration: categories, products, variants, suppliers
+- [x] Migration: stock levels (projection) + stock movements (ledger)
+- [x] Concurrency-safe stock application + non-negative CHECK
+- [x] RLS policies + grants; movements append-only
+- [x] Services: product, inventory, POS
+- [x] Screens: products list, new product, inventory with adjustment
+- [x] POS till and sale/return transactions
+- [ ] Product edit screen (create and list exist; edit not built)
+- [ ] Supplier screens (table and policies exist)
 
 ## Phase 3 — Retail: purchasing
 - [ ] Migration: `retail_purchases`, `retail_purchase_items`
 - [ ] Receiving a purchase writes stock movements and a treasury entry
 - [ ] Screens: purchase list, create, receive
 
-## Phase 4 — Retail: POS
-- [ ] Sale service: one transaction → invoice + items + payment + stock
-      movements + treasury entry
-- [ ] Prices and totals recomputed server-side; the cart never dictates money
-- [ ] Barcode-first cashier screen, keyboard-only path, numeric keypad
-- [ ] Returns: linked negative payment + reversing stock movements
-- [ ] Receipt view suitable for a thermal printer
+## Phase 4 — Retail: POS — MOSTLY DONE
+- [x] Sale transaction: invoice + items + payment + stock + treasury + audit
+- [x] Prices and totals recomputed server-side; the cart never dictates money
+- [x] Barcode-first cashier screen with the scan field always refocused
+- [x] Returns: linked negative payment + reversing stock movements
+- [ ] Receipt view suitable for a thermal printer (`getReceipt` service
+      exists; no print route yet)
+- [ ] Returns UI (the action and database function exist)
+- [ ] Customer attach at the till (search action exists, not wired in)
 
 ## Phase 5 — Core screens still missing
 - [ ] Customers: list, create, edit, detail

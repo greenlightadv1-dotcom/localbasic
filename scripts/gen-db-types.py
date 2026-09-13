@@ -22,6 +22,7 @@ EMBEDDED_TABLES = {
     "user_roles",
     "role_permissions",
     "subscriptions",
+    "retail_variants",
 }
 
 PG = ["psql", "-h", os.environ.get("PGHOST", "/tmp"), "-p", os.environ.get("PGPORT", "5433"),

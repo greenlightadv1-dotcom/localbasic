@@ -1096,7 +1096,10 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          { foreignKeyName: "retail_variants_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "retail_variants_product_id_fkey"; columns: ["product_id"]; isOneToOne: false; referencedRelation: "retail_products"; referencedColumns: ["id"] },
+        ];
       };
       role_permissions: {
         Row: {
