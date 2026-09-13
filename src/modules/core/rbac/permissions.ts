@@ -1,0 +1,65 @@
+/**
+ * Permission keys, mirrored from the seeded `permissions` table.
+ *
+ * Keeping them as a const array gives compile-time safety at every call site:
+ * a typo in `requirePermission(ctx, 'invoice.viod')` is a build error, not a
+ * silent authorization hole.
+ */
+export const PERMISSIONS = [
+  'organization.manage',
+  'billing.manage',
+  'branch.create',
+  'branch.manage',
+  'settings.manage',
+  'branding.manage',
+  'audit.read',
+  'member.read',
+  'member.manage',
+  'role.manage',
+  'customer.read',
+  'customer.create',
+  'customer.update',
+  'invoice.read',
+  'invoice.create',
+  'invoice.update',
+  'invoice.void',
+  'payment.read',
+  'payment.create',
+  'payment.refund',
+  'treasury.read',
+  'treasury.create',
+  'treasury.manage',
+  'report.read',
+  'notification.read',
+  'publiclink.read',
+  'publiclink.manage',
+  'retail.product.read',
+  'retail.product.manage',
+  'retail.inventory.read',
+  'retail.inventory.adjust',
+  'retail.supplier.manage',
+  'retail.purchase.read',
+  'retail.purchase.manage',
+  'retail.pos.use',
+  'retail.pos.discount',
+  'retail.order.read',
+  'retail.order.manage',
+  'retail.store.manage',
+] as const;
+
+export type Permission = (typeof PERMISSIONS)[number];
+
+/**
+ * Permissions that can hand out other permissions. A member may only grant a
+ * permission they themselves hold, and only holders of these may touch roles
+ * at all — the two rules that together block privilege escalation.
+ */
+export const ELEVATED_PERMISSIONS: readonly Permission[] = [
+  'member.manage',
+  'role.manage',
+  'billing.manage',
+];
+
+export function isPermission(value: string): value is Permission {
+  return (PERMISSIONS as readonly string[]).includes(value);
+}

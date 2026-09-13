@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================================
+   LOCAL BASIC — design tokens
+   Derived from the logo: two blues on white, geometric rounded sans,
+   generous whitespace, no gradients, no decorative motion.
+   Colours are stored as raw RGB channels so Tailwind's /<alpha-value> works
+   and so branding can override a single variable at runtime.
+   =========================================================================== */
+:root {
+  --lb-primary: 30 47 200;        /* #1E2FC8 — "local" */
+  --lb-primary-fg: 255 255 255;
+  --lb-primary-soft: 232 235 252;
+  --lb-accent: 107 139 250;       /* #6B8BFA — "basic" */
+  --lb-accent-soft: 169 199 245;  /* #A9C7F5 — the dot */
+
+  --lb-bg: 255 255 255;
+  --lb-surface: 246 248 252;
+  --lb-elevated: 255 255 255;
+  --lb-fg: 14 19 48;
+  --lb-muted: 91 100 128;
+  --lb-border: 227 232 242;
+
+  --lb-success: 18 122 86;
+  --lb-warn: 180 105 14;
+  --lb-danger: 194 47 61;
+
+  --lb-radius-sm: 8px;
+  --lb-radius: 12px;
+  --lb-radius-lg: 18px;
+
+  --lb-font-sans: 'Cairo', 'Tajawal', 'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  border-color: rgb(var(--lb-border));
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: rgb(var(--lb-surface));
+  color: rgb(var(--lb-fg));
+  font-family: var(--lb-font-sans);
+  font-feature-settings: 'ss01', 'cv01';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Focus rings are never removed — only restyled. */
+:focus-visible {
+  outline: 2px solid rgb(var(--lb-primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Logical properties throughout, so the whole UI mirrors correctly in RTL
+   without a single direction-specific override. */
+[dir='rtl'] .lb-flip {
+  transform: scaleX(-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Numeric columns and POS totals stay aligned regardless of script. */
+.lb-numeric {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
