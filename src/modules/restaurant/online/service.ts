@@ -47,6 +47,50 @@ export type ModifierGroup = {
   modifiers: { id: string; name: string; priceCents: number }[];
 };
 
+export type StorefrontInfo = {
+  organizationName: string;
+  branchName: string;
+  currency: string;
+  pickupEnabled: boolean;
+  deliveryEnabled: boolean;
+  deliveryFeeCents: number;
+};
+
+/**
+ * What this storefront currently offers.
+ *
+ * Read from the database rather than assumed, so the page cannot render a
+ * fulfilment button the checkout would refuse — and the delivery fee shown is
+ * the one that will be charged.
+ */
+export async function getStorefront(input: unknown): Promise<StorefrontInfo | null> {
+  const parsed = storefront.safeParse(input);
+  if (!parsed.success) return null;
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('restaurant_online_storefront', {
+    p_org_slug: parsed.data.orgSlug,
+    p_branch_slug: parsed.data.branchSlug,
+  });
+  if (error) return null;
+
+  type Row = {
+    organization_name: string; branch_name: string; currency: string;
+    pickup_enabled: boolean; delivery_enabled: boolean; delivery_fee_cents: number;
+  };
+  const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
+  if (!row) return null;
+
+  return {
+    organizationName: row.organization_name,
+    branchName: row.branch_name,
+    currency: row.currency,
+    pickupEnabled: row.pickup_enabled,
+    deliveryEnabled: row.delivery_enabled,
+    deliveryFeeCents: Number(row.delivery_fee_cents),
+  };
+}
+
 export async function getOnlineMenu(input: unknown) {
   const parsed = storefront.safeParse(input);
   if (!parsed.success) throw new AppError('validation');

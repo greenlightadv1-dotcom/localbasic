@@ -40,15 +40,24 @@ export function Storefront({
   items,
   modifierGroups,
   currency,
+  pickupEnabled,
+  deliveryEnabled,
 }: {
   orgSlug: string;
   branchSlug: string;
   items: MenuItem[];
   modifierGroups: ModifierGroup[];
   currency: string;
+  pickupEnabled: boolean;
+  deliveryEnabled: boolean;
 }) {
+  // Only the options the branch actually offers. The server refuses anything
+  // else regardless, so this is presentation, not enforcement.
+  const offered = FULFILLMENT_TYPES.filter(
+    (f) => (f === 'pickup' ? pickupEnabled : deliveryEnabled),
+  );
   const [lines, setLines] = useState<Line[]>([]);
-  const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
+  const [fulfillment, setFulfillment] = useState<Fulfillment>(offered[0] ?? 'pickup');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [pricing, startPricing] = useTransition();
@@ -188,7 +197,7 @@ export function Storefront({
           )}
 
           <div className="mt-3 flex gap-2">
-            {FULFILLMENT_TYPES.map((f) => (
+            {offered.map((f) => (
               <button
                 key={f}
                 type="button"

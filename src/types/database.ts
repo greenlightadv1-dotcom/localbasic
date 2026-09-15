@@ -2206,6 +2206,7 @@ export type Database = {
       restaurant_online_modifiers: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_order_items: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_order_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_storefront: { Args: Record<string, unknown>; Returns: Json };
       restaurant_pay_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_place_online_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_place_public_order: { Args: Record<string, unknown>; Returns: Json };

@@ -46,6 +46,7 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/members', label: 'الموظفون', icon: 'UserCog', permission: 'member.read' },
   { href: '/settings/roles', label: 'الصلاحيات', icon: 'ShieldCheck', permission: 'role.manage' },
   { href: '/settings/branding', label: 'الهوية', icon: 'Palette', permission: 'branding.manage' },
+  { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
   { href: '/settings/audit', label: 'سجل النشاط', icon: 'ScrollText', permission: 'audit.read' },
 ];
 

@@ -24,6 +24,35 @@ async function ids() {
   return rows[0] as { org: string; branch: string };
 }
 
+/**
+ * Online ordering is off by default (D1.1), so this spec establishes the
+ * settings it needs rather than depending on whatever the last run left behind.
+ */
+test.beforeAll(async () => {
+  const { rows } = await DB.query("select id from organizations where slug = 'alhara'");
+  const org = rows[0].id as string;
+  for (const [key, value] of [
+    ['restaurant.online_ordering_enabled', 'true'],
+    ['restaurant.pickup_enabled', 'true'],
+    ['restaurant.delivery_enabled', 'true'],
+    ['restaurant.delivery_fee_cents', '2500'],
+  ] as const) {
+    await DB.query(
+      `insert into settings (organization_id, branch_id, key, value)
+       values ($1, null, $2, $3::jsonb)
+       on conflict (organization_id, coalesce(branch_id, '00000000-0000-0000-0000-000000000000'::uuid), key)
+       do update set value = excluded.value`,
+      [org, key, value],
+    );
+    // Branch-level rows would override the organization default, so clear any
+    // a previous spec left behind.
+    await DB.query(
+      'delete from settings where organization_id = $1 and branch_id is not null and key = $2',
+      [org, key],
+    );
+  }
+});
+
 test.beforeEach(async ({ context }) => {
   await context.route('**/*', (route) =>
     route.request().url().startsWith('http://localhost:3000') ? route.continue() : route.abort(),
@@ -41,7 +70,7 @@ async function addFirstItem(page: Page) {
 
 test('a guest browses the menu without any account', async ({ page }) => {
   await page.goto(STORE);
-  await expect(page.getByRole('heading', { name: 'اطلب أونلاين' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'مطعم الحارة الشامية' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'أضف للسلة' }).first()).toBeVisible();
 });
 
