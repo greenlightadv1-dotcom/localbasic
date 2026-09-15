@@ -53,7 +53,10 @@ begin
     and c.relname not in (
       -- platform catalogs and child tables keyed through their parent
       'plans', 'permissions', 'profiles', 'roles', 'role_permissions', 'organizations',
-      'user_roles', 'member_branches', 'invoice_items', 'document_counters'
+      'user_roles', 'member_branches', 'invoice_items', 'document_counters',
+      -- platform-operator tables: deliberately not tenant-scoped. They are
+      -- reachable only by a Platform Admin, never through tenant RLS.
+      'platform_admins', 'promo_codes'
     )
     and not exists (
       select 1 from information_schema.columns col

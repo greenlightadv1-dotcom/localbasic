@@ -549,6 +549,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          customer_code: string;
         };
         Insert: {
           id?: string;
@@ -564,6 +565,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          customer_code: string;
         };
         Update: {
           id?: string;
@@ -579,6 +581,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          customer_code?: string;
         };
         Relationships: [];
       };
@@ -717,6 +720,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      platform_admins: {
+        Row: {
+          user_id: string;
+          role: string;
+          is_active: boolean;
+          note: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          user_id: string;
+          role?: string;
+          is_active?: boolean;
+          note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          role?: string;
+          is_active?: boolean;
+          note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -744,6 +774,102 @@ export type Database = {
           locale?: string;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      promo_codes: {
+        Row: {
+          id: string;
+          code: string;
+          description: string | null;
+          kind: string;
+          percent_off: number | null;
+          amount_off_cents: number | null;
+          trial_days: number | null;
+          currency: string;
+          starts_at: string;
+          ends_at: string | null;
+          max_redemptions: number | null;
+          redeemed_count: number;
+          is_active: boolean;
+          plan_id: string | null;
+          module_key: string | null;
+          new_customers_only: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          description?: string | null;
+          kind: string;
+          percent_off?: number | null;
+          amount_off_cents?: number | null;
+          trial_days?: number | null;
+          currency?: string;
+          starts_at?: string;
+          ends_at?: string | null;
+          max_redemptions?: number | null;
+          redeemed_count?: number;
+          is_active?: boolean;
+          plan_id?: string | null;
+          module_key?: string | null;
+          new_customers_only?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          description?: string | null;
+          kind?: string;
+          percent_off?: number | null;
+          amount_off_cents?: number | null;
+          trial_days?: number | null;
+          currency?: string;
+          starts_at?: string;
+          ends_at?: string | null;
+          max_redemptions?: number | null;
+          redeemed_count?: number;
+          is_active?: boolean;
+          plan_id?: string | null;
+          module_key?: string | null;
+          new_customers_only?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      promo_redemptions: {
+        Row: {
+          id: number;
+          promo_code_id: string;
+          organization_id: string;
+          subscription_event_id: number | null;
+          discount_cents: number;
+          trial_days_granted: number;
+          redeemed_at: string;
+          redeemed_by: string | null;
+        };
+        Insert: {
+          id?: number;
+          promo_code_id: string;
+          organization_id: string;
+          subscription_event_id?: number | null;
+          discount_cents?: number;
+          trial_days_granted?: number;
+          redeemed_at?: string;
+          redeemed_by?: string | null;
+        };
+        Update: {
+          id?: number;
+          promo_code_id?: string;
+          organization_id?: string;
+          subscription_event_id?: number | null;
+          discount_cents?: number;
+          trial_days_granted?: number;
+          redeemed_at?: string;
+          redeemed_by?: string | null;
         };
         Relationships: [];
       };
@@ -1686,6 +1812,72 @@ export type Database = {
         };
         Relationships: [];
       };
+      subscription_events: {
+        Row: {
+          id: number;
+          organization_id: string;
+          subscription_id: string | null;
+          event_type: string;
+          plan_id: string | null;
+          billing_period: string;
+          period_start: string;
+          period_end: string;
+          gross_cents: number;
+          discount_cents: number;
+          net_cents: number;
+          currency: string;
+          payment_method: string;
+          promo_code_id: string | null;
+          promo_code: string | null;
+          note: string | null;
+          created_at: string;
+          created_by: string | null;
+          created_by_label: string | null;
+        };
+        Insert: {
+          id?: number;
+          organization_id: string;
+          subscription_id?: string | null;
+          event_type: string;
+          plan_id?: string | null;
+          billing_period: string;
+          period_start: string;
+          period_end: string;
+          gross_cents?: number;
+          discount_cents?: number;
+          net_cents?: number;
+          currency?: string;
+          payment_method?: string;
+          promo_code_id?: string | null;
+          promo_code?: string | null;
+          note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          created_by_label?: string | null;
+        };
+        Update: {
+          id?: number;
+          organization_id?: string;
+          subscription_id?: string | null;
+          event_type?: string;
+          plan_id?: string | null;
+          billing_period?: string;
+          period_start?: string;
+          period_end?: string;
+          gross_cents?: number;
+          discount_cents?: number;
+          net_cents?: number;
+          currency?: string;
+          payment_method?: string;
+          promo_code_id?: string | null;
+          promo_code?: string | null;
+          note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          created_by_label?: string | null;
+        };
+        Relationships: [];
+      };
       subscriptions: {
         Row: {
           id: string;
@@ -1699,6 +1891,7 @@ export type Database = {
           provider_ref: string | null;
           created_at: string;
           updated_at: string;
+          billing_period: string;
         };
         Insert: {
           id?: string;
@@ -1712,6 +1905,7 @@ export type Database = {
           provider_ref?: string | null;
           created_at?: string;
           updated_at?: string;
+          billing_period?: string;
         };
         Update: {
           id?: string;
@@ -1725,6 +1919,7 @@ export type Database = {
           provider_ref?: string | null;
           created_at?: string;
           updated_at?: string;
+          billing_period?: string;
         };
         Relationships: [
           { foreignKeyName: "subscriptions_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: true; referencedRelation: "organizations"; referencedColumns: ["id"] },
@@ -1857,6 +2052,10 @@ export type Database = {
     Views: { [_ in never]: never };
     Functions: {
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
+      platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
+      platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
+      platform_quote_renewal: { Args: Record<string, unknown>; Returns: Json };
+      platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_create_order: { Args: Record<string, unknown>; Returns: Json };
