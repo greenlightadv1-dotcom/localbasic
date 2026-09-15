@@ -1191,6 +1191,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_order_deliveries: {
+        Row: {
+          order_id: string;
+          organization_id: string;
+          branch_id: string;
+          recipient_name: string;
+          phone: string;
+          city: string | null;
+          area: string | null;
+          address: string;
+          landmark: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          order_id: string;
+          organization_id: string;
+          branch_id: string;
+          recipient_name: string;
+          phone: string;
+          city?: string | null;
+          area?: string | null;
+          address: string;
+          landmark?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          order_id?: string;
+          organization_id?: string;
+          branch_id?: string;
+          recipient_name?: string;
+          phone?: string;
+          city?: string | null;
+          area?: string | null;
+          address?: string;
+          landmark?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       restaurant_order_item_modifiers: {
         Row: {
           id: string;
@@ -1302,6 +1353,9 @@ export type Database = {
           created_at: string;
           updated_at: string;
           created_by: string | null;
+          customer_edit_until: string | null;
+          delivery_fee_cents: number;
+          idempotency_key: string | null;
         };
         Insert: {
           id?: string;
@@ -1332,6 +1386,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+          customer_edit_until?: string | null;
+          delivery_fee_cents?: number;
+          idempotency_key?: string | null;
         };
         Update: {
           id?: string;
@@ -1362,6 +1419,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+          customer_edit_until?: string | null;
+          delivery_fee_cents?: number;
+          idempotency_key?: string | null;
         };
         Relationships: [];
       };
@@ -2140,8 +2200,16 @@ export type Database = {
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_create_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_issue_table_link: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_cancel_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_edit_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_menu: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_modifiers: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_order_items: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_online_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_pay_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_place_online_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_place_public_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_price_online_cart: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_context: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_menu: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_order_status: { Args: Record<string, unknown>; Returns: Json };
