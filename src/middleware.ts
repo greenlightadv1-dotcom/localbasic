@@ -22,6 +22,13 @@ export async function middleware(request: NextRequest) {
   const localDb =
     process.env.LOCALBASIC_LOCAL_DB === '1' && process.env.NODE_ENV !== 'production';
 
+  // The demo sign-in at /dev hands out a session as any seeded staff member.
+  // It is meaningless against a real Supabase project and must not exist there,
+  // so it is refused before the route — and its pg-backed module — ever loads.
+  if (!localDb && request.nextUrl.pathname === '/dev') {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   // Without usable credentials there is no session to refresh. Returning the
