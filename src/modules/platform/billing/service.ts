@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AppError } from '@/lib/errors';
-import { quoteInput, renewInput, createWorkspaceInput } from './schemas';
+import { quoteInput, renewInput, createWorkspaceInput, promoCodeInput } from './schemas';
 
 /**
  * Platform billing services.
@@ -333,4 +333,117 @@ export async function createWorkspaceForOwner(input: unknown) {
   });
   if (error) throw new AppError('validation', error.message);
   return Array.isArray(data) ? data[0] : data;
+}
+
+/**
+ * Create a promo code.
+ *
+ * The code is normalised server-side (trimmed, upper-cased) so DEMO30 and
+ * demo30 can never coexist as two different codes. Every discount value is
+ * stored here and applied by platform_quote_renewal() — the browser never
+ * decides a price, a discount or a trial length.
+ */
+export async function createPromoCode(input: unknown): Promise<string> {
+  await requirePlatformAdmin();
+  const parsed = promoCodeInput.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError('validation', parsed.error.issues[0]?.message ?? 'بيانات غير صالحة');
+  }
+  const v = parsed.data;
+  const supabase = createSupabaseServerClient();
+
+  const code = v.code.trim().toUpperCase();
+
+  const { data: clash } = await supabase
+    .from('promo_codes')
+    .select('id')
+    .ilike('code', code)
+    .maybeSingle();
+  if (clash) throw new AppError('conflict', 'هذا الرمز موجود بالفعل.');
+
+  const { data, error } = await supabase
+    .from('promo_codes')
+    .insert({
+      code,
+      description: v.description || null,
+      kind: v.kind,
+      percent_off: v.kind === 'percent' ? v.percentOff ?? null : null,
+      amount_off_cents: v.kind === 'fixed' ? v.amountOffCents ?? null : null,
+      trial_days: v.kind === 'trial_days' ? v.trialDays ?? null : null,
+      max_redemptions: v.maxRedemptions ?? null,
+      new_customers_only: v.newCustomersOnly,
+      plan_id: v.planId || null,
+      module_key: v.moduleKey || null,
+      ends_at: v.endsAt ? new Date(v.endsAt).toISOString() : null,
+    })
+    .select('id')
+    .single();
+  if (error) throw new AppError('validation', error.message);
+
+  await supabase.rpc('write_platform_audit', {
+    p_action: 'platform.promo_code_created',
+    p_entity_type: 'promo_code',
+    p_entity_id: data.id,
+    p_after: { code, kind: v.kind },
+  });
+  return data.id;
+}
+
+/**
+ * Activate or deactivate a code. There is no delete: a spent code keeps its
+ * redemptions, and its history keeps pointing at something real.
+ */
+export async function setPromoCodeActive(id: string, isActive: boolean): Promise<void> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { error } = await supabase
+    .from('promo_codes')
+    .update({ is_active: isActive })
+    .eq('id', id);
+  if (error) throw new AppError('validation', error.message);
+
+  await supabase.rpc('write_platform_audit', {
+    p_action: 'platform.promo_code_toggled',
+    p_entity_type: 'promo_code',
+    p_entity_id: id,
+    p_after: { is_active: isActive },
+  });
+}
+
+export type Redemption = {
+  id: number;
+  organizationName: string | null;
+  customerCode: string | null;
+  discountCents: number;
+  trialDaysGranted: number;
+  redeemedAt: string;
+};
+
+export async function listRedemptions(promoCodeId: string): Promise<Redemption[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('promo_redemptions')
+    .select('id, organization_id, discount_cents, trial_days_granted, redeemed_at')
+    .eq('promo_code_id', promoCodeId)
+    .order('redeemed_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+
+  const orgIds = [...new Set((data ?? []).map((r) => r.organization_id))];
+  const { data: orgs } = orgIds.length
+    ? await supabase.from('organizations').select('id, name, customer_code').in('id', orgIds)
+    : { data: [] };
+  const byId = new Map((orgs ?? []).map((o) => [o.id, o]));
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    organizationName: byId.get(r.organization_id)?.name ?? null,
+    customerCode: byId.get(r.organization_id)?.customer_code ?? null,
+    discountCents: r.discount_cents,
+    trialDaysGranted: r.trial_days_granted,
+    redeemedAt: r.redeemed_at,
+  }));
 }

@@ -70,6 +70,9 @@ export const promoCodeInput = z
     maxRedemptions: z.coerce.number().int().positive().optional(),
     newCustomersOnly: z.coerce.boolean().default(false),
     endsAt: z.string().optional().or(z.literal('')),
+    // Empty string means "any" for both — the columns are nullable.
+    planId: z.string().uuid().optional().or(z.literal('')),
+    moduleKey: z.string().trim().max(32).optional().or(z.literal('')),
   })
   // Mirrors the database CHECK constraint, so the form rejects the same shapes
   // the table would — the table stays the authority either way.

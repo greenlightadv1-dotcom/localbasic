@@ -3,13 +3,19 @@ import { Logo } from '@/components/brand/logo';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: { default: 'إدارة المنصة', template: '%s · إدارة المنصة' } };
+// No metadata export here on purpose: a layout title template is applied to
+// every child, including the not-found page an unauthorized visitor receives.
+// Each page supplies its own title through adminMetadata(), which withholds it
+// until the caller is known to be an admin.
 
 const NAV = [
   { href: '/admin', label: 'لوحة المنصة' },
   { href: '/admin/organizations', label: 'العملاء' },
+  { href: '/admin/onboard', label: 'عميل جديد' },
+  { href: '/admin/leads', label: 'العملاء المحتملون' },
   { href: '/admin/subscriptions', label: 'الاشتراكات' },
   { href: '/admin/plans', label: 'الباقات' },
+  { href: '/admin/services', label: 'الخدمات' },
   { href: '/admin/promo-codes', label: 'أكواد الخصم' },
   { href: '/admin/audit', label: 'سجل المنصة' },
 ];

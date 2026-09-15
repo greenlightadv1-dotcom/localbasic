@@ -8,8 +8,16 @@ import {
 } from '../../ui';
 import { RenewForm } from './renew-form';
 
+import { getPlatformContext } from '@/modules/platform/admin/context';
+
+/**
+ * The customer code is the title here, so it must not appear for anyone who is
+ * not an admin — a tenant probing a code would otherwise see it echoed back.
+ */
 export async function generateMetadata({ params }: { params: { code: string } }) {
-  return { title: params.code };
+  const ctx = await getPlatformContext();
+  if (!ctx) return { title: 'الصفحة غير موجودة', robots: { index: false, follow: false } };
+  return { title: params.code, robots: { index: false, follow: false } };
 }
 
 const EVENT_LABEL: Record<string, string> = {
@@ -26,9 +34,16 @@ const METHOD_LABEL: Record<string, string> = {
   transfer: 'تحويل', gateway: 'بوابة دفع', none: '—',
 };
 
-export default async function CustomerProfilePage({ params }: { params: { code: string } }) {
+export default async function CustomerProfilePage({
+  params,
+  searchParams,
+}: {
+  params: { code: string };
+  searchParams: { created?: string };
+}) {
   const org = await getOrganizationByCode(decodeURIComponent(params.code));
   if (!org) notFound();
+  const justCreated = searchParams.created === '1';
 
   const [history, plans] = await Promise.all([
     listSubscriptionHistory(org.id),
@@ -40,6 +55,12 @@ export default async function CustomerProfilePage({ params }: { params: { code: 
   return (
     <>
       <AdminHeading title={org.name} />
+
+      {justCreated ? (
+        <p className="mb-6 rounded border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+          تم إنشاء مساحة العمل. كود العميل: {org.customerCode}
+        </p>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <CustomerCode code={org.customerCode} />

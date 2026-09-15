@@ -1,8 +1,9 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AdminHeading, Panel, formatDate } from '../ui';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'سجل المنصة' };
+export const generateMetadata = adminMetadata('سجل المنصة');
 
 /**
  * Platform-side audit. Reads the same audit_logs every tenant writes to; the

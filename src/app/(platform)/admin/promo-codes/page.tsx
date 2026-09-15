@@ -1,7 +1,10 @@
-import { listPromoCodes } from '@/modules/platform/billing/service';
+import { listPromoCodes, listPlans } from '@/modules/platform/billing/service';
+import { listServices } from '@/modules/platform/services/service';
+import { CreatePromoForm, TogglePromoForm } from './promo-forms';
 import { AdminHeading, Panel, formatDate, money } from '../ui';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'أكواد الخصم' };
+export const generateMetadata = adminMetadata('أكواد الخصم');
 
 const KIND_LABEL: Record<string, string> = {
   percent: 'نسبة مئوية',
@@ -18,8 +21,14 @@ function effect(c: {
   return `${c.trial_days} يوم`;
 }
 
-export default async function PromoCodesPage() {
-  const codes = await listPromoCodes();
+export default async function PromoCodesPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; created?: string };
+}) {
+  const q = searchParams.q?.trim().toLowerCase() ?? '';
+  const [all, plans, services] = await Promise.all([listPromoCodes(), listPlans(), listServices()]);
+  const codes = q ? all.filter((c) => c.code.toLowerCase().includes(q)) : all;
 
   return (
     <>
@@ -27,9 +36,34 @@ export default async function PromoCodesPage() {
         title="أكواد الخصم والتجربة"
         lead="منفصلة تمامًا عن كود العميل. يتحقق الخادم من الصلاحية وحدود الاستخدام قبل أي خصم."
       />
+      {searchParams.created === '1' ? (
+        <p className="mb-4 rounded border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+          تم إنشاء الرمز.
+        </p>
+      ) : null}
+
+      <Panel className="mb-6">
+        <h2 className="border-b border-line px-5 py-3 text-sm font-bold text-fg">رمز جديد</h2>
+        <CreatePromoForm plans={plans} services={services.filter((s) => s.isBuilt)} />
+      </Panel>
+
+      <form className="mb-4 flex gap-2" action="/admin/promo-codes">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="ابحث برمز"
+          dir="ltr"
+          className="h-10 flex-1 rounded border border-line bg-elevated px-3 text-sm text-fg"
+        />
+        <button type="submit" className="h-10 rounded bg-primary px-4 text-sm font-semibold text-primary-fg">
+          بحث
+        </button>
+      </form>
+
       <Panel>
         {codes.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-muted">لا توجد أكواد بعد.</p>
+          <p className="px-5 py-10 text-center text-sm text-muted">لا توجد أكواد مطابقة.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -43,6 +77,7 @@ export default async function PromoCodesPage() {
                   <th className="px-4 py-2.5 text-start font-semibold">الاستخدام</th>
                   <th className="px-4 py-2.5 text-start font-semibold">عملاء جدد فقط</th>
                   <th className="px-4 py-2.5 text-start font-semibold">الحالة</th>
+                  <th className="px-4 py-2.5 text-start font-semibold"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -69,6 +104,9 @@ export default async function PromoCodesPage() {
                       }>
                         {c.is_active ? 'نشط' : 'موقوف'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <TogglePromoForm id={c.id} isActive={c.is_active} />
                     </td>
                   </tr>
                 ))}

@@ -1,8 +1,9 @@
 import { listPlans } from '@/modules/platform/billing/service';
 import { AdminHeading, Panel, money } from '../ui';
 import { BILLING_PERIODS, BILLING_PERIOD_LABELS } from '@/modules/platform/billing/schemas';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'الباقات' };
+export const generateMetadata = adminMetadata('الباقات');
 
 const MONTHS: Record<string, number> = { month: 1, quarter: 3, semiannual: 6, year: 12 };
 

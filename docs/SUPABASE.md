@@ -60,3 +60,31 @@ Two advisor notices are expected and intentional:
   is reachable only through the `SECURITY DEFINER` `next_document_number()`.
 * `citext` is installed in `public`; relocating it would rewrite every `citext`
   column's type reference for no security gain.
+
+## Platform Admin
+
+The first Platform Admin is created out-of-band, on purpose — an in-app path to
+create one would be a privilege-escalation surface. With a privileged
+connection (SQL editor or service role):
+
+```sql
+insert into public.platform_admins (user_id, role)
+select id, 'owner' from auth.users where email = 'you@example.com';
+```
+
+After that, admins manage each other through the application.
+
+### Owner account creation
+
+`/admin/onboard` creates a workspace, applies the plan, opens the subscription
+term and closes the lead in one database transaction. Inviting a *new* owner by
+email additionally needs `SUPABASE_SERVICE_ROLE_KEY`, because minting an auth
+identity is an Admin API call the database cannot make.
+
+Set it in the server environment only. Never prefix it `NEXT_PUBLIC_`, and
+never commit a value. Without it the screen still provisions for an owner who
+already has an account, and states plainly that account creation is
+unconfigured.
+
+No password is ever handled by the application: the owner receives an
+invitation and sets their own credentials through Supabase Auth.

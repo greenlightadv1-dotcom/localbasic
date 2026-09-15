@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { listOrganizations } from '@/modules/platform/billing/service';
 import { AdminHeading, Panel, CustomerCode, ExpiryBadge, StatusBadge, formatDate, periodLabel } from '../ui';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'العملاء' };
+export const generateMetadata = adminMetadata('العملاء');
 
 export default async function OrganizationsPage({
   searchParams,

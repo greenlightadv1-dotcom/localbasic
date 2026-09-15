@@ -56,7 +56,7 @@ begin
       'user_roles', 'member_branches', 'invoice_items', 'document_counters',
       -- platform-operator tables: deliberately not tenant-scoped. They are
       -- reachable only by a Platform Admin, never through tenant RLS.
-      'platform_admins', 'promo_codes'
+      'platform_admins', 'promo_codes', 'platform_services'
     )
     and not exists (
       select 1 from information_schema.columns col

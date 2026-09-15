@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { listOrganizations, listExpiring, EXPIRY_WARNING_DAYS } from '@/modules/platform/billing/service';
 import { AdminHeading, Panel, CustomerCode, ExpiryBadge, StatusBadge, formatDate, periodLabel } from '../ui';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'الاشتراكات' };
+export const generateMetadata = adminMetadata('الاشتراكات');
 
 export default async function SubscriptionsPage() {
   const [orgs, expiring] = await Promise.all([listOrganizations(), listExpiring(EXPIRY_WARNING_DAYS)]);

@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { listExpiring, listOrganizations, EXPIRY_WARNING_DAYS } from '@/modules/platform/billing/service';
 import { AdminHeading, Panel, CustomerCode, ExpiryBadge, StatusBadge, formatDate } from './ui';
+import { adminMetadata } from '@/modules/platform/admin/metadata';
 
-export const metadata = { title: 'لوحة المنصة' };
+export const generateMetadata = adminMetadata('لوحة المنصة');
 
 export default async function PlatformDashboard() {
   const [orgs, expiring] = await Promise.all([listOrganizations(), listExpiring(EXPIRY_WARNING_DAYS)]);

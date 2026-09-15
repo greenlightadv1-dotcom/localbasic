@@ -14,7 +14,7 @@ export type Database = {
       audit_logs: {
         Row: {
           id: number;
-          organization_id: string;
+          organization_id: string | null;
           branch_id: string | null;
           actor_id: string | null;
           actor_label: string | null;
@@ -29,7 +29,7 @@ export type Database = {
         };
         Insert: {
           id?: number;
-          organization_id: string;
+          organization_id?: string | null;
           branch_id?: string | null;
           actor_id?: string | null;
           actor_label?: string | null;
@@ -44,7 +44,7 @@ export type Database = {
         };
         Update: {
           id?: number;
-          organization_id?: string;
+          organization_id?: string | null;
           branch_id?: string | null;
           actor_id?: string | null;
           actor_label?: string | null;
@@ -744,6 +744,84 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      platform_leads: {
+        Row: {
+          id: string;
+          name: string;
+          phone: string;
+          business_name: string | null;
+          requested_service: string | null;
+          source: string;
+          status: string;
+          notes: string | null;
+          organization_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          phone: string;
+          business_name?: string | null;
+          requested_service?: string | null;
+          source?: string;
+          status?: string;
+          notes?: string | null;
+          organization_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          phone?: string;
+          business_name?: string | null;
+          requested_service?: string | null;
+          source?: string;
+          status?: string;
+          notes?: string | null;
+          organization_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      platform_services: {
+        Row: {
+          module_key: string;
+          name_ar: string;
+          name_en: string;
+          description_ar: string | null;
+          is_built: boolean;
+          is_available: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          module_key: string;
+          name_ar: string;
+          name_en: string;
+          description_ar?: string | null;
+          is_built?: boolean;
+          is_available?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          module_key?: string;
+          name_ar?: string;
+          name_en?: string;
+          description_ar?: string | null;
+          is_built?: boolean;
+          is_available?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -2054,6 +2132,8 @@ export type Database = {
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
+      platform_find_user_by_email: { Args: Record<string, unknown>; Returns: Json };
+      platform_onboard_customer: { Args: Record<string, unknown>; Returns: Json };
       platform_quote_renewal: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
@@ -2069,7 +2149,9 @@ export type Database = {
       retail_create_return: { Args: Record<string, unknown>; Returns: Json };
       retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };
+      submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
+      write_platform_audit: { Args: Record<string, unknown>; Returns: Json };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
