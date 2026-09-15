@@ -4,6 +4,8 @@ import '@/styles/globals.css';
 export const metadata: Metadata = {
   title: { default: 'LocalBasic', template: '%s · LocalBasic' },
   description: 'منصة إدارة الأعمال المحلية — مدعوم بواسطة Green Light',
+  // The marketing pages under (site) opt themselves back in. Everything else —
+  // every workspace, kitchen and QR screen — stays out of search results.
   robots: { index: false, follow: false },
 };
 

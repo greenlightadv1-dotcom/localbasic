@@ -47,7 +47,7 @@ export async function signInAction(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: GENERIC_CREDENTIALS_ERROR };
 
-  redirect('/');
+  redirect('/workspace');
 }
 
 export async function signUpAction(

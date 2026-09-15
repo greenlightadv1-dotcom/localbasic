@@ -11,8 +11,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/';
-  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const next = searchParams.get('next') ?? '/workspace';
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/workspace';
 
   if (!code) return NextResponse.redirect(`${origin}/sign-in`);
 
