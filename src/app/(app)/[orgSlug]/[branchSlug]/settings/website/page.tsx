@@ -56,6 +56,12 @@ export default async function WebsiteSettingsPage({
           <p className="break-all rounded bg-surface px-3 py-2 font-mono text-xs text-fg" dir="ltr">
             {url}
           </p>
+          <Link
+            href={`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/website/builder`}
+            className="inline-flex h-11 w-full items-center justify-center rounded border border-line bg-elevated px-5 text-sm font-semibold text-fg hover:bg-surface"
+          >
+            افتح محرّر الموقع
+          </Link>
           {settings.enabled ? (
             <Link
               href={`/r/${ctx.organizationSlug}`}

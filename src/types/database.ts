@@ -1677,6 +1677,78 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_website_revisions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          version: number;
+          sections: Json;
+          theme: Json;
+          is_live: boolean;
+          published_at: string;
+          published_by: string | null;
+          note: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          version: number;
+          sections: Json;
+          theme?: Json;
+          is_live?: boolean;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          version?: number;
+          sections?: Json;
+          theme?: Json;
+          is_live?: boolean;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
+      restaurant_website_sections: {
+        Row: {
+          id: string;
+          organization_id: string;
+          section_type: string;
+          sort_order: number;
+          enabled: boolean;
+          config: Json;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          section_type: string;
+          sort_order?: number;
+          enabled?: boolean;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          section_type?: string;
+          sort_order?: number;
+          enabled?: boolean;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
       retail_categories: {
         Row: {
           id: string;
@@ -2315,7 +2387,10 @@ export type Database = {
       restaurant_set_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_branches: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_layout: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_menu: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_publish: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_unpublish: { Args: Record<string, unknown>; Returns: Json };
       retail_create_return: { Args: Record<string, unknown>; Returns: Json };
       retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };

@@ -6,6 +6,9 @@ import {
   type Website, type PublicBranch, type MenuCategory, type OpeningDay,
 } from '@/modules/restaurant/website/service';
 import { FavoriteButton } from './account/forms';
+import {
+  DEFAULT_THEME, type SectionConfig, type Theme,
+} from '@/modules/restaurant/website/builder-shared';
 
 /**
  * Presentation for the public restaurant website.
@@ -15,14 +18,53 @@ import { FavoriteButton } from './account/forms';
  * ordering flow, which is D1's and lives on its own route.
  */
 
-/** Restaurant colours applied as CSS variables, scoped to this subtree. */
-export function brandStyle(site: Website): React.CSSProperties {
-  return {
+const FONT_STACKS: Record<Theme['font'], string> = {
+  system: '',
+  cairo: '"Cairo", system-ui, sans-serif',
+  tajawal: '"Tajawal", system-ui, sans-serif',
+  'ibm-plex-arabic': '"IBM Plex Sans Arabic", system-ui, sans-serif',
+};
+
+const BUTTON_RADIUS: Record<Theme['buttonStyle'], string> = {
+  rounded: '0.375rem',
+  square: '0',
+  pill: '9999px',
+};
+
+/**
+ * Restaurant colours and theme applied as CSS variables, scoped to this
+ * subtree.
+ *
+ * Every value here comes from a validated enum or a hex literal — the database
+ * refuses anything else — so this object can only ever contain a colour, a
+ * length or a font name from a fixed list. No tenant string reaches a
+ * stylesheet unvalidated.
+ */
+export function brandStyle(site: Website, theme: Theme = DEFAULT_THEME): React.CSSProperties {
+  const style: Record<string, string> = {
     // Tailwind reads these through rgb(var(--lb-*)), so a restaurant's own
-    // palette flows into every token without a rebuild.
-    ['--lb-primary' as string]: hexToRgb(site.primaryColor),
-    ['--lb-accent' as string]: hexToRgb(site.secondaryColor),
+    // palette flows into every token without a rebuild. A theme colour wins
+    // over the branding colour when one is set.
+    ['--lb-primary']: hexToRgb(theme.primaryColor ?? site.primaryColor),
+    ['--lb-accent']: hexToRgb(theme.accentColor ?? site.secondaryColor),
+    ['--lb-btn-radius']: BUTTON_RADIUS[theme.buttonStyle],
   };
+  if (FONT_STACKS[theme.font]) style['fontFamily'] = FONT_STACKS[theme.font];
+  return style as React.CSSProperties;
+}
+
+/** The page background, from the theme's three presets. */
+export function backgroundClass(theme: Theme = DEFAULT_THEME): string {
+  return theme.background === 'dark'
+    ? 'bg-fg text-white'
+    : theme.background === 'warm'
+      ? 'bg-[rgb(var(--lb-accent)/0.06)]'
+      : 'bg-bg';
+}
+
+/** Container width, from the theme's two presets. */
+export function containerClass(theme: Theme = DEFAULT_THEME): string {
+  return theme.width === 'wide' ? 'max-w-7xl' : 'max-w-5xl';
 }
 
 function hexToRgb(hex: string): string {
@@ -112,21 +154,28 @@ export function SiteHeader({
 }
 
 export function Hero({
-  site, orgSlug, branch,
+  site, orgSlug, branch, config = {},
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
+  /** Builder content. Empty for a restaurant on the default layout. */
+  config?: SectionConfig;
 }) {
-  const canOrder = Boolean(branch?.orderingEnabled);
+  // The order button still depends on the branch's real ordering settings: the
+  // builder decides whether to OFFER it, never whether it is allowed.
+  const canOrder = Boolean(branch?.orderingEnabled) && config.showOrderButton !== false;
+  const heroImage = config.imageUrl || site.heroUrl;
+  const heading = config.title || site.organizationName;
+  const tagline = config.subtitle ?? site.tagline;
 
   return (
     <section className="relative overflow-hidden border-b border-line">
-      {site.heroUrl ? (
+      {heroImage ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={site.heroUrl}
+            src={heroImage}
             alt=""
             aria-hidden
             className="absolute inset-0 h-full w-full object-cover"
@@ -141,18 +190,18 @@ export function Hero({
       )}
 
       <div className="relative mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className={cn('max-w-2xl space-y-5', site.heroUrl && 'text-white')}>
+        <div className={cn('max-w-2xl space-y-5', heroImage && 'text-white')}>
           <h1
             className={cn(
               'text-3xl font-extrabold leading-[1.25] sm:text-5xl',
-              site.heroUrl ? 'text-white' : 'text-fg',
+              heroImage ? 'text-white' : 'text-fg',
             )}
           >
-            {site.organizationName}
+            {heading}
           </h1>
-          {site.tagline ? (
-            <p className={cn('text-lg leading-relaxed', site.heroUrl ? 'text-white/90' : 'text-muted')}>
-              {site.tagline}
+          {tagline ? (
+            <p className={cn('text-lg leading-relaxed', heroImage ? 'text-white/90' : 'text-muted')}>
+              {tagline}
             </p>
           ) : null}
 
@@ -160,16 +209,18 @@ export function Hero({
             {canOrder && branch ? (
               <Link
                 href={`/order/${orgSlug}/${branch.slug}`}
-                className="inline-flex h-12 items-center justify-center rounded bg-primary px-7 text-base font-semibold text-primary-fg transition-colors hover:bg-primary/90"
+                style={{ borderRadius: 'var(--lb-btn-radius)' }}
+                className="inline-flex h-12 items-center justify-center bg-primary px-7 text-base font-semibold text-primary-fg transition-colors hover:bg-primary/90"
               >
-                اطلب الآن
+                {config.buttonLabel || 'اطلب الآن'}
               </Link>
             ) : null}
             <a
               href="#menu"
+              style={{ borderRadius: 'var(--lb-btn-radius)' }}
               className={cn(
-                'inline-flex h-12 items-center justify-center rounded border px-7 text-base font-semibold transition-colors',
-                site.heroUrl
+                'inline-flex h-12 items-center justify-center border px-7 text-base font-semibold transition-colors',
+                heroImage
                   ? 'border-white/40 text-white hover:bg-white/10'
                   : 'border-line bg-elevated text-fg hover:bg-surface',
               )}
@@ -179,7 +230,7 @@ export function Hero({
           </div>
 
           {!canOrder ? (
-            <p className={cn('pt-1 text-sm', site.heroUrl ? 'text-white/80' : 'text-muted')}>
+            <p className={cn('pt-1 text-sm', heroImage ? 'text-white/80' : 'text-muted')}>
               الطلب أونلاين غير متاح حاليًا. يمكنك تصفّح المنيو والتواصل معنا مباشرة.
             </p>
           ) : null}
@@ -189,13 +240,24 @@ export function Hero({
   );
 }
 
-export function About({ site }: { site: Website }) {
-  if (!site.about) return null;
+export function About({ site, config = {} }: { site: Website; config?: SectionConfig }) {
+  const body = config.body || site.about;
+  if (!body) return null;
   return (
-    <section className="border-b border-line py-14">
+    <section id="about" className="border-b border-line py-14">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
-        <h2 className="mb-3 text-xl font-extrabold text-fg">عن المطعم</h2>
-        <p className="whitespace-pre-line text-base leading-relaxed text-muted">{site.about}</p>
+        <h2 className="mb-3 text-xl font-extrabold text-fg">{config.title || 'عن المطعم'}</h2>
+        {config.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- tenant images
+          // are arbitrary remote https URLs; next/image needs every host listed.
+          <img
+            src={config.imageUrl}
+            alt=""
+            loading="lazy"
+            className="mb-4 h-56 w-full rounded-lg object-cover"
+          />
+        ) : null}
+        <p className="whitespace-pre-line text-base leading-relaxed text-muted">{body}</p>
       </div>
     </section>
   );
@@ -244,7 +306,7 @@ export function BranchPicker({
 }
 
 export function Menu({
-  categories, site, orgSlug, branch, signedIn, favoriteIds,
+  categories, site, orgSlug, branch, signedIn, favoriteIds, config = {},
 }: {
   categories: MenuCategory[];
   site: Website;
@@ -253,12 +315,20 @@ export function Menu({
   signedIn: boolean;
   /** Which products this customer has already saved. Empty when signed out. */
   favoriteIds: Set<string>;
+  /**
+   * Builder content. It decides the heading and whether prices are shown —
+   * never the prices themselves, which come from the authoritative menu and
+   * are re-read by the server at checkout regardless of anything here.
+   */
+  config?: SectionConfig;
 }) {
+  const heading = config.title || 'المنيو';
+  const showPrices = config.showPrices !== false;
   if (categories.length === 0) {
     return (
       <section id="menu" className="border-b border-line py-14">
         <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
-          <h2 className="mb-2 text-xl font-extrabold text-fg">المنيو</h2>
+          <h2 className="mb-2 text-xl font-extrabold text-fg">{heading}</h2>
           <p className="text-sm text-muted">لم يُضَف المنيو بعد.</p>
         </div>
       </section>
@@ -268,7 +338,10 @@ export function Menu({
   return (
     <section id="menu" className="border-b border-line py-14">
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <h2 className="mb-4 text-xl font-extrabold text-fg">المنيو</h2>
+        <h2 className="mb-1 text-xl font-extrabold text-fg">{heading}</h2>
+        {config.subtitle ? (
+          <p className="mb-4 text-sm text-muted">{config.subtitle}</p>
+        ) : null}
 
         {/* Category jump-links. A scrollable strip on a phone; wraps on wider
             screens. Anchors rather than state, so it costs no JavaScript. */}
@@ -311,15 +384,17 @@ export function Menu({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-semibold text-fg">{p.name}</h4>
-                        <span className="shrink-0 font-bold text-fg">
-                          {p.variants.length > 1 ? 'من ' : ''}
-                          {formatMoney(p.fromPriceCents, site.currency)}
-                        </span>
+                        {showPrices ? (
+                          <span className="shrink-0 font-bold text-fg">
+                            {p.variants.length > 1 ? 'من ' : ''}
+                            {formatMoney(p.fromPriceCents, site.currency)}
+                          </span>
+                        ) : null}
                       </div>
                       {p.description ? (
                         <p className="mt-1 text-sm leading-relaxed text-muted">{p.description}</p>
                       ) : null}
-                      {p.variants.length > 1 ? (
+                      {p.variants.length > 1 && showPrices ? (
                         <ul className="mt-2 flex flex-wrap gap-1.5">
                           {p.variants.map((v) => (
                             <li
@@ -375,18 +450,23 @@ export function Menu({
   );
 }
 
-export function Location({ branches }: { branches: PublicBranch[] }) {
+export function Location({
+  branches, config = {},
+}: {
+  branches: PublicBranch[];
+  config?: SectionConfig;
+}) {
   return (
     <section id="location" className="border-b border-line bg-surface py-14">
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <h2 className="mb-4 text-xl font-extrabold text-fg">
-          {branches.length > 1 ? 'فروعنا' : 'أين نحن'}
+          {config.title || (branches.length > 1 ? 'فروعنا' : 'أين نحن')}
         </h2>
         <ul className="grid gap-3 sm:grid-cols-2">
           {branches.map((b) => (
             <li key={b.slug} className="rounded-lg border border-line bg-elevated p-4">
               <h3 className="font-bold text-fg">{b.name}</h3>
-              {b.address ? (
+              {b.address && config.showAddresses !== false ? (
                 <p className="mt-1 text-sm leading-relaxed text-muted">{b.address}</p>
               ) : null}
               {b.phone ? (
@@ -406,12 +486,19 @@ export function Location({ branches }: { branches: PublicBranch[] }) {
   );
 }
 
-export function Hours({ hours }: { hours: OpeningDay[] | null }) {
+export function Hours({
+  hours, config = {},
+}: {
+  hours: OpeningDay[] | null;
+  config?: SectionConfig;
+}) {
   if (!hours || hours.length !== 7) return null;
   return (
-    <section className="border-b border-line py-14">
+    <section id="hours" className="border-b border-line py-14">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
-        <h2 className="mb-4 text-xl font-extrabold text-fg">مواعيد العمل</h2>
+        <h2 className="mb-4 text-xl font-extrabold text-fg">
+          {config.title || 'مواعيد العمل'}
+        </h2>
         <dl className="divide-y divide-line rounded-lg border border-line bg-elevated">
           {hours.map((d, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
@@ -427,15 +514,22 @@ export function Hours({ hours }: { hours: OpeningDay[] | null }) {
   );
 }
 
-export function Contact({ site }: { site: Website }) {
-  const wa = site.whatsapp?.replace(/[^\d]/g, '');
-  if (!site.phone && !wa && !site.email) return null;
+export function Contact({ site, config = {} }: { site: Website; config?: SectionConfig }) {
+  // A channel is shown only when the restaurant published it AND the builder
+  // left it on. Turning one off here hides it; it never invents one.
+  const wa = config.showWhatsapp === false ? null : site.whatsapp?.replace(/[^\d]/g, '');
+  const phone = config.showPhone === false ? null : site.phone;
+  const email = config.showEmail === false ? null : site.email;
+  if (!phone && !wa && !email) return null;
 
   return (
     <section id="contact" className="border-b border-line bg-surface py-14">
       <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="mb-4 text-xl font-extrabold text-fg">تواصل معنا</h2>
-        <div className="flex flex-wrap justify-center gap-3">
+        <h2 className="mb-1 text-xl font-extrabold text-fg">
+          {config.title || 'تواصل معنا'}
+        </h2>
+        {config.subtitle ? <p className="mb-4 text-sm text-muted">{config.subtitle}</p> : null}
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
           {wa ? (
             <a
               href={`https://wa.me/${wa}`}
@@ -446,23 +540,107 @@ export function Contact({ site }: { site: Website }) {
               واتساب
             </a>
           ) : null}
-          {site.phone ? (
+          {phone ? (
             <a
-              href={`tel:${site.phone}`}
+              href={`tel:${phone}`}
               className="inline-flex h-12 items-center justify-center rounded border border-line bg-elevated px-6 text-base font-semibold text-fg transition-colors hover:bg-surface"
             >
               اتصل بنا
             </a>
           ) : null}
-          {site.email ? (
+          {email ? (
             <a
-              href={`mailto:${site.email}`}
+              href={`mailto:${email}`}
               className="inline-flex h-12 items-center justify-center rounded border border-line bg-elevated px-6 text-base font-semibold text-fg transition-colors hover:bg-surface"
             >
               راسلنا
             </a>
           ) : null}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A gallery of images the restaurant supplied as https URLs.
+ *
+ * There is no upload here: this phase stores validated URLs and nothing else,
+ * so there is no file-handling surface to get wrong. Every URL passed both the
+ * Zod schema and the database check before it could be stored.
+ */
+export function Gallery({ config = {} }: { config?: SectionConfig }) {
+  const images = config.images ?? [];
+  if (images.length === 0) return null;
+
+  return (
+    <section id="gallery" className="border-b border-line py-14">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <h2 className="mb-4 text-xl font-extrabold text-fg">{config.title || 'صور'}</h2>
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {images.map((src, i) => (
+            <li key={`${src}-${i}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- tenant
+                  images are arbitrary remote https URLs; next/image would need
+                  every host allowlisted. */}
+              <img
+                src={src}
+                alt=""
+                loading="lazy"
+                className="h-40 w-full rounded-lg object-cover sm:h-48"
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A closing invitation.
+ *
+ * The destination is one of four fixed choices, never a URL the restaurant
+ * types — an arbitrary target would turn the site into an open redirect on the
+ * restaurant's own address.
+ */
+export function Cta({
+  orgSlug, branch, config = {},
+}: {
+  orgSlug: string;
+  branch: PublicBranch | null;
+  config?: SectionConfig;
+}) {
+  const target = config.buttonTarget ?? 'order';
+  const canOrder = Boolean(branch?.orderingEnabled);
+
+  // An order CTA with nowhere to order is not shown at all, rather than
+  // linking a visitor to a page that will refuse them.
+  if (target === 'order' && (!canOrder || !branch)) return null;
+
+  const href =
+    target === 'order' && branch
+      ? `/order/${orgSlug}/${branch.slug}`
+      : target === 'menu'
+        ? '#menu'
+        : target === 'contact'
+          ? '#contact'
+          : '#location';
+
+  return (
+    <section className="border-b border-line bg-primary-soft py-14">
+      <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+        <h2 className="text-2xl font-extrabold text-fg">{config.title || 'جاهز تطلب؟'}</h2>
+        {config.subtitle ? (
+          <p className="mt-2 text-base leading-relaxed text-muted">{config.subtitle}</p>
+        ) : null}
+        <Link
+          href={href}
+          style={{ borderRadius: 'var(--lb-btn-radius)' }}
+          className="mt-5 inline-flex h-12 items-center justify-center bg-primary px-8 text-base font-semibold text-primary-fg transition-colors hover:bg-primary/90"
+        >
+          {config.buttonLabel || 'اطلب الآن'}
+        </Link>
       </div>
     </section>
   );
