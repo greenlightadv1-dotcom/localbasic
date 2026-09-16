@@ -1677,6 +1677,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_website_domains: {
+        Row: {
+          id: string;
+          organization_id: string;
+          hostname: string;
+          normalized_hostname: string;
+          status: string;
+          is_primary: boolean;
+          verification_method: string;
+          verification_token_hash: string;
+          verification_attempted_at: string | null;
+          verification_error: string | null;
+          verified_at: string | null;
+          activated_at: string | null;
+          disabled_at: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          hostname: string;
+          normalized_hostname: string;
+          status?: string;
+          is_primary?: boolean;
+          verification_method?: string;
+          verification_token_hash: string;
+          verification_attempted_at?: string | null;
+          verification_error?: string | null;
+          verified_at?: string | null;
+          activated_at?: string | null;
+          disabled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          hostname?: string;
+          normalized_hostname?: string;
+          status?: string;
+          is_primary?: boolean;
+          verification_method?: string;
+          verification_token_hash?: string;
+          verification_attempted_at?: string | null;
+          verification_error?: string | null;
+          verified_at?: string | null;
+          activated_at?: string | null;
+          disabled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
       restaurant_website_revisions: {
         Row: {
           id: string;
@@ -2356,6 +2413,7 @@ export type Database = {
       platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_audit: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_branches: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_domains: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_modules: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_dashboard_stats: { Args: Record<string, unknown>; Returns: Json };
@@ -2369,6 +2427,13 @@ export type Database = {
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_create_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_add: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_record_verification: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_remove: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_resolve: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_set_primary: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
       restaurant_issue_table_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_cancel_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_edit_order: { Args: Record<string, unknown>; Returns: Json };

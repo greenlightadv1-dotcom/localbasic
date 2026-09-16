@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   getOrganizationByCode, listSubscriptionHistory, listPlans,
-  listCustomerBranches, listCustomerModules, listCustomerAudit,
+  listCustomerBranches, listCustomerModules, listCustomerAudit, listCustomerDomains,
 } from '@/modules/platform/billing/service';
 import {
   AdminHeading, Panel, CustomerCode, ExpiryBadge, StatusBadge,
@@ -72,12 +72,13 @@ export default async function CustomerProfilePage({
   if (!org) notFound();
   const justCreated = searchParams.created === '1';
 
-  const [history, plans, branches, modules, audit] = await Promise.all([
+  const [history, plans, branches, modules, audit, domains] = await Promise.all([
     listSubscriptionHistory(org.id),
     listPlans(),
     listCustomerBranches(code),
     listCustomerModules(code),
     listCustomerAudit(code, 30),
+    listCustomerDomains(code),
   ]);
 
   const currentPlanId = plans.find((p) => p.key === org.planKey)?.id ?? null;
@@ -188,6 +189,43 @@ export default async function CustomerProfilePage({
               )}
             </div>
           </dl>
+        </Panel>
+
+        <Panel>
+          <h2 className="border-b border-line px-5 py-3 text-sm font-bold text-fg">
+            النطاقات
+            <span className="ms-2 font-normal text-muted">للاطلاع فقط</span>
+          </h2>
+          {domains.length === 0 ? (
+            <p className="px-5 py-6 text-center text-sm text-muted">
+              لا توجد نطاقات مخصّصة.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {domains.map((d) => (
+                <li key={d.hostname} className="flex flex-wrap items-center gap-2 px-5 py-2.5">
+                  <span className="font-mono text-fg" dir="ltr">{d.hostname}</span>
+                  {d.isPrimary ? (
+                    <span className="rounded bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">
+                      الأساسي
+                    </span>
+                  ) : null}
+                  <span
+                    className={
+                      'ms-auto rounded px-2 py-0.5 text-xs font-semibold ' +
+                      (d.status === 'active'
+                        ? 'bg-success/15 text-success'
+                        : d.status === 'disabled'
+                          ? 'bg-danger/10 text-danger'
+                          : 'bg-warn/15 text-warn')
+                    }
+                  >
+                    {d.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
 
         <Panel>

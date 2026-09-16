@@ -2,20 +2,88 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 /**
- * Middleware does two jobs and no more:
- *   1. refresh the Supabase session cookie so Server Components see a live user
- *   2. attach security headers, including a nonce-based CSP
+ * Middleware does three jobs and no more:
+ *   1. route custom-domain traffic to the restaurant website
+ *   2. refresh the Supabase session cookie so Server Components see a live user
+ *   3. attach security headers, including a nonce-based CSP
  *
  * Authorization is NOT done here. Middleware cannot be the security boundary —
  * services and RLS are. It only keeps the session fresh and the headers tight.
  */
+
+/**
+ * Paths that keep their meaning on every hostname.
+ *
+ * These carry their own identifiers — an order route names its restaurant and
+ * branch, a QR token names its link — so they work unchanged on a custom
+ * domain and must not be rewritten into the website subtree.
+ */
+const HOST_NEUTRAL_PREFIXES = ['/_next', '/api', '/order', '/p/', '/r/', '/account/join'];
+
+/**
+ * Is this request arriving on one of LocalBasic's own addresses?
+ *
+ * Anything else is a candidate custom domain. Deliberately generous: a host we
+ * fail to recognise is rewritten to the resolver, which returns not-found for
+ * a hostname no restaurant has activated. The cost of a false positive is a
+ * 404; the cost of a false negative would be a customer's domain serving the
+ * marketing site.
+ */
+function isPlatformHost(host: string): boolean {
+  if (!host) return true;
+  const bare = host.split(':')[0]!.toLowerCase();
+
+  if (bare === 'localhost' || bare === '127.0.0.1' || bare === '[::1]') return true;
+  if (bare.endsWith('.vercel.app')) return true;
+
+  try {
+    const appHost = new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').hostname;
+    if (bare === appHost.toLowerCase()) return true;
+  } catch {
+    // A malformed NEXT_PUBLIC_APP_URL should not decide routing; fall through.
+  }
+  return false;
+}
 export async function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
 
-  let response = NextResponse.next({ request: { headers: requestHeaders } });
+  // ---------------------------------------------------------------------
+  // Custom domains.
+  //
+  // No database work happens here. Middleware runs on the edge, where the
+  // local development adapter cannot, and a lookup on every request would
+  // cost a round trip just to serve the platform's own traffic. Instead the
+  // host — taken from the request, not from anything the page will later
+  // read — is written into the rewritten path, and a Node-runtime route
+  // resolves it.
+  //
+  // Putting the host in the path also means the render layer never has to
+  // trust a header: the value it reads is one middleware put there.
+  //
+  // This produces `response` rather than returning early, so custom-domain
+  // traffic still gets the session refresh and the security headers below.
+  // ---------------------------------------------------------------------
+  const host = (request.headers.get('host') ?? request.nextUrl.host).toLowerCase();
+  const path = request.nextUrl.pathname;
+  const isCustomDomain =
+    !isPlatformHost(host)
+    && !HOST_NEUTRAL_PREFIXES.some((p) => path === p || path.startsWith(p));
+
+  let response: NextResponse;
+  if (isCustomDomain) {
+    const url = request.nextUrl.clone();
+    // Everything else on a custom domain is website traffic. A path that is
+    // neither the root nor a branch slug resolves to not-found there, so the
+    // marketing site, the sign-in page, the workspace and /admin are simply
+    // not served on a customer's domain.
+    url.pathname = `/site/${host.split(':')[0]}${path === '/' ? '' : path}`;
+    response = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  } else {
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // The local development adapter has no Supabase session to refresh; security
   // headers below still apply. Never active in production.

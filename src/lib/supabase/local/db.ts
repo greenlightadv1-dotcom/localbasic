@@ -132,6 +132,43 @@ export async function getJsonbColumns(): Promise<Map<string, Set<string>>> {
   return map;
 }
 
+/**
+ * Which arguments of each `public` function are json or jsonb.
+ *
+ * PostgREST serialises an RPC body as JSON, so a jsonb argument arrives
+ * already encoded while a text[] argument arrives as a real array. The adapter
+ * has to make the same distinction: JSON-encoding everything object-shaped
+ * turns a text[] into a string literal the parameter cannot accept.
+ *
+ * Keyed by function name, holding the argument names that are json or jsonb.
+ */
+let jsonbArguments: Map<string, Set<string>> | null = null;
+
+export async function getJsonbArguments(): Promise<Map<string, Set<string>>> {
+  if (jsonbArguments) return jsonbArguments;
+  const { rows } = await getPool().query<{ fn: string; arg: string }>(`
+    select p.proname as fn, arg.name as arg
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace,
+    lateral unnest(
+      coalesce(p.proallargtypes::oid[], p.proargtypes::oid[]),
+      coalesce(p.proargnames, array[]::text[])
+    ) as arg(type_oid, name)
+    join pg_type t on t.oid = arg.type_oid
+    where n.nspname = 'public' and t.typname in ('json', 'jsonb')
+  `);
+
+  const map = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (!r.arg) continue;
+    const set = map.get(r.fn) ?? new Set<string>();
+    set.add(r.arg);
+    map.set(r.fn, set);
+  }
+  jsonbArguments = map;
+  return map;
+}
+
 export async function getRelationships(): Promise<Relationship[]> {
   if (relationships) return relationships;
   const { rows } = await getPool().query<Relationship>(`

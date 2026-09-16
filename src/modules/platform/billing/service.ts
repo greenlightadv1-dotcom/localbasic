@@ -242,6 +242,46 @@ export async function listCustomerAudit(code: string, limit = 50): Promise<Audit
   }));
 }
 
+export type CustomerDomain = {
+  hostname: string;
+  status: string;
+  isPrimary: boolean;
+  verifiedAt: string | null;
+  activatedAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * A customer's custom domains, read-only.
+ *
+ * The operator needs to answer "why is this customer's domain not working".
+ * They do not get a way to change it: domain management stays with the tenant,
+ * and no tenant permission is granted here. The projection carries no
+ * verification material — not even the hash.
+ */
+export async function listCustomerDomains(code: string): Promise<CustomerDomain[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_customer_domains', {
+    p_customer_code: code.trim(),
+  });
+  if (error) throw error;
+
+  type Row = {
+    hostname: string; status: string; is_primary: boolean;
+    verified_at: string | null; activated_at: string | null; created_at: string;
+  };
+  return rows<Row>(data).map((r) => ({
+    hostname: r.hostname,
+    status: r.status,
+    isPrimary: Boolean(r.is_primary),
+    verifiedAt: r.verified_at,
+    activatedAt: r.activated_at,
+    createdAt: r.created_at,
+  }));
+}
+
 export type DashboardStats = {
   totalCustomers: number;
   activeCustomers: number;

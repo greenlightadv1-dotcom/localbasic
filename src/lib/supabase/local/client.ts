@@ -1,6 +1,6 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { withAuthConnection, withSession } from './db';
+import { getJsonbArguments, withAuthConnection, withSession } from './db';
 import { LocalQuery, type PostgrestResult } from './query';
 
 /**
@@ -130,10 +130,17 @@ class LocalClient {
 
     const execute = async (): Promise<PostgrestResult<unknown>> => {
       try {
+        // Encode a value the way PostgREST would: a json/jsonb argument
+        // arrives already JSON-encoded, everything else arrives as itself.
+        // Encoding every object would turn a text[] argument into a string
+        // literal the parameter cannot accept, which is why the function's
+        // declared argument types decide rather than the value's shape.
+        const jsonArgs = (await getJsonbArguments()).get(fn.replace(/^public\./, ''));
         const placeholders = keys.map((key, index) => `${key} => $${index + 1}`);
         const values = keys.map((key) => {
           const value = args[key];
-          return value !== null && typeof value === 'object' ? JSON.stringify(value) : value;
+          if (value === null || value === undefined) return null;
+          return jsonArgs?.has(key) ? JSON.stringify(value) : value;
         });
 
         const rows = await withSession(userId, async (client) => {
