@@ -1,9 +1,11 @@
 import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 import { AppError } from '@/lib/errors';
-import { challengeName, getDomainVerifier } from './domain-verifier';
+import { getDomainVerifier } from './domain-verifier';
 import { DOMAIN_STATUSES, type DomainStatus, type WebsiteDomain } from './domains-shared';
 
 export * from './domains-shared';
@@ -19,6 +21,12 @@ export * from './domains-shared';
  * TXT records exist and hands those values to the database, which hashes them
  * against the stored challenge. This layer never decides that a domain is
  * verified — it cannot, because it does not hold the hash.
+ *
+ * Nor does the browser get a say in what is looked up. The hostname comes back
+ * from the database, the observed values come back from the resolver, and the
+ * function that records the outcome is granted to `service_role` alone, so
+ * there is no request a client could craft that reaches it. See
+ * `supabase/migrations/0044_domain_verification_hardening.sql`.
  */
 
 /**
@@ -105,33 +113,79 @@ export async function addDomain(
 /**
  * Verify ownership.
  *
- * Looks the TXT records up for real and passes what DNS returned to the
- * database. A failed lookup is reported as a failed attempt — never as a
- * silent success, and never as a verification.
+ * The whole point of this function is that nothing a client sends decides the
+ * outcome. In order:
+ *
+ *   1. `settings.manage` is checked against the caller's own session.
+ *   2. The database is asked, AS THE CALLER, which hostname this domain id
+ *      belongs to. A domain that is not this restaurant's yields nothing and
+ *      the function stops — so a stolen id verifies nothing, and the caller
+ *      cannot aim the lookup at a hostname of their choosing.
+ *   3. The resolver is asked what TXT records exist at that name.
+ *   4. Those values, and only those, go to the database over the service-role
+ *      client, because `restaurant_domain_record_verification` is executable
+ *      by `service_role` and by no other role.
+ *
+ * A failed lookup is recorded as a failed attempt — never as a silent success,
+ * and never as a verification.
  */
 export async function verifyDomain(
   ctx: TenantContext,
   id: unknown,
-  hostname: string,
 ): Promise<{ verified: boolean; status: DomainStatus; error: string | null }> {
   requirePermission(ctx, 'settings.manage');
   const parsed = domainId.safeParse(id);
   if (!parsed.success) throw new AppError('validation');
 
+  // Each attempt costs an outbound DNS query, so the button cannot be used as
+  // a lookup amplifier. Limited per domain — re-checking one name in a loop is
+  // the shape of abuse — and again per user, so that adding domains does not
+  // multiply the per-domain allowance away. Both are roomy enough for someone
+  // refreshing while a TXT record propagates.
+  for (const [key, rule] of [
+    [`domain-verify:${parsed.data}`, RATE_LIMITS.domainVerify],
+    [`domain-verify-user:${ctx.organizationId}:${ctx.userId}`, RATE_LIMITS.domainVerifyUser],
+  ] as const) {
+    if (!checkRateLimit(key, rule).ok) {
+      throw new AppError('rate_limited', 'محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.');
+    }
+  }
+
+  const supabase = createSupabaseServerClient();
+
+  // Step 2 — the hostname comes from the table, under the caller's session.
+  const { data: target, error: targetError } = await supabase.rpc(
+    'restaurant_domain_verification_target',
+    { p_org_slug: ctx.organizationSlug, p_domain_id: parsed.data },
+  );
+  if (targetError) throw new AppError('validation', targetError.message);
+
+  const targetRow = rows<{ out_hostname: string; out_challenge_name: string }>(target)[0];
+  if (!targetRow?.out_challenge_name) {
+    // Not this restaurant's domain, or no such domain. The same answer for
+    // both, so a probe learns nothing from the difference.
+    throw new AppError('not_found');
+  }
+
+  // Step 3 — the only values that will be compared.
   let values: string[] = [];
   let lookupError: string | null = null;
   try {
-    values = await getDomainVerifier().lookupTxt(challengeName(hostname));
+    values = await getDomainVerifier().lookupTxt(targetRow.out_challenge_name);
   } catch (error) {
     lookupError = error instanceof Error ? error.message : 'تعذّر الاستعلام عن DNS';
   }
 
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('restaurant_domain_record_verification', {
+  // Step 4 — the trusted write. This is the one place in the application that
+  // uses the service-role client, and it passes the actor explicitly because
+  // there is no session for the database to read on this path.
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc('restaurant_domain_record_verification', {
     p_org_slug: ctx.organizationSlug,
     p_domain_id: parsed.data,
     p_txt_values: values,
     p_error: lookupError,
+    p_actor_id: ctx.userId,
   });
   if (error) throw new AppError('validation', error.message);
 

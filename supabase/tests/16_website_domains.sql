@@ -208,6 +208,10 @@ begin
   -- ==========================================================================
   -- 5. Verification compares hashes; a wrong value proves nothing
   -- ==========================================================================
+  -- Since 0044 the write is granted to `service_role` alone: these calls stand
+  -- in for the server-side action that performed the DNS lookup. Suite 17
+  -- proves that `authenticated` and `anon` cannot make them at all.
+  perform auth.as_service_role();
   select out_verified into ok
     from public.restaurant_domain_record_verification('domalpha', dom_a, array['wrong']);
   assert not ok, 'FAIL: a wrong TXT value verified the domain';
@@ -215,6 +219,7 @@ begin
   select out_verified into ok
     from public.restaurant_domain_record_verification('domalpha', dom_a, array[]::text[]);
   assert not ok, 'FAIL: an empty lookup verified the domain';
+  perform auth.login_as(u_a);
 
   -- The attempt is recorded either way, so a verified domain always has a
   -- timestamped attempt behind it.
@@ -223,8 +228,10 @@ begin
   assert n = 1, 'FAIL: a failed attempt was not recorded';
 
   -- The real value, as a DNS provider would return it — quoted.
+  perform auth.as_service_role();
   select out_status, out_verified into r
     from public.restaurant_domain_record_verification('domalpha', dom_a, array['"' || tok_a || '"']);
+  perform auth.login_as(u_a);
   assert r.out_verified, 'FAIL: the correct TXT value did not verify';
   assert r.out_status = 'verified', format('FAIL: status is %s after verifying', r.out_status);
 
@@ -308,10 +315,12 @@ begin
     exception when others then ok := true; end;
     assert ok, format('FAIL: tenant B disabled tenant A''s domain via %s', msg);
 
-    ok := false;
-    begin perform public.restaurant_domain_record_verification(msg, dom_a, array['x']);
-    exception when others then ok := true; end;
-    assert ok, format('FAIL: tenant B attempted verification on tenant A''s domain via %s', msg);
+    -- Tenant B cannot even learn what to look up, which is as far as a
+    -- client gets: the write itself is service-role only (suite 17).
+    select count(*) into n
+      from public.restaurant_domain_verification_target(msg, dom_a);
+    assert n = 0,
+      format('FAIL: tenant B got a verification target for tenant A''s domain via %s', msg);
 
     ok := false;
     begin perform public.restaurant_domain_set_primary(msg, dom_a);
@@ -388,9 +397,10 @@ begin
   assert ok, 'FAIL: a disabled domain was claimable by another restaurant';
 
   -- The owner can bring it back: disabled → verified → active.
-  perform auth.login_as(u_a);
+  perform auth.as_service_role();
   select out_verified into ok
     from public.restaurant_domain_record_verification('domalpha', dom_a, array[tok_a]);
+  perform auth.login_as(u_a);
   assert ok, 'FAIL: a disabled domain could not be re-verified';
   perform public.restaurant_domain_set_status('domalpha', dom_a, 'active');
 
@@ -406,7 +416,9 @@ begin
   -- ==========================================================================
   select out_id, out_token into dom_www, tok_www
     from public.restaurant_domain_add('domalpha', 'www.example-restaurant.com');
+  perform auth.as_service_role();
   perform public.restaurant_domain_record_verification('domalpha', dom_www, array[tok_www]);
+  perform auth.login_as(u_a);
   perform public.restaurant_domain_set_status('domalpha', dom_www, 'active');
 
   -- With no primary chosen, neither redirects: both simply render.

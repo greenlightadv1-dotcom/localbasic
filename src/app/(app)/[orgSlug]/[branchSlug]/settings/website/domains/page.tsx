@@ -161,7 +161,6 @@ export default async function DomainsPage({
                             orgSlug={params.orgSlug}
                             branchSlug={params.branchSlug}
                             id={d.id}
-                            hostname={d.hostname}
                           />
                         ) : null}
                         {d.status === 'verified' ? (

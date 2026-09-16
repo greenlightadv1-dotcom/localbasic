@@ -66,19 +66,23 @@ export function AddDomainForm({
   );
 }
 
+/**
+ * The Verify button submits a domain id and nothing else.
+ *
+ * Deliberately: the hostname to look up and the TXT values to compare are
+ * both read server-side, so there is no field here for a client to forge.
+ */
 export function VerifyButton({
-  orgSlug, branchSlug, id, hostname,
+  orgSlug, branchSlug, id,
 }: {
   orgSlug: string;
   branchSlug: string;
   id: string;
-  hostname: string;
 }) {
   return (
-    <form action={verifyDomainAction}>
+    <form action={verifyDomainAction} data-testid="verify-form">
       <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
       <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="hostname" value={hostname} />
       <Submit label="تحقّق الآن" variant="outline" size="sm" />
     </form>
   );

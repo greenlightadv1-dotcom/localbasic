@@ -79,6 +79,17 @@ begin
 end;
 $$;
 
+-- The trusted server-side identity. A request authenticated with the
+-- service-role key arrives as this role with no JWT claims, which is exactly
+-- what a function granted only to `service_role` must see.
+create or replace function auth.as_service_role()
+returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('role', 'service_role', true);
+end;
+$$;
+
 -- Back to the superuser, for fixture setup that must bypass RLS.
 create or replace function auth.as_admin()
 returns void language plpgsql as $$

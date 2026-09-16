@@ -2431,6 +2431,7 @@ export type Database = {
       restaurant_domain_record_verification: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_remove: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_resolve: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_set_primary: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };

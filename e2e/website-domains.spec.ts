@@ -395,3 +395,153 @@ test('the LocalBasic URL still serves the website while a custom domain is activ
   const body = await page.locator('body').innerText();
   expect(body).not.toContain('مطعم الحارة الشامية');
 });
+
+// ---------------------------------------------------------------------------
+// Verification hardening (migration 0044)
+//
+// The claim these prove is narrow and important: clicking Verify causes the
+// SERVER to look up DNS, and nothing the browser sends can decide what is
+// looked up or what comes back.
+// ---------------------------------------------------------------------------
+
+/** Points a domain's stored challenge at the value the DNS fixture publishes. */
+async function pointChallengeAtFixtureToken(hostname: string) {
+  const { rowCount } = await DB.query(
+    `update restaurant_website_domains
+        set verification_token_hash = app.sha256_hex($1)
+      where normalized_hostname = $2`,
+    [TEST_TOKEN, hostname],
+  );
+  expect(rowCount, `domain ${hostname} should exist`).toBe(1);
+}
+
+test('the Verify form gives the browser nothing to forge', async ({ page }) => {
+  await actAs(page, 'owner@demo.local');
+  await page.goto(DOMAINS);
+  await page.getByLabel('اسم النطاق').fill(TEST_HOST);
+  await page.getByRole('button', { name: 'إضافة النطاق' }).click();
+  await expect(page.getByText('لن تظهر هذه القيمة مرة أخرى')).toBeVisible();
+  await page.goto(DOMAINS);
+
+  // Every field the form submits, by name, minus the one Next adds to route
+  // the Server Action. The hostname to look up and the TXT values to compare
+  // are both absent — they are read server-side.
+  const names = await page
+    .getByTestId('verify-form')
+    .locator('input')
+    .evaluateAll((els) =>
+      els
+        .map((e) => (e as HTMLInputElement).name)
+        .filter((n) => !n.startsWith('$ACTION_'))
+        .sort(),
+    );
+
+  expect(names).toEqual(['branchSlug', 'id', 'orgSlug']);
+  expect(names).not.toContain('hostname');
+  expect(names.some((n) => /txt|token|value|record/i.test(n))).toBe(false);
+});
+
+test('a forged hostname field cannot aim the DNS lookup', async ({ page }) => {
+  await actAs(page, 'owner@demo.local');
+  await page.goto(DOMAINS);
+
+  // Two domains. TEST_HOST is the one the DNS fixture publishes a record for;
+  // the other is a hostname this restaurant has no record for at all.
+  const OTHER = 'not-ours.localbasic-e2e.test';
+  for (const host of [TEST_HOST, OTHER]) {
+    await page.getByLabel('اسم النطاق').fill(host);
+    await page.getByRole('button', { name: 'إضافة النطاق' }).click();
+    await expect(page.getByText('لن تظهر هذه القيمة مرة أخرى')).toBeVisible();
+    await page.goto(DOMAINS);
+  }
+
+  // Both challenges now hash to the value the fixture publishes at
+  // _localbasic.<TEST_HOST>. So if the attacker could choose which name is
+  // looked up, OTHER would verify on a record it does not have.
+  await pointChallengeAtFixtureToken(TEST_HOST);
+  await pointChallengeAtFixtureToken(OTHER);
+  await page.reload();
+
+  // Find OTHER's row and inject the field the old flow used to read.
+  const row = page.locator('li', { hasText: OTHER });
+  await row.getByTestId('verify-form').evaluate((form, host) => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'hostname';
+    input.value = host;
+    form.appendChild(input);
+  }, TEST_HOST);
+
+  await row.getByRole('button', { name: 'تحقّق الآن' }).click();
+  await expect(page.getByText('لم نعثر على سجل TXT مطابق بعد')).toBeVisible();
+
+  // The forged field changed nothing: OTHER is still pending, and the
+  // database agrees — this is the assertion that would have failed before.
+  const { rows } = await DB.query(
+    'select status, verified_at from restaurant_website_domains where normalized_hostname = $1',
+    [OTHER],
+  );
+  expect(rows[0].status).toBe('pending');
+  expect(rows[0].verified_at).toBeNull();
+
+  // And the legitimate one still verifies, through the same button, because
+  // the server looks up its own name.
+  const good = page.locator('li', { hasText: new RegExp(`^(?!.*${OTHER}).*${TEST_HOST}`) }).first();
+  await good.getByRole('button', { name: 'تحقّق الآن' }).click();
+  await expect(page.getByText('تم توثيق النطاق.')).toBeVisible();
+});
+
+test('the Verify button reaches the server-side resolver, not a client claim', async ({ page }) => {
+  await actAs(page, 'owner@demo.local');
+  await page.goto(DOMAINS);
+  await page.getByLabel('اسم النطاق').fill(TEST_HOST);
+  await page.getByRole('button', { name: 'إضافة النطاق' }).click();
+  await expect(page.getByText('لن تظهر هذه القيمة مرة أخرى')).toBeVisible();
+  await page.goto(DOMAINS);
+
+  // With the stored challenge NOT matching what the fixture publishes, the
+  // lookup happens and honestly finds nothing that matches.
+  await page.getByRole('button', { name: 'تحقّق الآن' }).click();
+  await expect(page.getByText('لم نعثر على سجل TXT مطابق بعد')).toBeVisible();
+  await expect(page.getByText('بانتظار التوثيق')).toBeVisible();
+
+  // Now the fixture's record is the right one. Nothing about the request
+  // changed — only what DNS answers — and that flips the outcome. A client
+  // claim could not produce this difference.
+  await pointChallengeAtFixtureToken(TEST_HOST);
+  await page.reload();
+  await page.getByRole('button', { name: 'تحقّق الآن' }).click();
+  await expect(page.getByText('تم توثيق النطاق.')).toBeVisible();
+
+  const { rows } = await DB.query(
+    'select status from restaurant_website_domains where normalized_hostname = $1',
+    [TEST_HOST],
+  );
+  expect(rows[0].status).toBe('verified');
+});
+
+test('the verification attempt is audited with the acting user', async ({ page }) => {
+  await actAs(page, 'owner@demo.local');
+  await page.goto(DOMAINS);
+  await page.getByLabel('اسم النطاق').fill(TEST_HOST);
+  await page.getByRole('button', { name: 'إضافة النطاق' }).click();
+  await expect(page.getByText('لن تظهر هذه القيمة مرة أخرى')).toBeVisible();
+  await page.goto(DOMAINS);
+  await page.getByRole('button', { name: 'تحقّق الآن' }).click();
+  await expect(page.getByText('لم نعثر على سجل TXT مطابق بعد')).toBeVisible();
+
+  // The write now runs as the service role, which has no session — so the
+  // actor has to travel explicitly or the audit trail loses who did it.
+  const { rows } = await DB.query(
+    `select a.actor_id, u.email, a.after
+       from audit_logs a
+       join auth.users u on u.id = a.actor_id
+      where a.action = 'restaurant.domain_verification_attempted'
+      order by a.created_at desc limit 1`,
+  );
+  expect(rows[0]?.email).toBe('owner@demo.local');
+  expect(rows[0].after.hostname).toBe(TEST_HOST);
+  expect(rows[0].after.verified).toBe(false);
+  // And no verification material rode along.
+  expect(JSON.stringify(rows[0].after)).not.toContain(TEST_TOKEN);
+});

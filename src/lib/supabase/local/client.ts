@@ -1,6 +1,6 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { getJsonbArguments, withAuthConnection, withSession } from './db';
+import { getJsonbArguments, withAuthConnection, withServiceRole, withSession } from './db';
 import { LocalQuery, type PostgrestResult } from './query';
 
 /**
@@ -111,9 +111,12 @@ class LocalAuth {
 class LocalClient {
   readonly auth = new LocalAuth();
   private readonly userId: string | null;
+  /** True for the service-role client; see `createLocalServiceClient`. */
+  private readonly serviceRole: boolean;
 
-  constructor(userId: string | null) {
+  constructor(userId: string | null, serviceRole = false) {
     this.userId = userId;
+    this.serviceRole = serviceRole;
   }
 
   from(table: string) {
@@ -126,6 +129,7 @@ class LocalClient {
    */
   rpc(fn: string, args: Record<string, unknown> = {}) {
     const userId = this.userId;
+    const serviceRole = this.serviceRole;
     const keys = Object.keys(args);
 
     const execute = async (): Promise<PostgrestResult<unknown>> => {
@@ -143,13 +147,16 @@ class LocalClient {
           return jsonArgs?.has(key) ? JSON.stringify(value) : value;
         });
 
-        const rows = await withSession(userId, async (client) => {
+        const run = async (client: import('pg').PoolClient) => {
           const result = await client.query(
             `select * from ${fn}(${placeholders.join(', ')})`,
             values,
           );
           return result.rows;
-        });
+        };
+        const rows = serviceRole
+          ? await withServiceRole(run)
+          : await withSession(userId, run);
 
         // A one-column result whose column is named after the function is a
         // scalar return, not a row set.
@@ -193,4 +200,18 @@ class LocalClient {
 
 export function createLocalClient() {
   return new LocalClient(getLocalUserId());
+}
+
+/**
+ * The local stand-in for the service-role client.
+ *
+ * Its queries run as `service_role` with no JWT claims, exactly as a
+ * service-role request does on a real project — so a function granted only to
+ * `service_role` is reachable here and a function granted to `authenticated`
+ * is reached by the ordinary client, and neither test lies about which is
+ * which. There is no key involved and there cannot be: this file only runs
+ * under the local adapter.
+ */
+export function createLocalServiceClient() {
+  return new LocalClient(null, true);
 }

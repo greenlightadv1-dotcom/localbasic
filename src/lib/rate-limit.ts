@@ -28,6 +28,13 @@ export const RATE_LIMITS = {
   accountRead: { limit: 240, windowMs: 60_000 },
   accountWrite: { limit: 30, windowMs: 60_000 },
   accountClaim: { limit: 5, windowMs: 10 * 60_000 },
+  // Custom domains. Each verification click costs an outbound DNS query, so
+  // the button cannot be used as a lookup amplifier. Two buckets: one per
+  // domain, tight, because re-checking the same name in a loop is the shape
+  // of abuse; and one per user across every domain, looser, so that adding
+  // domains cannot multiply the first limit away.
+  domainVerify: { limit: 10, windowMs: 10 * 60_000 },
+  domainVerifyUser: { limit: 60, windowMs: 10 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 export function checkRateLimit(key: string, rule: RateLimitRule): { ok: boolean; retryAfterMs: number } {

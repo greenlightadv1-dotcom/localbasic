@@ -72,6 +72,34 @@ export async function withSession<T>(
 }
 
 /**
+ * Runs as `service_role`, the way a request authenticated with the service-role
+ * key does on a real project.
+ *
+ * This exists so the few trusted server-side operations — today only recording
+ * a DNS verification the server itself performed — have the same shape locally
+ * as in production. It is NOT a general escape hatch: `getPool()` refuses to
+ * run in production and `isLocalDb()` is false there, so nothing reachable in
+ * a deployment can get here. Everything tenant-scoped keeps using
+ * `withSession`, with RLS.
+ */
+export async function withServiceRole<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query('begin');
+    await client.query("select set_config('role', 'service_role', true)");
+    await client.query("select set_config('request.jwt.claims', '', true)");
+    const result = await fn(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Runs outside the tenant session, for the few things Supabase does out of
  * band: reading the auth user record. In a real deployment this is GoTrue's
  * own database connection, not a tenant query, which is why it is not subject

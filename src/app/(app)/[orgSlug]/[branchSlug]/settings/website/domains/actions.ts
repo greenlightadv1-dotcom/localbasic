@@ -58,14 +58,21 @@ export async function addDomainAction(
   );
 }
 
+/**
+ * Verify a domain.
+ *
+ * The form carries the domain id and nothing else about the check: the
+ * hostname to look up and the TXT values to compare are both obtained
+ * server-side. A forged field cannot aim the lookup or supply an answer —
+ * see `verifyDomain` and migration 0044.
+ */
 export async function verifyDomainAction(formData: FormData) {
   const ctx = await ctxFrom(formData);
   const id = String(formData.get('id') ?? '');
-  const hostname = String(formData.get('hostname') ?? '');
 
   let result: Awaited<ReturnType<typeof verifyDomain>> | null = null;
   try {
-    result = await verifyDomain(ctx, id, hostname);
+    result = await verifyDomain(ctx, id);
   } catch {
     // A domain that is not this restaurant's does not verify, and there is
     // nothing to report that would not also confirm it exists.
