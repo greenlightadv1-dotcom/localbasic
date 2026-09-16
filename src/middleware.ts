@@ -70,7 +70,7 @@ export async function middleware(request: NextRequest) {
     // 'unsafe-eval' is required by the Next.js dev overlay only.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-    `img-src 'self' data: blob: https://*.supabase.co`,
+    `img-src 'self' data: blob: https:`,
     `font-src 'self' data: https://fonts.gstatic.com`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co`,
     `frame-ancestors 'none'`,

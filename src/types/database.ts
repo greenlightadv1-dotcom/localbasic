@@ -2215,6 +2215,9 @@ export type Database = {
       restaurant_public_menu: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_order_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_branches: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_menu: { Args: Record<string, unknown>; Returns: Json };
       retail_create_return: { Args: Record<string, unknown>; Returns: Json };
       retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };

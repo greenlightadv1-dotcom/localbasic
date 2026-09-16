@@ -96,6 +96,42 @@ type Relationship = {
 
 let relationships: Relationship[] | null = null;
 
+/**
+ * Which columns are jsonb, by table.
+ *
+ * PostgREST receives a JSON body, so a string destined for a jsonb column
+ * arrives already JSON-encoded. This adapter binds JavaScript values straight
+ * to placeholders, where node-postgres sends a string as text and PostgreSQL
+ * then fails to cast a bare word to jsonb. Knowing the column types lets the
+ * adapter encode exactly what PostgREST would, for every table rather than for
+ * the one that happened to break.
+ *
+ * Cached for the process, like the relationship map above.
+ */
+let jsonbColumns: Map<string, Set<string>> | null = null;
+
+export async function getJsonbColumns(): Promise<Map<string, Set<string>>> {
+  if (jsonbColumns) return jsonbColumns;
+  const { rows } = await getPool().query<{ table: string; column: string }>(`
+    select c.relname as table, a.attname as column
+    from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_type t on t.oid = a.atttypid
+    where n.nspname = 'public' and c.relkind = 'r'
+      and a.attnum > 0 and not a.attisdropped
+      and t.typname in ('json', 'jsonb')
+  `);
+  const map = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const set = map.get(r.table) ?? new Set<string>();
+    set.add(r.column);
+    map.set(r.table, set);
+  }
+  jsonbColumns = map;
+  return map;
+}
+
 export async function getRelationships(): Promise<Relationship[]> {
   if (relationships) return relationships;
   const { rows } = await getPool().query<Relationship>(`

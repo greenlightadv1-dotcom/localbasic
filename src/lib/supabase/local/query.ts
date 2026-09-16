@@ -1,6 +1,6 @@
 import 'server-only';
 import type { PoolClient } from 'pg';
-import { getRelationships, withSession } from './db';
+import { getJsonbColumns, getRelationships, withSession } from './db';
 
 /**
  * A small PostgREST-compatible query builder over a direct PostgreSQL
@@ -87,6 +87,8 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
   private orders: { column: string; ascending: boolean }[] = [];
   private limitValue: number | null = null;
   private mode: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select';
+  /** jsonb columns on this table, resolved once per query. */
+  private jsonbCols: Set<string> | undefined;
   private payload: Record<string, unknown>[] = [];
   private onConflict: string | null = null;
   private singleMode: 'one' | 'maybe' | null = null;
@@ -105,6 +107,20 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
     if (options?.head) this.headOnly = true;
     if (this.mode !== 'select') this.returning = true;
     return this;
+  }
+
+  /**
+   * Encodes a value the way PostgREST would for its column type.
+   *
+   * Everything bound to a jsonb column is JSON-encoded here. A bare string is
+   * not valid JSON on its own, and node-postgres renders a JavaScript array as
+   * a PostgreSQL array literal rather than a JSON one — so neither survives the
+   * cast without this.
+   */
+  private encodeForColumn(column: string, value: unknown): unknown {
+    if (value === null || value === undefined) return null;
+    if (!this.jsonbCols?.has(column)) return value;
+    return JSON.stringify(value);
   }
 
   insert(values: Record<string, unknown> | Record<string, unknown>[]) {
@@ -232,7 +248,7 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
     if (this.mode === 'insert' || this.mode === 'upsert') {
       const keys = [...new Set(this.payload.flatMap((row) => Object.keys(row)))];
       const valueRows = this.payload.map(
-        (row) => `(${keys.map((key) => { params.push(row[key] ?? null); return `$${params.length}`; }).join(', ')})`,
+        (row) => `(${keys.map((key) => { params.push(this.encodeForColumn(key, row[key])); return `$${params.length}`; }).join(', ')})`,
       );
       sql = `insert into ${quote(this.table)} (${keys.map(quote).join(', ')}) values ${valueRows.join(', ')}`;
       if (this.mode === 'upsert' && this.onConflict) {
@@ -246,7 +262,7 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
     } else if (this.mode === 'update') {
       const row = this.payload[0] ?? {};
       const sets = Object.keys(row).map((key) => {
-        params.push(row[key] ?? null);
+        params.push(this.encodeForColumn(key, row[key]));
         return `${quote(key)} = $${params.length}`;
       });
       sql = `update ${quote(this.table)} set ${sets.join(', ')} ${this.buildWhere(params, params.length + 1)}`;
@@ -303,7 +319,10 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
     onfulfilled?: ((value: PostgrestResult<T>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return withSession(this.userId, (client) => this.run(client))
+    return withSession(this.userId, async (client) => {
+      this.jsonbCols = (await getJsonbColumns()).get(this.table);
+      return this.run(client);
+    })
       .catch((error: { code?: string; message: string; detail?: string }) => ({
         data: null as T,
         error: { code: error.code, message: error.message, details: error.detail },
