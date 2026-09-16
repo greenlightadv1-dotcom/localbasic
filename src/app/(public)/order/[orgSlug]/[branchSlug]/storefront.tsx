@@ -42,6 +42,9 @@ export function Storefront({
   currency,
   pickupEnabled,
   deliveryEnabled,
+  savedAddresses = [],
+  customerName = '',
+  customerPhone = '',
 }: {
   orgSlug: string;
   branchSlug: string;
@@ -50,6 +53,14 @@ export function Storefront({
   currency: string;
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
+  /**
+   * D3. Empty for a guest, which leaves this component on exactly the D1 path.
+   * The text shown here is a label; the address that reaches the order is read
+   * from the database by id, under the caller's own customer row.
+   */
+  savedAddresses?: { id: string; label: string; address: string; isDefault: boolean }[];
+  customerName?: string;
+  customerPhone?: string;
 }) {
   // Only the options the branch actually offers. The server refuses anything
   // else regardless, so this is presentation, not enforcement.
@@ -67,6 +78,11 @@ export function Storefront({
   // server-side as the same attempt rather than a second order.
   const [idempotencyKey] = useState(
     () => `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+  );
+
+  // '' means "type a new address". Pre-selects the customer's default.
+  const [savedAddressId, setSavedAddressId] = useState(
+    () => savedAddresses.find((a) => a.isDefault)?.id ?? savedAddresses[0]?.id ?? '',
   );
 
   const groupsByProduct = useMemo(() => {
@@ -246,6 +262,9 @@ export function Storefront({
           <input type="hidden" name="fulfillment" value={fulfillment} />
           <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
           <input type="hidden" name="items" value={JSON.stringify(lines)} />
+          {fulfillment === 'delivery' && savedAddressId ? (
+            <input type="hidden" name="savedAddressId" value={savedAddressId} />
+          ) : null}
 
           {state?.error ? (
             <p className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -255,16 +274,34 @@ export function Storefront({
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
-            <input name="customerName" required maxLength={120}
+            <input name="customerName" required maxLength={120} defaultValue={customerName}
               className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">رقم الهاتف</span>
-            <input name="customerPhone" required maxLength={32} dir="ltr"
+            <input name="customerPhone" required maxLength={32} dir="ltr" defaultValue={customerPhone}
               className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
           </label>
 
-          {fulfillment === 'delivery' ? (
+          {fulfillment === 'delivery' && savedAddresses.length > 0 ? (
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-fg">عنوان التوصيل</span>
+              <select
+                value={savedAddressId}
+                onChange={(e) => setSavedAddressId(e.target.value)}
+                className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg"
+              >
+                {savedAddresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label} — {a.address}
+                  </option>
+                ))}
+                <option value="">عنوان جديد…</option>
+              </select>
+            </label>
+          ) : null}
+
+          {fulfillment === 'delivery' && !savedAddressId ? (
             <>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-fg">العنوان</span>

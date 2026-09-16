@@ -21,6 +21,7 @@ export async function checkoutAction(
   const orgSlug = String(formData.get('orgSlug') ?? '');
   const branchSlug = String(formData.get('branchSlug') ?? '');
   const fulfillment = String(formData.get('fulfillment') ?? 'pickup');
+  const savedAddressId = String(formData.get('savedAddressId') ?? '');
 
   let items: unknown;
   try {
@@ -40,8 +41,12 @@ export async function checkoutAction(
       customerPhone: String(formData.get('customerPhone') ?? ''),
       note: String(formData.get('note') ?? ''),
       idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
+      // D3: an id only. The address that reaches the order is read from the
+      // database under the signed-in customer's own row; a guest sends none
+      // and this stays undefined, leaving the D1 path exactly as it was.
+      ...(savedAddressId ? { savedAddressId } : {}),
       address:
-        fulfillment === 'delivery'
+        fulfillment === 'delivery' && !savedAddressId
           ? {
               address: String(formData.get('address') ?? ''),
               city: String(formData.get('city') ?? ''),

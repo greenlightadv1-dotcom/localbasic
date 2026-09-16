@@ -5,6 +5,7 @@ import {
   formatMoney, WEEKDAYS_AR,
   type Website, type PublicBranch, type MenuCategory, type OpeningDay,
 } from '@/modules/restaurant/website/service';
+import { FavoriteButton } from './account/forms';
 
 /**
  * Presentation for the public restaurant website.
@@ -58,11 +59,13 @@ function Mark({ site, className }: { site: Website; className?: string }) {
 }
 
 export function SiteHeader({
-  site, orgSlug, branch,
+  site, orgSlug, branch, signedIn,
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
+  /** Drives the account link only. Authorisation is never a rendered state. */
+  signedIn: boolean;
 }) {
   const orderHref = branch ? `/order/${orgSlug}/${branch.slug}` : null;
   const canOrder = Boolean(branch?.orderingEnabled);
@@ -88,6 +91,12 @@ export function SiteHeader({
           >
             أين نحن
           </a>
+          <Link
+            href={signedIn ? `/r/${orgSlug}/account` : `/r/${orgSlug}/account/sign-in`}
+            className="rounded px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg"
+          >
+            {signedIn ? 'حسابي' : 'تسجيل الدخول'}
+          </Link>
           {canOrder && orderHref ? (
             <Link
               href={orderHref}
@@ -235,12 +244,15 @@ export function BranchPicker({
 }
 
 export function Menu({
-  categories, site, orgSlug, branch,
+  categories, site, orgSlug, branch, signedIn, favoriteIds,
 }: {
   categories: MenuCategory[];
   site: Website;
   orgSlug: string;
   branch: PublicBranch;
+  signedIn: boolean;
+  /** Which products this customer has already saved. Empty when signed out. */
+  favoriteIds: Set<string>;
 }) {
   if (categories.length === 0) {
     return (
@@ -318,6 +330,19 @@ export function Menu({
                             </li>
                           ))}
                         </ul>
+                      ) : null}
+                      {/* Offered only to someone who has somewhere to save it.
+                          An anonymous visitor keeps a menu with no JavaScript
+                          at all. */}
+                      {signedIn ? (
+                        <div className="mt-2">
+                          <FavoriteButton
+                            orgSlug={orgSlug}
+                            productId={p.productId}
+                            isFavorite={favoriteIds.has(p.productId)}
+                            from="menu"
+                          />
+                        </div>
                       ) : null}
                     </div>
                   </li>

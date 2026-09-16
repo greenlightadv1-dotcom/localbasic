@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
+import { currentUser, getAddresses, getProfile } from '@/modules/restaurant/account/service';
 import { Storefront } from './storefront';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,15 @@ export default async function OrderPage({
   // storefront is closed rather than a dead end.
   if (!info.pickupEnabled && !info.deliveryEnabled) notFound();
 
+  // D3. A signed-in customer gets their saved addresses and their name and
+  // number filled in; a guest gets exactly the D1 page. Ordering never
+  // requires an account, and nothing below changes what the server will
+  // accept — only what the form starts out holding.
+  const user = await currentUser();
+  const [profile, addresses] = user
+    ? await Promise.all([getProfile(params.orgSlug), getAddresses(params.orgSlug)])
+    : [null, []];
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <h1 className="text-2xl font-extrabold text-fg">{info.organizationName}</h1>
@@ -46,6 +56,14 @@ export default async function OrderPage({
         currency={info.currency}
         pickupEnabled={info.pickupEnabled}
         deliveryEnabled={info.deliveryEnabled}
+        savedAddresses={addresses.map((a) => ({
+          id: a.id,
+          label: a.label,
+          address: a.address,
+          isDefault: a.isDefault,
+        }))}
+        customerName={profile?.fullName ?? ''}
+        customerPhone={profile?.phone ?? ''}
       />
     </div>
   );

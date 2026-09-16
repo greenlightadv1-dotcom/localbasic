@@ -21,6 +21,13 @@ export const RATE_LIMITS = {
   publicLinkResolve: { limit: 60, windowMs: 60_000 },
   publicOrder: { limit: 10, windowMs: 10 * 60_000 },
   mutation: { limit: 120, windowMs: 60_000 },
+  // Customer account (D3). Reads are generous because the account pages fan
+  // out several of them per view; writes are tighter, and claiming a guest
+  // order is tightest of all because it is the only place where possessing a
+  // token changes who an order belongs to.
+  accountRead: { limit: 240, windowMs: 60_000 },
+  accountWrite: { limit: 30, windowMs: 60_000 },
+  accountClaim: { limit: 5, windowMs: 10 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 export function checkRateLimit(key: string, rule: RateLimitRule): { ok: boolean; retryAfterMs: number } {

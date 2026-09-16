@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOrderByToken } from '@/modules/restaurant/online/service';
@@ -79,6 +80,21 @@ export default async function TrackPage({ params }: { params: { token: string } 
       </div>
 
       <p className="mt-4 text-center text-xs text-muted">الدفع نقدًا عند الاستلام.</p>
+
+      {/* Optional, and offered after the order is already placed: an account
+          is a convenience, never a step on the way to ordering. The link
+          carries the token this page was reached with, which is what
+          authorises attaching the order — nothing else would. */}
+      <div className="mt-6 rounded-lg border border-line bg-surface p-4 text-center">
+        <p className="text-sm font-semibold text-fg">أنشئ حسابًا لحفظ طلباتك وعناوينك</p>
+        <p className="mt-1 text-xs text-muted">اختياري — طلبك مسجّل بالفعل.</p>
+        <Link
+          href={`/account/join?token=${encodeURIComponent(params.token)}`}
+          className="mt-3 inline-flex h-11 items-center rounded bg-primary px-4 text-sm font-semibold text-primary-fg"
+        >
+          إنشاء حساب
+        </Link>
+      </div>
     </div>
   );
 }

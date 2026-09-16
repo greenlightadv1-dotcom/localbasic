@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { clientEnv } from '@/lib/env';
 import { getWebsite, getBranches, getMenu } from '@/modules/restaurant/website/service';
+import { currentUser, getFavorites } from '@/modules/restaurant/account/service';
 import {
   brandStyle, SiteHeader, Hero, About, BranchPicker, Menu, Location, Hours, Contact, SiteFooter,
 } from './parts';
@@ -63,16 +64,31 @@ export async function RestaurantSite({
   // to a different branch than the one asked for.
   if (!branch) notFound();
 
-  const menu = await getMenu(orgSlug, branch.slug);
+  const [menu, user] = await Promise.all([getMenu(orgSlug, branch.slug), currentUser()]);
+
+  // D3: the menu is identical whether or not anyone is signed in. A session
+  // adds a save button and an account link; it changes nothing about what the
+  // page is allowed to show, which is why the page stays public.
+  const signedIn = Boolean(user);
+  const favoriteIds = new Set(
+    signedIn ? (await getFavorites(orgSlug)).map((f) => f.productId) : [],
+  );
 
   return (
     <div style={brandStyle(site)} className="min-h-dvh bg-bg">
-      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} />
+      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} signedIn={signedIn} />
       <main>
         <Hero site={site} orgSlug={orgSlug} branch={branch} />
         <BranchPicker orgSlug={orgSlug} branches={branches} current={branch} />
         <About site={site} />
-        <Menu categories={menu} site={site} orgSlug={orgSlug} branch={branch} />
+        <Menu
+          categories={menu}
+          site={site}
+          orgSlug={orgSlug}
+          branch={branch}
+          signedIn={signedIn}
+          favoriteIds={favoriteIds}
+        />
         <Location branches={branches} />
         <Hours hours={site.openingHours} />
         <Contact site={site} />

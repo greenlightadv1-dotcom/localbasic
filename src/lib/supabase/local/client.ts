@@ -69,7 +69,7 @@ class LocalAuth {
       path: '/',
       maxAge: 60 * 60 * 24,
     });
-    return { data: { user }, error: null };
+    return { data: { user, session: { user } }, error: null };
   }
 
   async signUp({ email, options }: { email: string; password: string; options?: { data?: Record<string, unknown> } }) {
@@ -91,7 +91,11 @@ class LocalAuth {
       path: '/',
       maxAge: 60 * 60 * 24,
     });
-    return { data: { user }, error: null };
+    // A session, because one was in fact established: the cookie above is it.
+    // supabase-js reports `session: null` when a project requires email
+    // confirmation, and callers rightly read that as "not signed in yet" —
+    // omitting it here made every local sign-up look unconfirmed.
+    return { data: { user, session: { user } }, error: null };
   }
 
   async signOut() {

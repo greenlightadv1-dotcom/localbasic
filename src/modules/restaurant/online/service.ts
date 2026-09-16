@@ -239,6 +239,8 @@ export async function placeOnlineOrder(input: unknown): Promise<PlacedOrder> {
         }
       : null,
     p_note: v.note || null,
+    // D3. Null for a guest, and for an account that typed a fresh address.
+    p_saved_address_id: v.savedAddressId ?? null,
   });
   if (error) throw new AppError('validation', error.message);
 

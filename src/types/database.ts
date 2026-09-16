@@ -140,6 +140,54 @@ export type Database = {
         };
         Relationships: [];
       };
+      customer_addresses: {
+        Row: {
+          id: string;
+          organization_id: string;
+          customer_id: string;
+          label: string;
+          recipient_name: string | null;
+          phone: string | null;
+          city: string | null;
+          area: string | null;
+          address: string;
+          landmark: string | null;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          customer_id: string;
+          label: string;
+          recipient_name?: string | null;
+          phone?: string | null;
+          city?: string | null;
+          area?: string | null;
+          address: string;
+          landmark?: string | null;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          customer_id?: string;
+          label?: string;
+          recipient_name?: string | null;
+          phone?: string | null;
+          city?: string | null;
+          area?: string | null;
+          address?: string;
+          landmark?: string | null;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       customers: {
         Row: {
           id: string;
@@ -157,6 +205,8 @@ export type Database = {
           updated_at: string;
           created_by: string | null;
           deleted_at: string | null;
+          marketing_opt_in: boolean;
+          order_updates_opt_in: boolean;
         };
         Insert: {
           id?: string;
@@ -174,6 +224,8 @@ export type Database = {
           updated_at?: string;
           created_by?: string | null;
           deleted_at?: string | null;
+          marketing_opt_in?: boolean;
+          order_updates_opt_in?: boolean;
         };
         Update: {
           id?: string;
@@ -191,6 +243,8 @@ export type Database = {
           updated_at?: string;
           created_by?: string | null;
           deleted_at?: string | null;
+          marketing_opt_in?: boolean;
+          order_updates_opt_in?: boolean;
         };
         Relationships: [];
       };
@@ -1113,6 +1167,30 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      restaurant_customer_favorites: {
+        Row: {
+          id: string;
+          organization_id: string;
+          customer_id: string;
+          product_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          customer_id: string;
+          product_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          customer_id?: string;
+          product_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -2189,6 +2267,19 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      customer_account_profile: { Args: Record<string, unknown>; Returns: Json };
+      customer_account_save_profile: { Args: Record<string, unknown>; Returns: Json };
+      customer_account_save_settings: { Args: Record<string, unknown>; Returns: Json };
+      customer_address_delete: { Args: Record<string, unknown>; Returns: Json };
+      customer_address_save: { Args: Record<string, unknown>; Returns: Json };
+      customer_addresses_list: { Args: Record<string, unknown>; Returns: Json };
+      customer_claim_order: { Args: Record<string, unknown>; Returns: Json };
+      customer_favorite_add: { Args: Record<string, unknown>; Returns: Json };
+      customer_favorite_remove: { Args: Record<string, unknown>; Returns: Json };
+      customer_favorites: { Args: Record<string, unknown>; Returns: Json };
+      customer_order_detail: { Args: Record<string, unknown>; Returns: Json };
+      customer_order_items: { Args: Record<string, unknown>; Returns: Json };
+      customer_orders: { Args: Record<string, unknown>; Returns: Json };
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
