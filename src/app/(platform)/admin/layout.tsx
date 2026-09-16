@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const NAV = [
   { href: '/admin', label: 'لوحة المنصة' },
-  { href: '/admin/organizations', label: 'العملاء' },
+  { href: '/admin/customers', label: 'العملاء' },
   { href: '/admin/onboard', label: 'عميل جديد' },
   { href: '/admin/leads', label: 'العملاء المحتملون' },
   { href: '/admin/subscriptions', label: 'الاشتراكات' },

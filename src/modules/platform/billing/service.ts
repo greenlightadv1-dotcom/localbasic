@@ -21,6 +21,9 @@ export type OrganizationSummary = {
   primaryModule: string;
   status: string;
   createdAt: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  contactPhone: string | null;
   planKey: string | null;
   planNameAr: string | null;
   subscriptionStatus: string | null;
@@ -29,72 +32,291 @@ export type OrganizationSummary = {
   daysLeft: number | null;
 };
 
-/** Days until the term ends, floored. Negative once it has lapsed. */
-function daysUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  return Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000);
-}
-
 /**
  * The expiry warning threshold. Derived from current_period_end every time it
  * is asked for — there is no stored "expiring" flag to go stale.
  */
 export const EXPIRY_WARNING_DAYS = 3;
 
+function rows<T>(data: unknown): T[] {
+  return (Array.isArray(data) ? data : data == null ? [] : [data]) as T[];
+}
+
+type CustomerRow = {
+  organization_id: string; customer_code: string; name: string; slug: string;
+  primary_module: string; org_status: string; created_at: string;
+  owner_name: string | null; owner_email: string | null; contact_phone: string | null;
+  plan_key: string | null; plan_name_ar: string | null;
+  subscription_status: string | null; billing_period: string | null;
+  current_period_end: string | null; days_left: number | null;
+};
+
+function toSummary(r: CustomerRow): OrganizationSummary {
+  return {
+    id: r.organization_id,
+    customerCode: r.customer_code,
+    name: r.name,
+    slug: r.slug,
+    primaryModule: r.primary_module,
+    status: r.org_status,
+    createdAt: r.created_at,
+    ownerName: r.owner_name,
+    ownerEmail: r.owner_email,
+    contactPhone: r.contact_phone,
+    planKey: r.plan_key,
+    planNameAr: r.plan_name_ar,
+    subscriptionStatus: r.subscription_status,
+    billingPeriod: r.billing_period,
+    currentPeriodEnd: r.current_period_end,
+    daysLeft: r.days_left === null ? null : Number(r.days_left),
+  };
+}
+
+/**
+ * Customer search: customer code, restaurant name, slug, owner name, owner
+ * email or contact phone — whichever the caller on the phone happens to know.
+ *
+ * The term goes to the database as a bound parameter. It used to be
+ * interpolated into a PostgREST `or=` filter, which let a term containing a
+ * comma or a dot add filter expressions of its own; see migration 0041.
+ */
 export async function listOrganizations(search?: string): Promise<OrganizationSummary[]> {
   await requirePlatformAdmin();
   const supabase = createSupabaseServerClient();
 
-  let query = supabase
-    .from('organizations')
-    .select(
-      'id, customer_code, name, slug, primary_module, status, created_at, subscriptions(status, billing_period, current_period_end, plan_id)',
-    )
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  const term = search?.trim();
-  if (term) {
-    // Customer code, name or slug — one box, because an admin on the phone has
-    // whichever of the three the caller happens to know.
-    query = query.or(
-      `customer_code.ilike.%${term}%,name.ilike.%${term}%,slug.ilike.%${term}%`,
-    );
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc('platform_search_customers', {
+    p_query: search?.trim() || null,
+    p_limit: 100,
+  });
   if (error) throw error;
 
-  const { data: plans } = await supabase.from('plans').select('id, key, name_ar');
-  const planById = new Map((plans ?? []).map((p) => [p.id, p]));
-
-  return (data ?? []).map((row) => {
-    const subs = (row.subscriptions ?? []) as {
-      status: string; billing_period: string; current_period_end: string;
-      plan_id: string;
-    }[];
-    const live = subs.find((s) => ['trialing', 'active', 'past_due'].includes(s.status)) ?? null;
-    return {
-      id: row.id,
-      customerCode: row.customer_code,
-      name: row.name,
-      slug: row.slug,
-      primaryModule: row.primary_module,
-      status: row.status,
-      createdAt: row.created_at,
-      planKey: live ? planById.get(live.plan_id)?.key ?? null : null,
-      planNameAr: live ? planById.get(live.plan_id)?.name_ar ?? null : null,
-      subscriptionStatus: live?.status ?? null,
-      billingPeriod: live?.billing_period ?? null,
-      currentPeriodEnd: live?.current_period_end ?? null,
-      daysLeft: daysUntil(live?.current_period_end ?? null),
-    };
-  });
+  return rows<CustomerRow>(data).map(toSummary);
 }
 
-export async function getOrganizationByCode(code: string): Promise<OrganizationSummary | null> {
-  const rows = await listOrganizations(code);
-  return rows.find((r) => r.customerCode.toLowerCase() === code.trim().toLowerCase()) ?? null;
+export type CustomerProfile = OrganizationSummary & {
+  country: string | null;
+  currency: string;
+  timezone: string | null;
+  ownerPhone: string | null;
+  displayName: string | null;
+  logoUrl: string | null;
+  primaryColor: string;
+  whiteLabel: boolean;
+  contactWhatsapp: string | null;
+  contactEmail: string | null;
+  websiteEnabled: boolean;
+  orderingEnabled: boolean;
+  branchCount: number;
+  currentPeriodStart: string | null;
+};
+
+/**
+ * One customer, addressed by the code the operator was given.
+ *
+ * The code is a filter inside an admin-gated function, never an authorization
+ * claim: a non-admin calling it is refused before the lookup happens, and an
+ * unknown code returns nothing rather than an error that confirms the format.
+ */
+export async function getOrganizationByCode(code: string): Promise<CustomerProfile | null> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_customer_profile', {
+    p_customer_code: code.trim(),
+  });
+  if (error) throw error;
+
+  type Row = CustomerRow & {
+    country: string | null; currency: string; timezone: string | null;
+    owner_phone: string | null; display_name: string | null; logo_url: string | null;
+    primary_color: string; white_label: boolean;
+    contact_whatsapp: string | null; contact_email: string | null;
+    website_enabled: boolean; ordering_enabled: boolean; branch_count: number;
+    current_period_start: string | null;
+  };
+  const row = rows<Row>(data)[0];
+  if (!row) return null;
+
+  return {
+    ...toSummary(row),
+    country: row.country,
+    currency: row.currency,
+    timezone: row.timezone,
+    ownerPhone: row.owner_phone,
+    displayName: row.display_name,
+    logoUrl: row.logo_url,
+    primaryColor: row.primary_color,
+    whiteLabel: Boolean(row.white_label),
+    contactWhatsapp: row.contact_whatsapp,
+    contactEmail: row.contact_email,
+    websiteEnabled: Boolean(row.website_enabled),
+    orderingEnabled: Boolean(row.ordering_enabled),
+    branchCount: Number(row.branch_count),
+    currentPeriodStart: row.current_period_start,
+  };
+}
+
+export type CustomerBranch = {
+  slug: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export async function listCustomerBranches(code: string): Promise<CustomerBranch[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_customer_branches', {
+    p_customer_code: code.trim(),
+  });
+  if (error) throw error;
+
+  type Row = {
+    slug: string; name: string; address: string | null; phone: string | null;
+    is_active: boolean; created_at: string;
+  };
+  return rows<Row>(data).map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    address: r.address,
+    phone: r.phone,
+    isActive: Boolean(r.is_active),
+    createdAt: r.created_at,
+  }));
+}
+
+export type CustomerModule = {
+  moduleKey: string;
+  nameAr: string;
+  isPrimary: boolean;
+  enabled: boolean;
+};
+
+export async function listCustomerModules(code: string): Promise<CustomerModule[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_customer_modules', {
+    p_customer_code: code.trim(),
+  });
+  if (error) throw error;
+
+  type Row = { module_key: string; name_ar: string; is_primary: boolean; enabled: boolean };
+  return rows<Row>(data).map((r) => ({
+    moduleKey: r.module_key,
+    nameAr: r.name_ar,
+    isPrimary: Boolean(r.is_primary),
+    enabled: Boolean(r.enabled),
+  }));
+}
+
+export type AuditEntry = {
+  createdAt: string;
+  action: string;
+  entityType: string | null;
+  actorLabel: string | null;
+};
+
+/** One customer's whole timeline — platform actions and their own staff's. */
+export async function listCustomerAudit(code: string, limit = 50): Promise<AuditEntry[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_customer_audit', {
+    p_customer_code: code.trim(),
+    p_limit: limit,
+  });
+  if (error) throw error;
+
+  type Row = {
+    created_at: string; action: string; entity_type: string | null; actor_label: string | null;
+  };
+  return rows<Row>(data).map((r) => ({
+    createdAt: r.created_at,
+    action: r.action,
+    entityType: r.entity_type,
+    actorLabel: r.actor_label,
+  }));
+}
+
+export type DashboardStats = {
+  totalCustomers: number;
+  activeCustomers: number;
+  trialing: number;
+  expiringSoon: number;
+  expired: number;
+  withoutSubscription: number;
+  branchesTotal: number;
+};
+
+/**
+ * The dashboard counters.
+ *
+ * Counted in the database at the moment they are shown. Nothing here is
+ * derived from a sample, a cache or a stored flag — if a number appears on the
+ * operator's screen, a row was counted for it.
+ */
+export async function getDashboardStats(
+  warningDays = EXPIRY_WARNING_DAYS,
+): Promise<DashboardStats> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_dashboard_stats', {
+    p_warning_days: warningDays,
+  });
+  if (error) throw error;
+
+  type Row = {
+    total_customers: number; active_customers: number; trialing: number;
+    expiring_soon: number; expired: number; without_subscription: number;
+    branches_total: number;
+  };
+  const row = rows<Row>(data)[0];
+  if (!row) {
+    throw new AppError('internal', 'تعذّر حساب إحصاءات المنصة');
+  }
+
+  return {
+    totalCustomers: Number(row.total_customers),
+    activeCustomers: Number(row.active_customers),
+    trialing: Number(row.trialing),
+    expiringSoon: Number(row.expiring_soon),
+    expired: Number(row.expired),
+    withoutSubscription: Number(row.without_subscription),
+    branchesTotal: Number(row.branches_total),
+  };
+}
+
+export type RecentActivity = {
+  createdAt: string;
+  action: string;
+  actorLabel: string | null;
+  customerCode: string | null;
+  customerName: string | null;
+};
+
+export async function listRecentActivity(limit = 15): Promise<RecentActivity[]> {
+  await requirePlatformAdmin();
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('platform_recent_activity', { p_limit: limit });
+  if (error) throw error;
+
+  type Row = {
+    created_at: string; action: string; actor_label: string | null;
+    customer_code: string | null; customer_name: string | null;
+  };
+  return rows<Row>(data).map((r) => ({
+    createdAt: r.created_at,
+    action: r.action,
+    actorLabel: r.actor_label,
+    customerCode: r.customer_code,
+    customerName: r.customer_name,
+  }));
 }
 
 export type SubscriptionEvent = {

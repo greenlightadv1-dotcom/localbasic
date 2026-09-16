@@ -221,7 +221,7 @@ test('onboarding provisions a workspace for an existing owner, atomically', asyn
   await page.getByRole('button', { name: 'إنشاء مساحة العمل' }).click();
 
   // Lands on the new customer's profile with the code confirmed.
-  await expect(page).toHaveURL(/\/admin\/organizations\/LB-\d{6}\?created=1/);
+  await expect(page).toHaveURL(/\/admin\/customers\/LB-\d{6}\?created=1/);
   await expect(page.getByText(/كود العميل: LB-\d{6}/)).toBeVisible();
 
   // Workspace, owner, plan, term and history all landed together.

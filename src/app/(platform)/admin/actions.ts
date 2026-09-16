@@ -189,5 +189,5 @@ export async function onboardCustomerAction(
   //
   // redirect() throws NEXT_REDIRECT, so it must sit outside the try above or
   // the catch would swallow it and report a failure for work that succeeded.
-  redirect(`/admin/organizations/${result.customerCode}?created=1`);
+  redirect(`/admin/customers/${result.customerCode}?created=1`);
 }

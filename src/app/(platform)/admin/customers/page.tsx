@@ -5,6 +5,13 @@ import { adminMetadata } from '@/modules/platform/admin/metadata';
 
 export const generateMetadata = adminMetadata('العملاء');
 
+/**
+ * The customer list.
+ *
+ * The search term goes to an admin-gated database function as a bound
+ * parameter — see migration 0041 for why it no longer builds a filter string.
+ */
+
 export default async function OrganizationsPage({
   searchParams,
 }: {
@@ -15,16 +22,21 @@ export default async function OrganizationsPage({
 
   return (
     <>
-      <AdminHeading title="العملاء" lead="ابحث بكود العميل أو الاسم أو المعرّف." />
+      <AdminHeading
+        title="العملاء"
+        lead="ابحث بكود العميل، اسم المطعم، المعرّف، اسم المالك، بريده أو رقم الهاتف."
+      />
 
       {/* GET form: the search term lives in the URL, so a result list is
           shareable and the back button behaves. */}
-      <form className="mb-4 flex gap-2" action="/admin/organizations">
+      <form className="mb-4 flex gap-2" action="/admin/customers">
+        <label htmlFor="q" className="sr-only">بحث عن عميل</label>
         <input
+          id="q"
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="LB-000125 أو اسم المطعم"
+          placeholder="LB-000125، اسم المطعم، بريد المالك أو رقم الهاتف"
           className="h-11 flex-1 rounded border border-line bg-elevated px-3 text-sm text-fg outline-none focus-visible:border-primary"
         />
         <button
@@ -47,6 +59,8 @@ export default async function OrganizationsPage({
                 <tr>
                   <th className="px-4 py-2.5 text-start font-semibold">كود العميل</th>
                   <th className="px-4 py-2.5 text-start font-semibold">المطعم</th>
+                  <th className="px-4 py-2.5 text-start font-semibold">المالك</th>
+                  <th className="px-4 py-2.5 text-start font-semibold">الهاتف</th>
                   <th className="px-4 py-2.5 text-start font-semibold">الباقة</th>
                   <th className="px-4 py-2.5 text-start font-semibold">المدة</th>
                   <th className="px-4 py-2.5 text-start font-semibold">الحالة</th>
@@ -60,11 +74,20 @@ export default async function OrganizationsPage({
                     <td className="px-4 py-3"><CustomerCode code={o.customerCode} /></td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/admin/organizations/${o.customerCode}`}
+                        href={`/admin/customers/${o.customerCode}`}
                         className="font-semibold text-fg hover:text-primary"
                       >
                         {o.name}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      {o.ownerName ?? '—'}
+                      {o.ownerEmail ? (
+                        <span className="block text-xs text-muted/80" dir="ltr">{o.ownerEmail}</span>
+                      ) : null}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted" dir="ltr">
+                      {o.contactPhone ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-muted">{o.planNameAr ?? '—'}</td>
                     <td className="px-4 py-3 text-muted">{periodLabel(o.billingPeriod)}</td>

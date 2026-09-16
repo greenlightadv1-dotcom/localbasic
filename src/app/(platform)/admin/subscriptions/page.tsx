@@ -50,7 +50,7 @@ export default async function SubscriptionsPage() {
                     <td className="px-4 py-3"><ExpiryBadge daysLeft={o.daysLeft} /></td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/admin/organizations/${o.customerCode}`}
+                        href={`/admin/customers/${o.customerCode}`}
                         className="text-xs font-semibold text-primary hover:underline"
                       >
                         تجديد

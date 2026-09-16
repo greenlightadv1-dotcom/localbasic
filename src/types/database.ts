@@ -2282,11 +2282,18 @@ export type Database = {
       customer_orders: { Args: Record<string, unknown>; Returns: Json };
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_audit: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_branches: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_modules: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_profile: { Args: Record<string, unknown>; Returns: Json };
+      platform_dashboard_stats: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
       platform_find_user_by_email: { Args: Record<string, unknown>; Returns: Json };
       platform_onboard_customer: { Args: Record<string, unknown>; Returns: Json };
       platform_quote_renewal: { Args: Record<string, unknown>; Returns: Json };
+      platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
+      platform_search_customers: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_create_order: { Args: Record<string, unknown>; Returns: Json };

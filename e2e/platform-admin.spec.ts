@@ -65,12 +65,12 @@ test('a tenant owner cannot reach any platform admin screen', async ({ page }) =
 
   for (const path of [
     '/admin',
-    '/admin/organizations',
+    '/admin/customers',
     '/admin/subscriptions',
     '/admin/plans',
     '/admin/promo-codes',
     '/admin/audit',
-    `/admin/organizations/${code}`,
+    `/admin/customers/${code}`,
   ]) {
     await page.goto(path);
     // Not a permission error — the same "does not exist" the rest of the
@@ -84,7 +84,7 @@ test('a tenant owner cannot reach any platform admin screen', async ({ page }) =
 
 test('an anonymous visitor cannot reach the platform admin', async ({ page }) => {
   await page.context().clearCookies();
-  await page.goto('/admin/organizations');
+  await page.goto('/admin/customers');
   await expect(page.getByText('الصفحة غير موجودة')).toBeVisible();
 });
 
@@ -93,7 +93,7 @@ test('a platform admin searches by customer code and renews for cash', async ({ 
   const code = await customerCode();
 
   // Search by the permanent customer code.
-  await page.goto('/admin/organizations');
+  await page.goto('/admin/customers');
   await page.getByPlaceholder('LB-000125').fill(code);
   await page.getByRole('button', { name: 'بحث' }).click();
   await expect(page.getByText('مطعم الحارة الشامية')).toBeVisible();
@@ -142,7 +142,7 @@ test('a rejected promo code blocks the renewal and says why', async ({ page }) =
   await actAs(page, await platformAdminId());
   const code = await customerCode();
 
-  await page.goto(`/admin/organizations/${code}`);
+  await page.goto(`/admin/customers/${code}`);
   await page.getByPlaceholder('DEMO30').fill('NOSUCHCODE');
   await page.getByRole('button', { name: /تسجيل التجديد/ }).click();
 
