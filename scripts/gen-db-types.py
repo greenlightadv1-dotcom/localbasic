@@ -23,6 +23,8 @@ EMBEDDED_TABLES = {
     "role_permissions",
     "subscriptions",
     "retail_variants",
+    # Purchase orders embed their supplier on the list screen.
+    "retail_purchase_orders",
 }
 
 PG = ["psql", "-h", os.environ.get("PGHOST", "/tmp"), "-p", os.environ.get("PGPORT", "5433"),

@@ -5,15 +5,19 @@ resuming work.
 
 ## Current phase
 
-**Restaurant & Cafe is the active vertical.** Medical, Workshop and further
-Retail work are paused by decision.
+**Restaurant & Cafe shipped. Retail is the active vertical again.** Medical and
+Workshop remain paused by decision.
 
-- **Phase 1 — Foundation: COMPLETE.**
-- **Retail (earlier pilot): catalog, inventory, POS, returns — COMPLETE**, left
-  in place and untouched. No further retail work until Restaurant ships.
-- **Restaurant MVP: database, ordering, payments, QR, and all operational
-  screens COMPLETE.** Remaining: staff/roles/branding settings screens,
-  notification delivery, and an end-to-end browser test.
+- **Phase 1 — Core foundation: COMPLETE**, including the settings screens
+  (branches, members, roles, branding, audit log).
+- **Restaurant & Cafe: COMPLETE** — schema, ordering, payments, QR, all
+  operational screens, online ordering, customer accounts, the public website,
+  the website builder, and custom domains with DNS verification.
+- **Platform Admin console: COMPLETE** — customers, search, subscriptions,
+  provisioning, billing.
+- **Retail: catalog, inventory, POS, returns and PURCHASING complete.**
+  Remaining for the retail vertical: online store (cart/checkout/orders),
+  shipping abstraction, notifications, and analytics.
 
 ## Decisions in force
 
@@ -45,6 +49,27 @@ Applied cleanly to PostgreSQL 16 and covered by tests.
 - **0009** `provision_workspace()` — the whole workspace in one transaction
 - **0010** explicit privilege grants; anon revoked from all tenant tables
 
+### Later migrations — `supabase/migrations/0027`–`0045`
+
+Summarised; each file carries its own reasoning at the top.
+
+- **0027–0028** kitchen table visibility; function EXECUTE grants hardened
+  (PostgreSQL grants EXECUTE to PUBLIC on creation — always revoke first)
+- **0029–0035** Platform Admin: admins, billing, plans, subscriptions, leads,
+  services, customer onboarding, platform audit
+- **0036–0038** restaurant online orders, their functions, and the settings
+  that gate them
+- **0039** public restaurant website
+- **0040** customer accounts (optional, on top of guest ordering)
+- **0041** platform console search and customer projections
+- **0042** website builder: ordered sections, theme, draft vs published
+- **0043** custom domains: normalized hostname identity, DNS-TXT verification,
+  state machine, public resolver
+- **0044** verification hardening: the write is `service_role` only, and the
+  hostname to look up comes from the table rather than the browser
+- **0045** retail purchasing: purchase orders, receiving into the stock ledger,
+  supplier payment out of the treasury
+
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
   retail_variants (SKU/barcode unique per organization)
@@ -57,6 +82,13 @@ Applied cleanly to PostgreSQL 16 and covered by tests.
   and audit in one transaction, priced entirely from the database
 - **0015** `retail_create_return()` — linked negative payment, stock back,
   treasury withdrawal; the original sale is never edited
+- **0045** purchasing: `retail_purchase_orders` + items, with totals derived by
+  trigger, an enumerated state machine, and five functions —
+  `retail_purchase_create`, `_submit`, `_receive`, `_cancel`, `_pay`.
+  Receiving writes `retail_stock_movements` with reason `purchase`, so POS,
+  the storefront and purchasing share one stock truth. Paying a supplier is a
+  treasury `out` transaction, and `paid_cents` is recomputed from that ledger
+  rather than incremented.
 
 Retail application code: `src/modules/retail/{products,inventory,pos}`,
 actions in the branch route, and screens for products, new product,
@@ -134,15 +166,19 @@ guest menu at `/p/[token]`.
 
 ## Known gaps (tracked in TODO.md)
 
-- Settings screens: staff/members, roles, branches, branding, audit viewer
-- Notification delivery worker (queue and templates exist, no sender)
-- Printable receipt page for a completed order (the data is all there)
-- Browser end-to-end test of the guest → kitchen → payment journey
-- Retail purchasing / online store: paused by decision, not abandoned
-- Customers / invoices / payments / treasury screens: services exist only for
-  the dashboard summary so far
-- Notification delivery worker: table and queue exist, no sender
-- Invitation accept flow: table and policies exist, no UI or accept function
+Retail, in the order they are being built:
+
+- Online store: storefront, cart, checkout, orders (schema and permission keys
+  exist: `retail.order.*`, `retail.store.manage`)
+- Shipping abstraction (a provider adapter, nothing hardcoded in Core)
+- Notification delivery worker — the table and queue exist, there is no sender
+- Retail analytics
+
+Core, still open:
+
+- Invitation accept flow: the table and policies exist, no UI or accept function
+- Printable receipt page for a completed order (the data and service exist)
+- CI workflow running typecheck, build, the SQL suite and the unit tests
 
 ## Gotchas worth remembering
 
@@ -163,7 +199,12 @@ guest menu at `/p/[token]`.
 6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
    restaurant flow test hit this with `order_id`; local variables are prefixed
    `v_` for that reason.
-7. **Stored totals invite tampering.** Restaurant order totals are derived from
+7. **Parse once, at the action boundary.** `defineTenantAction` validates the
+   payload; services take already-typed input. Parsing a second time inside a
+   service is not harmless: the money transform turns `"30.00"` into `3000`
+   minor units, and running it again reads that `3000` as a fresh amount and
+   stores `300000`. Purchasing shipped with this bug for exactly one test run.
+8. **Stored totals invite tampering.** Restaurant order totals are derived from
    the lines by trigger for the same reason treasury balances are derived from
    the ledger — if a number can be written directly, eventually something
    writes the wrong one.

@@ -1893,6 +1893,119 @@ export type Database = {
         };
         Relationships: [];
       };
+      retail_purchase_order_items: {
+        Row: {
+          id: string;
+          organization_id: string;
+          purchase_order_id: string;
+          variant_id: string;
+          product_name: string;
+          variant_name: string;
+          quantity_ordered: number;
+          quantity_received: number;
+          unit_cost_cents: number;
+          line_total_cents: number;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          purchase_order_id: string;
+          variant_id: string;
+          product_name: string;
+          variant_name: string;
+          quantity_ordered: number;
+          quantity_received?: number;
+          unit_cost_cents: number;
+          line_total_cents?: number;
+          position?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          purchase_order_id?: string;
+          variant_id?: string;
+          product_name?: string;
+          variant_name?: string;
+          quantity_ordered?: number;
+          quantity_received?: number;
+          unit_cost_cents?: number;
+          line_total_cents?: number;
+          position?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      retail_purchase_orders: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          supplier_id: string | null;
+          number: string;
+          status: string;
+          currency: string;
+          subtotal_cents: number;
+          total_cents: number;
+          paid_cents: number;
+          expected_at: string | null;
+          ordered_at: string | null;
+          received_at: string | null;
+          cancelled_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          branch_id: string;
+          supplier_id?: string | null;
+          number: string;
+          status?: string;
+          currency: string;
+          subtotal_cents?: number;
+          total_cents?: number;
+          paid_cents?: number;
+          expected_at?: string | null;
+          ordered_at?: string | null;
+          received_at?: string | null;
+          cancelled_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          branch_id?: string;
+          supplier_id?: string | null;
+          number?: string;
+          status?: string;
+          currency?: string;
+          subtotal_cents?: number;
+          total_cents?: number;
+          paid_cents?: number;
+          expected_at?: string | null;
+          ordered_at?: string | null;
+          received_at?: string | null;
+          cancelled_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [
+          { foreignKeyName: "retail_purchase_orders_branch_id_fkey"; columns: ["branch_id"]; isOneToOne: false; referencedRelation: "branches"; referencedColumns: ["id"] },
+          { foreignKeyName: "retail_purchase_orders_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "retail_purchase_orders_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "retail_purchase_orders_supplier_id_fkey"; columns: ["supplier_id"]; isOneToOne: false; referencedRelation: "retail_suppliers"; referencedColumns: ["id"] },
+        ];
+      };
       retail_stock_levels: {
         Row: {
           organization_id: string;
@@ -2431,9 +2544,9 @@ export type Database = {
       restaurant_domain_record_verification: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_remove: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_resolve: { Args: Record<string, unknown>; Returns: Json };
-      restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_set_primary: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
       restaurant_issue_table_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_cancel_order: { Args: Record<string, unknown>; Returns: Json };
@@ -2459,6 +2572,11 @@ export type Database = {
       restaurant_website_unpublish: { Args: Record<string, unknown>; Returns: Json };
       retail_create_return: { Args: Record<string, unknown>; Returns: Json };
       retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
+      retail_purchase_cancel: { Args: Record<string, unknown>; Returns: Json };
+      retail_purchase_create: { Args: Record<string, unknown>; Returns: Json };
+      retail_purchase_pay: { Args: Record<string, unknown>; Returns: Json };
+      retail_purchase_receive: { Args: Record<string, unknown>; Returns: Json };
+      retail_purchase_submit: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
