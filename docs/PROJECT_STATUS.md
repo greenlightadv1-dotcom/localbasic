@@ -73,6 +73,9 @@ Summarised; each file carries its own reasoning at the top.
   and completion into a Core receipt
 - **0047** every stock movement records the cost it was made at, so margin
   reporting has a real figure instead of an implied 100%
+- **0048** the Platform Admin roster can be managed in-product: an owner grants
+  and revokes at `/admin/team`, staff may read it. The FIRST admin is still
+  installed out-of-band on purpose — see docs/SUPABASE.md
 
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
@@ -216,19 +219,31 @@ Core, still open:
 6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
    restaurant flow test hit this with `order_id`; local variables are prefixed
    `v_` for that reason.
-7. **A column that exists is not a column that is filled.**
+7. **A cap must discard the stalest rows, not the newest.** `listOrders` asked
+   the database for oldest-first and then capped at 100, so a branch with more
+   than a hundred open orders stopped seeing the ones it had just taken. The
+   query now takes the most recent window and the queue order is restored in
+   the service. Any list that pairs an ORDER BY with a LIMIT needs the same
+   check.
+8. **A 404 on `/admin/*` usually means an empty roster, not a broken route.**
+   The Platform Admin gate answers not-found rather than forbidden, so a
+   deployment where `platform_admins` has no rows is indistinguishable from one
+   with no console. Nothing in migrations or the seed ever inserts that first
+   row; it is installed out-of-band by design. Check the table before debugging
+   routing. Everything after the first admin now happens at `/admin/team`.
+9. **A column that exists is not a column that is filled.**
    `retail_stock_movements.unit_cost_cents` was defined in 0012 "for valuation
    and margin reporting" and only purchasing ever wrote it. Analytics then
    reported cost of goods as zero, which reads as a 100% margin — a number that
    misleads rather than merely missing. 0047 stamps it with a trigger, which
    covers every writer including future ones. History keeps its nulls and is
    excluded from cost rather than guessed.
-8. **Parse once, at the action boundary.** `defineTenantAction` validates the
+10. **Parse once, at the action boundary.** `defineTenantAction` validates the
    payload; services take already-typed input. Parsing a second time inside a
    service is not harmless: the money transform turns `"30.00"` into `3000`
    minor units, and running it again reads that `3000` as a fresh amount and
    stores `300000`. Purchasing shipped with this bug for exactly one test run.
-9. **Stored totals invite tampering.** Restaurant order totals are derived from
+11. **Stored totals invite tampering.** Restaurant order totals are derived from
    the lines by trigger for the same reason treasury balances are derived from
    the ledger — if a number can be written directly, eventually something
    writes the wrong one.

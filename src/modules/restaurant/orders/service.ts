@@ -53,15 +53,32 @@ export async function listOrders(
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
-    .order('placed_at', { ascending: true })
+    // NEWEST first in the query, oldest first in the result — see below.
+    .order('placed_at', { ascending: false })
     .limit(Math.min(options.limit ?? 100, 300));
 
   if (options.statuses?.length) query = query.in('status', options.statuses);
   if (options.since) query = query.gte('placed_at', options.since.toISOString());
 
-  const { data: orders, error } = await query;
+  const { data: rows, error } = await query;
   if (error) throw toAppError(error, 'listOrders');
-  if (!orders?.length) return [];
+  if (!rows?.length) return [];
+
+  /**
+   * The screens want a queue: oldest first, because that is the order a
+   * kitchen cooks in and a cashier calls out.
+   *
+   * But asking the DATABASE for oldest-first and then capping the result means
+   * the cap discards the NEWEST rows — so a branch busy enough to exceed the
+   * limit stops seeing the orders it just took, which is exactly backwards.
+   * That is not hypothetical: it is what made the smoke tests fail once the
+   * development database had accumulated a hundred open orders.
+   *
+   * So the query takes the most recent window and the presentation order is
+   * restored here. Overflow now drops the stalest rows, which is the only
+   * direction a cap can safely drop in.
+   */
+  const orders = [...rows].reverse();
 
   const orderIds = orders.map((o) => o.id);
   const tableIds = [...new Set(orders.map((o) => o.table_id).filter(Boolean))] as string[];

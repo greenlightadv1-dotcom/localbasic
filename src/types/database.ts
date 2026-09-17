@@ -2700,6 +2700,9 @@ export type Database = {
       customer_order_items: { Args: Record<string, unknown>; Returns: Json };
       customer_orders: { Args: Record<string, unknown>; Returns: Json };
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
+      platform_admin_grant: { Args: Record<string, unknown>; Returns: Json };
+      platform_admin_list: { Args: Record<string, unknown>; Returns: Json };
+      platform_admin_revoke: { Args: Record<string, unknown>; Returns: Json };
       platform_create_workspace: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_audit: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_branches: { Args: Record<string, unknown>; Returns: Json };

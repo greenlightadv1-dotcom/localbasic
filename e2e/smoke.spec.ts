@@ -179,3 +179,43 @@ test('the kitchen cannot reach the money screens', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'التقارير' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'الإيصالات' })).toHaveCount(0);
 });
+
+/**
+ * The newest order must survive the list cap.
+ *
+ * `listOrders` caps its result. Asking the database for oldest-first and then
+ * capping discards the NEWEST rows, so a branch busy enough to exceed the cap
+ * stops seeing the orders it just took. This pins the fix: with a backlog well
+ * past the limit, the order placed last is still on the cashier's screen.
+ */
+test('a new order is visible even behind a large backlog', async ({ page }) => {
+  const { org, branch } = await ids();
+
+  const { rows: before } = await DB.query(
+    `select count(*)::int as n from restaurant_orders
+      where organization_id = $1 and branch_id = $2
+        and status in ('new','confirmed','preparing','ready','served')`,
+    [org, branch],
+  );
+
+  // Enough open orders to push past the 100-row cap. Inserted directly: this
+  // is about what the list renders, not about how an order is created.
+  const needed = Math.max(0, 110 - before[0].n);
+  for (let i = 0; i < needed; i += 1) {
+    await DB.query(
+      `insert into restaurant_orders
+         (organization_id, branch_id, number, status, channel, type, currency, placed_at)
+       values ($1, $2, $3, 'new', 'cashier', 'takeaway', 'EGP', now() - interval '1 day')`,
+      [org, branch, `BACKLOG-${Date.now()}-${i}`],
+    );
+  }
+
+  // Placed last, so oldest-first + cap would have hidden it.
+  const number = await seedOrder('confirmed');
+
+  await actAs(page, 'cashier@demo.local');
+  await page.goto('/alhara/main/cashier');
+  await expect(page.locator('li').filter({ hasText: `#${number}` })).toBeVisible();
+
+  await DB.query('delete from restaurant_orders where number like $1', ['BACKLOG-%']);
+});

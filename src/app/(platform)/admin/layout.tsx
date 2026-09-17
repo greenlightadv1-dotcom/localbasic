@@ -18,6 +18,7 @@ const NAV = [
   { href: '/admin/services', label: 'الخدمات' },
   { href: '/admin/promo-codes', label: 'أكواد الخصم' },
   { href: '/admin/audit', label: 'سجل المنصة' },
+  { href: '/admin/team', label: 'فريق المنصة' },
 ];
 
 /**

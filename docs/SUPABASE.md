@@ -63,16 +63,32 @@ Two advisor notices are expected and intentional:
 
 ## Platform Admin
 
-The first Platform Admin is created out-of-band, on purpose — an in-app path to
-create one would be a privilege-escalation surface. With a privileged
-connection (SQL editor or service role):
+**Every `/admin` route answers 404 until this is done.** The gate returns
+not-found rather than forbidden on purpose, so a fresh deployment where nobody
+is on the roster looks exactly like a deployment with no console at all. If
+`/admin/customers` shows the LocalBasic 404 page, check this table first.
+
+The first Platform Admin is created out-of-band, on purpose — a self-service
+path on an empty roster would let the first person through the door claim the
+platform. The account must already exist, so sign in once, then, with a
+privileged connection (SQL editor or service role):
 
 ```sql
 insert into public.platform_admins (user_id, role)
 select id, 'owner' from auth.users where email = 'you@example.com';
 ```
 
-After that, admins manage each other through the application.
+Verify it took:
+
+```sql
+select u.email, a.role, a.is_active
+from public.platform_admins a join auth.users u on u.id = a.user_id;
+```
+
+After that, admins manage each other at **`/admin/team`** — an owner may grant
+and revoke, staff may read the roster. Migration 0048 added those functions;
+before it, this sentence was aspirational and the roster could only be changed
+with a database console.
 
 ### Owner account creation
 
