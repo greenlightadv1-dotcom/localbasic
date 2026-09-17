@@ -7,6 +7,7 @@ import { getBranding } from '@/modules/core/branding/service';
 import { Button } from '@/components/ui/button';
 import { Money } from '@/components/patterns/money';
 import { PrintButton } from '../../tables/[tableId]/qr/print-button';
+import { RECEIPT_DISCLAIMER_AR } from '@/modules/core/legal/receipt';
 
 export const metadata = { title: 'إيصال' };
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,14 @@ const METHODS: Record<string, string> = {
  * A printable receipt, laid out for an 80mm thermal roll.
  *
  * It is a RECEIPT (إيصال): a record of what the guest paid. It does not
- * present itself as an Egyptian tax invoice and makes no tax-authority claim.
+ * present itself as an Egyptian tax invoice and makes no tax-authority claim,
+ * and since this is the document actually handed to a customer it carries the
+ * disclaimer saying so — the same wording every other customer-facing
+ * financial surface uses, from one definition in Core.
+ *
+ * Every figure below is read from `invoices` and `payments` by this Server
+ * Component. Nothing is passed in, computed in the browser, or recovered from
+ * a URL: the receipt says what the database recorded.
  */
 export default async function ReceiptPage({
   params,
@@ -156,6 +164,19 @@ export default async function ReceiptPage({
             <Money cents={receipt.total_cents - receipt.paid_cents} currency={receipt.currency} />
           </p>
         )}
+
+        {/*
+          Required wording on every customer-facing financial document.
+          LocalBasic issues receipts, never Egyptian tax invoices, and says so
+          in print as well as on screen. Do not reword without instruction —
+          see src/modules/core/legal/receipt.ts.
+        */}
+        <p
+          className="mt-4 border-t border-dashed border-current/20 pt-3 text-[10px] leading-relaxed opacity-70"
+          data-testid="receipt-disclaimer"
+        >
+          {RECEIPT_DISCLAIMER_AR}
+        </p>
 
         <footer className="mt-5 border-t border-dashed border-current/20 pt-4 text-center text-xs opacity-70">
           <p>شكرًا لزيارتكم</p>

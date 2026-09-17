@@ -1,0 +1,165 @@
+name: CI
+
+# Every check a contributor runs locally, run the same way here. Nothing is
+# reimplemented: the SQL suite is supabase/tests/run.sh, the browser suite is
+# the committed Playwright config, and the build is the production build.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an in-flight run on the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Playwright suite and the dev server both talk to the local PostgreSQL
+  # through the development adapter. No Supabase project is involved, and no
+  # real credential is needed — or present — in CI.
+  LOCALBASIC_LOCAL_DB: '1'
+  NEXT_PUBLIC_SUPABASE_URL: https://ci.example.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-not-a-real-secret-000000
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_APP_NAME: LocalBasic
+  PGHOST: localhost
+  PGPORT: '5432'
+  PGUSER: postgres
+  PGPASSWORD: postgres
+  LOCAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/localbasic_dev
+
+jobs:
+  static:
+    name: Typecheck, permissions, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Permission catalog in sync
+        run: node scripts/check-permissions.mjs
+
+      - name: Unit tests
+        run: npx vitest run
+
+  database:
+    name: SQL suite
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      # run.sh applies every committed migration to a throwaway database and
+      # then runs the assertion suites, so a migration that does not apply
+      # cleanly fails here rather than in production.
+      - name: Migrations and SQL tests
+        run: ./supabase/tests/run.sh
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # Built with LOCALBASIC_LOCAL_DB unset, as production runs it: the
+      # development adapter must not be what makes the build succeed.
+      - name: next build
+        env:
+          LOCALBASIC_LOCAL_DB: '0'
+        run: npm run build
+
+      - name: No service-role credential in the client bundle
+        run: |
+          if grep -rl "SUPABASE_SERVICE_ROLE_KEY\|service_role" .next/static/ 2>/dev/null; then
+            echo "A service-role reference reached the browser bundle."
+            exit 1
+          fi
+          echo "client bundle clean"
+
+  e2e:
+    name: Browser suite
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Development database
+        run: ./scripts/dev-db.sh
+
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+
+      # The DNS fixture is what lets the custom-domain suite exercise the real
+      # lookup → hash → state-machine path without owning a domain. It is
+      # reachable only under the development adapter and never in production.
+      - name: Start the application
+        env:
+          LOCALBASIC_DNS_FIXTURE: _localbasic.alhara-test.localbasic-e2e.test=e2e-dns-fixture-token-000000
+        run: |
+          npx next dev > /tmp/dev.log 2>&1 &
+          # A plain poll rather than another dependency. Ninety seconds is well
+          # past a cold Next start and short enough to fail fast if the server
+          # died on boot.
+          for _ in $(seq 1 90); do
+            curl -sf -o /dev/null http://localhost:3000 && exit 0
+            sleep 1
+          done
+          echo "the application did not come up:"
+          tail -100 /tmp/dev.log
+          exit 1
+
+      - name: Playwright
+        env:
+          LOCALBASIC_DNS_FIXTURE: _localbasic.alhara-test.localbasic-e2e.test=e2e-dns-fixture-token-000000
+        run: npx playwright test
+
+      - name: Application log on failure
+        if: failure()
+        run: tail -200 /tmp/dev.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-artifacts
+          path: test-results/
+          retention-days: 7

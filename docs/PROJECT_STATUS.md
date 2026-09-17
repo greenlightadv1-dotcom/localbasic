@@ -16,8 +16,10 @@ Workshop remain paused by decision.
 - **Platform Admin console: COMPLETE** — customers, search, subscriptions,
   provisioning, billing.
 - **Retail: catalog, inventory, POS, returns, PURCHASING, the ONLINE STORE,
-  ANALYTICS and SHIPPING complete.** Remaining for the retail vertical:
-  notification delivery.
+  ANALYTICS and SHIPPING complete.**
+- **Foundation/MVP work is complete**: the notification delivery worker, the
+  invitation accept flow, the printable receipt and a CI workflow all landed in
+  0050. There is no known gap left in the list this phase started from.
 
 ## Decisions in force
 
@@ -79,6 +81,9 @@ Summarised; each file carries its own reasoning at the top.
 - **0049** shipping: carriers per organization, a shipment per attempt, an
   enumerated parcel state machine, and the carrier's cost settled through the
   treasury. No courier is named in the schema
+- **0050** the notification worker (lease + SKIP LOCKED claim, dedupe key,
+  backoff) and the invitation accept flow (single-use, expiring, email-bound,
+  audited)
 
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
@@ -200,6 +205,34 @@ guest menu at `/p/[token]`.
   - `07_permission_catalog` no orphan grants, owners hold the full catalog,
     kitchen and waiter templates hold nothing sensitive
 
+## The notification outbox
+
+`notifications` has existed since 0004 and several migrations enqueue into it.
+0050 added what a worker needs and the worker itself:
+
+- `notification_claim_batch` takes rows with `FOR UPDATE SKIP LOCKED` and a
+  lease, so two workers never take the same row and a crashed worker's rows
+  return to the queue when its lease expires.
+- `notification_mark_sent` / `_mark_failed` only ever act on a row still in
+  `sending`, so a late report from a reclaimed worker cannot overwrite the row
+  the new worker now holds. Failures back off (1, 4, 9 … minutes) and stop
+  after five attempts; a permanent failure stops at once.
+- `dedupe_key` is unique per organization, so an enqueue that runs twice is
+  absorbed by the database rather than by the caller remembering.
+- All three are granted to `service_role` ALONE. `notifications` still has no
+  insert policy — the outbox is written by definer functions, so a tenant
+  session cannot post arbitrary mail into it addressed to anyone it likes.
+- `src/modules/core/notifications/provider.ts` is the delivery boundary.
+  In-app notifications are delivered by existing (the row is already readable
+  by its recipient). Email goes through Resend when `RESEND_API_KEY` and
+  `NOTIFICATION_FROM_EMAIL` are both set; unset, the channel has NO provider
+  and the worker records a permanent failure naming it. Nothing is ever marked
+  sent that was not sent. SMS and WhatsApp have no provider at all.
+- The worker runs behind `/api/worker/notifications`, gated on a constant-time
+  comparison against `NOTIFICATION_WORKER_SECRET` and closed when that is
+  unset. `scripts/notification-worker.mjs` loops it for a deployment without a
+  cron service.
+
 ## Known gaps (tracked in TODO.md)
 
 Retail, in the order they are being built:
@@ -235,31 +268,36 @@ Core, still open:
 6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
    restaurant flow test hit this with `order_id`; local variables are prefixed
    `v_` for that reason.
-7. **A cap must discard the stalest rows, not the newest.** `listOrders` asked
+7. **RLS refuses silently through PostgREST.** The invitation email enqueue was
+   written as a plain insert from a tenant session; `notifications` has no
+   insert policy, so it affected zero rows and the error was discarded. Check
+   the error on every write, and remember that an outbox with no insert policy
+   is telling you writes belong in a definer function.
+8. **A cap must discard the stalest rows, not the newest.** `listOrders` asked
    the database for oldest-first and then capped at 100, so a branch with more
    than a hundred open orders stopped seeing the ones it had just taken. The
    query now takes the most recent window and the queue order is restored in
    the service. Any list that pairs an ORDER BY with a LIMIT needs the same
    check.
-8. **A 404 on `/admin/*` usually means an empty roster, not a broken route.**
+9. **A 404 on `/admin/*` usually means an empty roster, not a broken route.**
    The Platform Admin gate answers not-found rather than forbidden, so a
    deployment where `platform_admins` has no rows is indistinguishable from one
    with no console. Nothing in migrations or the seed ever inserts that first
    row; it is installed out-of-band by design. Check the table before debugging
    routing. Everything after the first admin now happens at `/admin/team`.
-9. **A column that exists is not a column that is filled.**
+10. **A column that exists is not a column that is filled.**
    `retail_stock_movements.unit_cost_cents` was defined in 0012 "for valuation
    and margin reporting" and only purchasing ever wrote it. Analytics then
    reported cost of goods as zero, which reads as a 100% margin — a number that
    misleads rather than merely missing. 0047 stamps it with a trigger, which
    covers every writer including future ones. History keeps its nulls and is
    excluded from cost rather than guessed.
-10. **Parse once, at the action boundary.** `defineTenantAction` validates the
+11. **Parse once, at the action boundary.** `defineTenantAction` validates the
    payload; services take already-typed input. Parsing a second time inside a
    service is not harmless: the money transform turns `"30.00"` into `3000`
    minor units, and running it again reads that `3000` as a fresh amount and
    stores `300000`. Purchasing shipped with this bug for exactly one test run.
-11. **Stored totals invite tampering.** Restaurant order totals are derived from
+12. **Stored totals invite tampering.** Restaurant order totals are derived from
    the lines by trigger for the same reason treasury balances are derived from
    the ledger — if a number can be written directly, eventually something
    writes the wrong one.

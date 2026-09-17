@@ -473,6 +473,10 @@ export type Database = {
           read_at: string | null;
           created_at: string;
           updated_at: string;
+          dedupe_key: string | null;
+          lease_until: string | null;
+          provider: string | null;
+          provider_ref: string | null;
         };
         Insert: {
           id?: string;
@@ -491,6 +495,10 @@ export type Database = {
           read_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          dedupe_key?: string | null;
+          lease_until?: string | null;
+          provider?: string | null;
+          provider_ref?: string | null;
         };
         Update: {
           id?: string;
@@ -509,6 +517,10 @@ export type Database = {
           read_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          dedupe_key?: string | null;
+          lease_until?: string | null;
+          provider?: string | null;
+          provider_ref?: string | null;
         };
         Relationships: [];
       };
@@ -2822,7 +2834,16 @@ export type Database = {
       customer_order_detail: { Args: Record<string, unknown>; Returns: Json };
       customer_order_items: { Args: Record<string, unknown>; Returns: Json };
       customer_orders: { Args: Record<string, unknown>; Returns: Json };
+      invitation_accept: { Args: Record<string, unknown>; Returns: Json };
+      invitation_create: { Args: Record<string, unknown>; Returns: Json };
+      invitation_enqueue_email: { Args: Record<string, unknown>; Returns: Json };
+      invitation_preview: { Args: Record<string, unknown>; Returns: Json };
+      invitation_revoke: { Args: Record<string, unknown>; Returns: Json };
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
+      notification_claim_batch: { Args: Record<string, unknown>; Returns: Json };
+      notification_mark_failed: { Args: Record<string, unknown>; Returns: Json };
+      notification_mark_sent: { Args: Record<string, unknown>; Returns: Json };
+      notification_queue_stats: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_grant: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_list: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_revoke: { Args: Record<string, unknown>; Returns: Json };

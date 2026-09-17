@@ -136,7 +136,18 @@ export default async function OrderDetailPage({
               {invoice && (
                 <div className="flex justify-between pt-2">
                   <dt className="text-muted">رقم الإيصال</dt>
-                  <dd className="lb-numeric font-semibold">{invoice.number}</dd>
+                  <dd className="lb-numeric font-semibold">
+                    {/* The printable receipt. It derives every figure itself
+                        from invoices and payments — this link carries only the
+                        id. */}
+                    <Link
+                      href={`/${params.orgSlug}/${params.branchSlug}/invoices/${invoice.id}`}
+                      className="text-primary hover:underline"
+                      data-testid="open-receipt"
+                    >
+                      {invoice.number}
+                    </Link>
+                  </dd>
                 </div>
               )}
             </dl>

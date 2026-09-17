@@ -5,13 +5,18 @@ Workshop remain paused.
 
 ## Retail — remaining
 
-- [ ] Notification delivery worker + templates, behind a provider adapter
 
-## Core — remaining
+## Remaining
 
-- [ ] Invitation accept flow (table and policies exist; no UI, no accept function)
-- [ ] Printable receipt page for a completed order (data and service exist)
-- [ ] CI workflow: typecheck, build, SQL suite, unit tests, Playwright
+Nothing from the foundation/MVP list is outstanding. The next work is product
+decisions rather than gaps:
+
+- [ ] A real SMS or WhatsApp provider (the boundary is in place; no adapter
+      exists, and the worker refuses those channels rather than pretending)
+- [ ] A courier integration (same shape: an adapter and a provider row)
+- [ ] Egyptian e-invoicing, as an adapter, when the business decides to pursue
+      it — deliberately not built into Core
+- [ ] Medical and Workshop verticals, still paused
 
 ## Done
 
@@ -26,6 +31,13 @@ Workshop remain paused.
       products, low stock, purchasing and storefront counts
 - [x] Retail: shipping — carriers, parcels per attempt, tracking, carrier cost
       settled through the treasury, behind an adapter boundary
+- [x] Notification delivery worker — leased claim, dedupe key, backoff, a
+      provider boundary that never claims delivery it did not make
+- [x] Invitation accept flow — single-use, expiring, bound to the invited
+      address, audited
+- [x] Printable receipt carrying the required Egyptian e-invoice disclaimer
+- [x] CI workflow: typecheck, permissions, unit tests, SQL suite, production
+      build, browser suite
 - [x] Restaurant: schema, ordering, payments, QR, operational screens
 - [x] Restaurant: online ordering, customer accounts, public website,
       website builder, custom domains + DNS verification hardening
