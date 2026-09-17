@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Section, SectionHeading } from '@/components/patterns/site-sections';
 import { WhatsAppCta } from '@/components/patterns/site-chrome';
-import { CONTACT_EMAIL, WHATSAPP_MESSAGES } from '@/config/site';
+import { CONTACT_EMAIL, WHATSAPP_DISPLAY, WHATSAPP_MESSAGES } from '@/config/site';
 
 export const metadata: Metadata = {
   title: 'تواصل معنا',
@@ -24,7 +24,12 @@ export default function ContactPage() {
           <p className="mt-2 text-sm leading-relaxed text-muted">
             للمبيعات والعروض التوضيحية والدعم.
           </p>
-          <div className="mt-5">
+          {/* The number itself, because a contact page that only offers a
+              button is useless to someone who wants to save it or call. */}
+          <p className="lb-numeric mt-3 text-sm font-semibold text-fg" dir="ltr">
+            {WHATSAPP_DISPLAY}
+          </p>
+          <div className="mt-4">
             <WhatsAppCta className="h-11 w-full px-5 text-sm" message={WHATSAPP_MESSAGES.general} />
           </div>
         </div>

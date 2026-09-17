@@ -6,10 +6,20 @@
  * value is rendered into the public HTML.
  */
 
-/** Sales WhatsApp number in international format, digits only. */
-export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '201000000000';
+/**
+ * Sales WhatsApp number in international format, digits only — no `+`, no
+ * spaces, no leading zero. wa.me rejects anything else, so the formatting is
+ * enforced here rather than at each of the seven call sites.
+ *
+ * +20 104 116 5669  →  201041165669
+ */
+export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '201041165669';
 
-export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'hello@localbasic.app';
+export const CONTACT_EMAIL =
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'local.basic@greenlightadvs.com';
+
+/** The number as a human reads it, for display next to the link. */
+export const WHATSAPP_DISPLAY = '+20 104 116 5669';
 
 /** Builds a wa.me link with a prefilled Arabic message. */
 export function whatsappLink(message: string): string {

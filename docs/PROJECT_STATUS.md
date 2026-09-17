@@ -233,6 +233,37 @@ guest menu at `/p/[token]`.
   unset. `scripts/notification-worker.mjs` loops it for a deployment without a
   cron service.
 
+## Platform Admin — verified functional
+
+Verified by probing every route with five identities and by running the sales
+chain end to end, not by checking that components exist.
+
+| Area | Route | State |
+|---|---|---|
+| Dashboard | `/admin` | platform counts, expiring terms — not tenant figures |
+| Customers | `/admin/customers`, `/…/[code]` | real search, profile, branches, modules, domains, audit |
+| Services | `/admin/services` | real module rows, availability toggle works |
+| Plans | `/admin/plans` | real plan rows with pricing |
+| Subscriptions | `/admin/subscriptions` | real terms, statuses, renewal |
+| Leads | `/admin/leads` | create and advance through the pipeline |
+| Audit | `/admin/audit` | platform-scoped rows only (`platform.%`) |
+| Onboard | `/admin/onboard` | the full workspace-creation workflow |
+| Promo codes | `/admin/promo-codes` | create, toggle, server-priced |
+| Team | `/admin/team` | the admin roster (0048) |
+| Legacy | `/admin/organizations[/code]` | gated 307 to `/admin/customers` |
+
+The boundary: `requirePlatformAdmin()` gates the layout, every service function
+re-checks, and every platform RPC checks again in the database. A tenant owner,
+a staff member and an anonymous visitor all get the not-found body — never a
+403, so probing `/admin` reveals nothing. Platform Admin is not expressible in
+tenant RBAC: `platform_admins` has no write policy at all, so a tenant cannot
+insert themselves into it by any route.
+
+The workflow — lead → agreement → organization → service → plan → owner →
+workspace — runs through `platform_onboard_customer`, which calls
+`app.require_platform_admin()` and then `app.provision_workspace_for(...)`.
+Provisioning is not bypassed; the lead is closed by the same transaction.
+
 ## Known gaps (tracked in TODO.md)
 
 Retail, in the order they are being built:
@@ -268,36 +299,41 @@ Core, still open:
 6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
    restaurant flow test hit this with `order_id`; local variables are prefixed
    `v_` for that reason.
-7. **RLS refuses silently through PostgREST.** The invitation email enqueue was
+7. **A redirect is a surface too.** `/admin/organizations` answered a 307 to
+   anyone, confirming the path existed and where it went, while every other
+   `/admin` route answered not-found. A route handler that redirects before
+   checking is still a route that leaks. Gate the redirect, not just the
+   destination.
+8. **RLS refuses silently through PostgREST.** The invitation email enqueue was
    written as a plain insert from a tenant session; `notifications` has no
    insert policy, so it affected zero rows and the error was discarded. Check
    the error on every write, and remember that an outbox with no insert policy
    is telling you writes belong in a definer function.
-8. **A cap must discard the stalest rows, not the newest.** `listOrders` asked
+9. **A cap must discard the stalest rows, not the newest.** `listOrders` asked
    the database for oldest-first and then capped at 100, so a branch with more
    than a hundred open orders stopped seeing the ones it had just taken. The
    query now takes the most recent window and the queue order is restored in
    the service. Any list that pairs an ORDER BY with a LIMIT needs the same
    check.
-9. **A 404 on `/admin/*` usually means an empty roster, not a broken route.**
+10. **A 404 on `/admin/*` usually means an empty roster, not a broken route.**
    The Platform Admin gate answers not-found rather than forbidden, so a
    deployment where `platform_admins` has no rows is indistinguishable from one
    with no console. Nothing in migrations or the seed ever inserts that first
    row; it is installed out-of-band by design. Check the table before debugging
    routing. Everything after the first admin now happens at `/admin/team`.
-10. **A column that exists is not a column that is filled.**
+11. **A column that exists is not a column that is filled.**
    `retail_stock_movements.unit_cost_cents` was defined in 0012 "for valuation
    and margin reporting" and only purchasing ever wrote it. Analytics then
    reported cost of goods as zero, which reads as a 100% margin — a number that
    misleads rather than merely missing. 0047 stamps it with a trigger, which
    covers every writer including future ones. History keeps its nulls and is
    excluded from cost rather than guessed.
-11. **Parse once, at the action boundary.** `defineTenantAction` validates the
+12. **Parse once, at the action boundary.** `defineTenantAction` validates the
    payload; services take already-typed input. Parsing a second time inside a
    service is not harmless: the money transform turns `"30.00"` into `3000`
    minor units, and running it again reads that `3000` as a fresh amount and
    stores `300000`. Purchasing shipped with this bug for exactly one test run.
-12. **Stored totals invite tampering.** Restaurant order totals are derived from
+13. **Stored totals invite tampering.** Restaurant order totals are derived from
    the lines by trigger for the same reason treasury balances are derived from
    the ledger — if a number can be written directly, eventually something
    writes the wrong one.
