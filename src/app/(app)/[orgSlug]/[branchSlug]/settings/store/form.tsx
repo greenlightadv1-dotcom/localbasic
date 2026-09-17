@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
-import { saveStoreSettingsAction } from './actions';
+import { createCarrierAction, saveStoreSettingsAction } from './actions';
 import type { StoreSettings } from '@/modules/retail/store/settings';
 
 export function StoreSettingsForm({
@@ -99,6 +99,58 @@ export function StoreSettingsForm({
 
       <Button type="submit" disabled={isPending}>
         {isPending ? '…' : 'حفظ'}
+      </Button>
+    </form>
+  );
+}
+
+/** Add a carrier the shop actually uses. */
+export function CarrierForm({
+  orgSlug, branchSlug,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function onSubmit(formData: FormData) {
+    setError(null);
+    startTransition(async () => {
+      const result = await createCarrierAction(
+        { organizationSlug: orgSlug, branchSlug },
+        {
+          name: String(formData.get('carrierName') ?? ''),
+          defaultCostCents: String(formData.get('carrierCost') ?? '0'),
+          phone: String(formData.get('carrierPhone') ?? ''),
+        },
+      );
+      if (!result.ok) { setError(result.error); return; }
+      router.refresh();
+    });
+  }
+
+  return (
+    <form action={onSubmit} className="space-y-3 border-t border-line pt-3">
+      {error ? <Alert tone="danger">{error}</Alert> : null}
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="اسم شركة الشحن" required>
+          {(p) => <Input {...p} name="carrierName" required maxLength={120} />}
+        </Field>
+        <Field label="التكلفة الافتراضية">
+          {(p) => (
+            <Input {...p} name="carrierCost" dir="ltr" inputMode="decimal" defaultValue="0.00" />
+          )}
+        </Field>
+        <Field label="الهاتف">
+          {(p) => <Input {...p} name="carrierPhone" dir="ltr" maxLength={40} />}
+        </Field>
+      </div>
+
+      <Button type="submit" size="sm" variant="outline" disabled={isPending} data-testid="add-carrier">
+        {isPending ? '…' : 'إضافة شركة شحن'}
       </Button>
     </form>
   );

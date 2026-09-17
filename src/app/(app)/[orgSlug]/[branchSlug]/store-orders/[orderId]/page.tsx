@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Money } from '@/components/patterns/money';
 import { AdvanceOrder, CancelOrder, CompleteOrder } from './forms';
+import { OrderShipping } from './shipping';
 
 export const metadata = { title: 'طلب متجر' };
 
@@ -157,6 +158,16 @@ export default async function StoreOrderPage({
                 ) : null}
               </CardBody>
             </Card>
+          ) : null}
+
+          {/* Only a delivery order has anything to ship. */}
+          {order.fulfillment === 'delivery' ? (
+            <OrderShipping
+              ctx={ctx}
+              orderId={order.id}
+              orgSlug={params.orgSlug}
+              branchSlug={params.branchSlug}
+            />
           ) : null}
 
           {order.note ? (

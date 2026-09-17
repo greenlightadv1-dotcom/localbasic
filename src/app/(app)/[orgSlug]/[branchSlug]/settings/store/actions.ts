@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { defineTenantAction } from '@/lib/action';
 import { saveStoreSettings } from '@/modules/retail/store/settings';
+import { createProvider } from '@/modules/retail/shipping/service';
 
 /** Money arrives as a typed string and becomes minor units exactly once. */
 const cents = z
@@ -33,5 +34,32 @@ export const saveStoreSettingsAction = defineTenantAction({
     await saveStoreSettings(ctx, input);
     revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/store`);
     return { ok: true };
+  },
+});
+
+/**
+ * Add a carrier.
+ *
+ * `providerKey` is fixed to 'manual' here: it is the only adapter this
+ * deployment implements, and offering a key the application cannot honour
+ * would mean a shop configuring a courier that silently never books. A real
+ * integration adds an adapter first, then this list grows.
+ */
+export const createCarrierAction = defineTenantAction({
+  schema: z.object({
+    name: z.string().trim().min(2, 'اسم شركة الشحن مطلوب').max(120),
+    defaultCostCents: cents,
+    phone: z.string().trim().max(40).optional().or(z.literal('')),
+  }),
+  permission: 'settings.manage',
+  handler: async ({ ctx, input }) => {
+    const id = await createProvider(ctx, {
+      name: input.name,
+      providerKey: 'manual',
+      defaultCostCents: input.defaultCostCents,
+      phone: input.phone || undefined,
+    });
+    revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/store`);
+    return { id };
   },
 });

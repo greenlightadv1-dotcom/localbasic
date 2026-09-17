@@ -15,9 +15,9 @@ Workshop remain paused by decision.
   the website builder, and custom domains with DNS verification.
 - **Platform Admin console: COMPLETE** — customers, search, subscriptions,
   provisioning, billing.
-- **Retail: catalog, inventory, POS, returns, PURCHASING, the ONLINE STORE and
-  ANALYTICS complete.** Remaining for the retail vertical: shipping
-  abstraction and notification delivery.
+- **Retail: catalog, inventory, POS, returns, PURCHASING, the ONLINE STORE,
+  ANALYTICS and SHIPPING complete.** Remaining for the retail vertical:
+  notification delivery.
 
 ## Decisions in force
 
@@ -76,6 +76,9 @@ Summarised; each file carries its own reasoning at the top.
 - **0048** the Platform Admin roster can be managed in-product: an owner grants
   and revokes at `/admin/team`, staff may read it. The FIRST admin is still
   installed out-of-band on purpose — see docs/SUPABASE.md
+- **0049** shipping: carriers per organization, a shipment per attempt, an
+  enumerated parcel state machine, and the carrier's cost settled through the
+  treasury. No courier is named in the schema
 
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
@@ -109,6 +112,19 @@ Summarised; each file carries its own reasoning at the top.
   `retail_place_order`) plus two token-scoped readers; `anon` holds no
   privilege on any store table. No payment provider is invented — the
   storefront offers cash on delivery or pay on collection.
+- **0049** shipping: `retail_shipping_providers` (the shop's own list of
+  carriers) and `retail_shipments` (one row per ATTEMPT, so a failed delivery
+  and its retry are both on the record). The parcel's address is COPIED from
+  the order inside the database — `retail_shipment_create` has no argument
+  through which a caller could name one. A tracking code is accepted, never
+  generated. What the customer PAID for delivery stays the order's
+  `delivery_fee_cents`; what the shop PAYS the carrier is a treasury `out`
+  movement with category `shipping`, so margin stays honest.
+  `src/modules/retail/shipping/carrier.ts` is the adapter boundary: an
+  implementation reports what a carrier said and never decides a status, and
+  `ManualCarrier` — the shop's own rider — books nothing and tracks nothing
+  rather than faking either. A real courier is a class there and a row in the
+  providers table, not a migration.
 
 Retail application code: `src/modules/retail/{products,inventory,pos}`,
 actions in the branch route, and screens for products, new product,
