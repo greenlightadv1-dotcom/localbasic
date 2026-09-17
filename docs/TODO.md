@@ -5,7 +5,6 @@ Workshop remain paused.
 
 ## Retail — remaining
 
-- [ ] Online store: storefront, cart, checkout, orders
 - [ ] Shipping abstraction behind a provider adapter
 - [ ] Notification delivery worker + templates, behind a provider adapter
 - [ ] Retail analytics
@@ -23,6 +22,8 @@ Workshop remain paused.
 - [x] Core settings screens: branches, members, roles, branding, audit log
 - [x] Retail: catalog, inventory ledger, POS, returns
 - [x] Retail: suppliers and purchasing — orders, receiving, supplier payment
+- [x] Retail: online store — storefront, cart, guest checkout, order lifecycle,
+      completion into a Core receipt with payment and treasury
 - [x] Restaurant: schema, ordering, payments, QR, operational screens
 - [x] Restaurant: online ordering, customer accounts, public website,
       website builder, custom domains + DNS verification hardening

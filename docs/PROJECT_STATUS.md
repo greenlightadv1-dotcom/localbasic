@@ -15,9 +15,9 @@ Workshop remain paused by decision.
   the website builder, and custom domains with DNS verification.
 - **Platform Admin console: COMPLETE** — customers, search, subscriptions,
   provisioning, billing.
-- **Retail: catalog, inventory, POS, returns and PURCHASING complete.**
-  Remaining for the retail vertical: online store (cart/checkout/orders),
-  shipping abstraction, notifications, and analytics.
+- **Retail: catalog, inventory, POS, returns, PURCHASING and the ONLINE STORE
+  complete.** Remaining for the retail vertical: shipping abstraction,
+  notification delivery, and analytics.
 
 ## Decisions in force
 
@@ -69,6 +69,8 @@ Summarised; each file carries its own reasoning at the top.
   hostname to look up comes from the table rather than the browser
 - **0045** retail purchasing: purchase orders, receiving into the stock ledger,
   supplier payment out of the treasury
+- **0046** retail online store: orders, guest checkout, storefront projections,
+  and completion into a Core receipt
 
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
@@ -89,6 +91,19 @@ Summarised; each file carries its own reasoning at the top.
   the storefront and purchasing share one stock truth. Paying a supplier is a
   treasury `out` transaction, and `paid_cents` is recomputed from that ledger
   rather than incremented.
+- **0046** online store: `retail_orders` + items + deliveries, totals derived by
+  trigger, an enumerated state machine (placed → confirmed → packed →
+  fulfilled → completed, cancellable until completed).
+  **Stock is committed at checkout**, through the same ledger the POS writes —
+  that is what stops the till and the storefront selling the same last unit.
+  Cancelling writes a compensating movement.
+  **An order is not an invoice**: `retail_order_complete` produces the Core
+  invoice, payment and treasury entry, and only then does money exist.
+  The anonymous surface is four SECURITY DEFINER projections
+  (`retail_store_context`, `_catalog`, `retail_price_cart`,
+  `retail_place_order`) plus two token-scoped readers; `anon` holds no
+  privilege on any store table. No payment provider is invented — the
+  storefront offers cash on delivery or pay on collection.
 
 Retail application code: `src/modules/retail/{products,inventory,pos}`,
 actions in the branch route, and screens for products, new product,

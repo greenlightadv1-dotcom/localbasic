@@ -23,11 +23,8 @@ export const FULFILLMENT_AR: Record<string, string> = {
 };
 
 /**
- * The wording the platform is required to show on any customer-facing
- * financial document. Local Basic issues RECEIPTS. It does not claim, and must
- * never appear to claim, Egyptian e-invoice status.
+ * The receipt wording now lives in Core, because retail shows the same words
+ * on the same kind of document. Re-exported here so existing imports keep
+ * working and the text still has exactly one definition.
  */
-export const RECEIPT_DISCLAIMER_AR =
-  'هذا إيصال داخلي وليس فاتورة ضريبية معتمدة من منظومة الفاتورة الإلكترونية المصرية. ' +
-  'التكامل مع المنظومة الضريبية مؤجل لمرحلة لاحقة، وصاحب النشاط (العميل) مسؤول بشكل ' +
-  'مستقل عن التزاماته الضريبية تجاه مصلحة الضرائب المصرية.';
+export { RECEIPT_DISCLAIMER_AR } from '@/modules/core/legal/receipt';

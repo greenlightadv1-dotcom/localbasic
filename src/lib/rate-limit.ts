@@ -35,6 +35,12 @@ export const RATE_LIMITS = {
   // domains cannot multiply the first limit away.
   domainVerify: { limit: 10, windowMs: 10 * 60_000 },
   domainVerifyUser: { limit: 60, windowMs: 10 * 60_000 },
+  // Retail storefront checkout. Looser than `publicOrder` on purpose: a retail
+  // shop's customers arrive from mobile carriers and office networks, where
+  // many genuine buyers share one address, and a restaurant's 10-per-10-minutes
+  // would refuse real orders. Still a real cap — a script cannot sit on the
+  // endpoint — and stock is protected by the ledger regardless.
+  storeCheckout: { limit: 30, windowMs: 10 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 export function checkRateLimit(key: string, rule: RateLimitRule): { ok: boolean; retryAfterMs: number } {
