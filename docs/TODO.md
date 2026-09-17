@@ -7,7 +7,6 @@ Workshop remain paused.
 
 - [ ] Shipping abstraction behind a provider adapter
 - [ ] Notification delivery worker + templates, behind a provider adapter
-- [ ] Retail analytics
 
 ## Core — remaining
 
@@ -24,6 +23,8 @@ Workshop remain paused.
 - [x] Retail: suppliers and purchasing — orders, receiving, supplier payment
 - [x] Retail: online store — storefront, cart, guest checkout, order lifecycle,
       completion into a Core receipt with payment and treasury
+- [x] Retail: analytics — revenue, cost of goods, margin, channels, top
+      products, low stock, purchasing and storefront counts
 - [x] Restaurant: schema, ordering, payments, QR, operational screens
 - [x] Restaurant: online ordering, customer accounts, public website,
       website builder, custom domains + DNS verification hardening

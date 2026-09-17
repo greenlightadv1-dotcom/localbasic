@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Money } from '@/components/patterns/money';
 import { EmptyState } from '@/components/patterns/states';
 import { BarChart3 } from 'lucide-react';
+import { RetailReport } from './retail-report';
 
 export const metadata = { title: 'التقارير' };
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,27 @@ function Stat({
   );
 }
 
+function RangeNav({ base, current }: { base: string; current: DateRangeKey }) {
+  return (
+    <nav aria-label="الفترة الزمنية" className="flex flex-wrap gap-2">
+      {RANGES.map((r) => (
+        <Link
+          key={r.key}
+          href={`${base}/reports?range=${r.key}`}
+          aria-current={r.key === current ? 'page' : undefined}
+          className={
+            r.key === current
+              ? 'rounded bg-primary px-3 py-1.5 text-sm font-semibold text-primary-fg'
+              : 'rounded border border-line bg-elevated px-3 py-1.5 text-sm text-muted hover:bg-surface'
+          }
+        >
+          {r.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export default async function ReportsPage({
   params,
   searchParams,
@@ -73,29 +95,36 @@ export default async function ReportsPage({
   const rangeKey = (RANGES.find((r) => r.key === searchParams.range)?.key ??
     (searchParams.from ? 'custom' : 'today')) as DateRangeKey;
   const range = resolveRange(rangeKey, searchParams.from, searchParams.to);
-  const report = await getRestaurantReport(ctx, range);
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
+
+  // Which vertical's figures this branch should see. A shop and a restaurant
+  // ask different questions of the same money, so they get different reports
+  // rather than one with half its rows blank. An organization running both
+  // sees the restaurant report here; a second surface for the second vertical
+  // is a later decision, not something to guess at now.
+  const showRetail =
+    !ctx.enabledModules.includes('restaurant') && ctx.enabledModules.includes('retail');
+
+  if (showRetail) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title="التقارير"
+          description={`${ctx.branchName} — تقارير المبيعات والمخزون`}
+        />
+        <RangeNav base={base} current={rangeKey} />
+        <RetailReport ctx={ctx} range={range} />
+      </div>
+    );
+  }
+
+  const report = await getRestaurantReport(ctx, range);
 
   return (
     <div className="space-y-5">
       <PageHeader title="التقارير" description={`${ctx.branchName} — تقارير المبيعات والحركة`} />
 
-      <nav aria-label="الفترة الزمنية" className="flex flex-wrap gap-2">
-        {RANGES.map((r) => (
-          <Link
-            key={r.key}
-            href={`${base}/reports?range=${r.key}`}
-            aria-current={r.key === rangeKey ? 'page' : undefined}
-            className={
-              r.key === rangeKey
-                ? 'rounded bg-primary px-3 py-1.5 text-sm font-semibold text-primary-fg'
-                : 'rounded border border-line bg-elevated px-3 py-1.5 text-sm text-muted hover:bg-surface'
-            }
-          >
-            {r.label}
-          </Link>
-        ))}
-      </nav>
+      <RangeNav base={base} current={rangeKey} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="المبيعات المحصّلة">

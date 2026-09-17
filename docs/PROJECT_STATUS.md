@@ -15,9 +15,9 @@ Workshop remain paused by decision.
   the website builder, and custom domains with DNS verification.
 - **Platform Admin console: COMPLETE** — customers, search, subscriptions,
   provisioning, billing.
-- **Retail: catalog, inventory, POS, returns, PURCHASING and the ONLINE STORE
-  complete.** Remaining for the retail vertical: shipping abstraction,
-  notification delivery, and analytics.
+- **Retail: catalog, inventory, POS, returns, PURCHASING, the ONLINE STORE and
+  ANALYTICS complete.** Remaining for the retail vertical: shipping
+  abstraction and notification delivery.
 
 ## Decisions in force
 
@@ -71,6 +71,8 @@ Summarised; each file carries its own reasoning at the top.
   supplier payment out of the treasury
 - **0046** retail online store: orders, guest checkout, storefront projections,
   and completion into a Core receipt
+- **0047** every stock movement records the cost it was made at, so margin
+  reporting has a real figure instead of an implied 100%
 
 ### Retail — `supabase/migrations/0011`–`0015`
 - **0011** retail_categories, retail_suppliers, retail_products,
@@ -214,12 +216,19 @@ Core, still open:
 6. **A PL/pgSQL variable that shares a name with a column is ambiguous.** The
    restaurant flow test hit this with `order_id`; local variables are prefixed
    `v_` for that reason.
-7. **Parse once, at the action boundary.** `defineTenantAction` validates the
+7. **A column that exists is not a column that is filled.**
+   `retail_stock_movements.unit_cost_cents` was defined in 0012 "for valuation
+   and margin reporting" and only purchasing ever wrote it. Analytics then
+   reported cost of goods as zero, which reads as a 100% margin — a number that
+   misleads rather than merely missing. 0047 stamps it with a trigger, which
+   covers every writer including future ones. History keeps its nulls and is
+   excluded from cost rather than guessed.
+8. **Parse once, at the action boundary.** `defineTenantAction` validates the
    payload; services take already-typed input. Parsing a second time inside a
    service is not harmless: the money transform turns `"30.00"` into `3000`
    minor units, and running it again reads that `3000` as a fresh amount and
    stores `300000`. Purchasing shipped with this bug for exactly one test run.
-8. **Stored totals invite tampering.** Restaurant order totals are derived from
+9. **Stored totals invite tampering.** Restaurant order totals are derived from
    the lines by trigger for the same reason treasury balances are derived from
    the ledger — if a number can be written directly, eventually something
    writes the wrong one.

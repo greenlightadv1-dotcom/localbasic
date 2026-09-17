@@ -427,5 +427,40 @@ begin
 
   raise notice 'PURCHASING: every purchasing action is audited';
 
+  -- ==========================================================================
+  -- 11. Every movement records what it cost (migration 0047)
+  --
+  -- Purchasing states the supplier's cost and is never overwritten; anything
+  -- else is stamped from the catalog, so margin reporting has a real figure
+  -- instead of an implied 100%.
+  -- ==========================================================================
+  perform auth.login_as(u_a);
+  select unit_cost_cents into amt from public.retail_stock_movements
+   where ref_type = 'retail_purchase' and ref_id = po and variant_id = var_a limit 1;
+  assert amt = 3000,
+    format('FAIL: purchasing stated 3000 and the movement says %s', amt);
+
+  -- A movement written with no cost is stamped from the variant.
+  perform auth.as_admin();
+  update public.retail_variants set cost_cents = 4444 where id = var_a;
+  insert into public.retail_stock_movements
+    (organization_id, branch_id, variant_id, quantity_delta, reason)
+  values (org_a, branch_a, var_a, -1, 'sale');
+
+  select unit_cost_cents into amt from public.retail_stock_movements
+   where variant_id = var_a and reason = 'sale' order by created_at desc limit 1;
+  assert amt = 4444, format('FAIL: an unstated cost was left as %s', amt);
+
+  -- And a stated cost still wins over the catalog.
+  insert into public.retail_stock_movements
+    (organization_id, branch_id, variant_id, quantity_delta, reason, unit_cost_cents)
+  values (org_a, branch_a, var_a, 1, 'adjustment', 7777);
+
+  select unit_cost_cents into amt from public.retail_stock_movements
+   where variant_id = var_a and reason = 'adjustment' order by created_at desc limit 1;
+  assert amt = 7777, format('FAIL: a stated cost was overwritten with %s', amt);
+
+  raise notice 'PURCHASING: every movement carries the cost it was made at';
+
   raise notice 'RETAIL PURCHASING: all assertions passed';
 end $$;
