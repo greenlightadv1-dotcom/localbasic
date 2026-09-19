@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AppError, conflict, toAppError } from '@/lib/errors';
 import { slugify } from '@/lib/tokens';
+import { requireUser } from './context';
 
 export const MODULE_KEYS = ['retail', 'restaurant', 'medical', 'workshop'] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
@@ -26,14 +27,21 @@ export const provisionWorkspaceSchema = z.object({
 export type ProvisionWorkspaceInput = z.infer<typeof provisionWorkspaceSchema>;
 
 /**
- * Organizations the signed-in user belongs to. RLS restricts this to their own
- * memberships, so there is no tenant filter to forget here.
+ * Organizations the signed-in user belongs to.
+ *
+ * The user filter is explicit and must stay that way. RLS alone is not an
+ * identity filter here: a Platform Admin is granted read over every row of
+ * organization_members so the platform console can list customers, so relying
+ * on the policy to mean "mine" returned every tenant on the platform to them.
+ * The caller then treated the first row as the user's own workspace.
  */
 export async function listMyWorkspaces() {
+  const user = await requireUser();
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from('organization_members')
     .select('organization_id, status, organizations!inner(slug, name, primary_module, status)')
+    .eq('user_id', user.id)
     .eq('status', 'active');
 
   if (error) throw toAppError(error, 'listMyWorkspaces');

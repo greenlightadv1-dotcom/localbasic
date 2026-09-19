@@ -55,47 +55,74 @@ export const requireUser = cache(async (): Promise<SessionUser> => {
  * cannot reach the branch, so organization slugs cannot be probed for
  * existence by an outsider.
  *
- * Every query below runs under the user's own RLS, so this function cannot see
- * more than the user is entitled to either.
+ * Membership is looked up explicitly, and that is the gate. It used to be
+ * inferred from whether RLS let the organization row be read, which stopped
+ * being the same question once the platform console was given read over every
+ * organization, member and branch: a Platform Admin could then walk into any
+ * tenant's workspace and land in a shell with no permissions at all. Reading a
+ * tenant's data to operate the SaaS is not belonging to it, and nothing in
+ * platform authorization may imply a tenant role.
  */
 export const resolveTenantContext = cache(
   async (organizationSlug: string, branchSlug?: string): Promise<TenantContext> => {
     const user = await requireUser();
     const supabase = createSupabaseServerClient();
 
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('id, slug, name, currency, default_locale, primary_module')
-      .eq('slug', organizationSlug)
-      .is('deleted_at', null)
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select(
+        'id, all_branches, organizations!inner(id, slug, name, currency, default_locale, primary_module)',
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .eq('organizations.slug', organizationSlug)
+      .is('organizations.deleted_at', null)
       .maybeSingle();
 
-    // RLS already restricted this to organizations the user belongs to, so a
-    // miss means "not a member" and "does not exist" alike — as intended.
-    if (!org) throw forbidden();
+    // No membership means "not a member" and "does not exist" alike — as
+    // intended, and now true for a Platform Admin as well.
+    if (!membership) throw forbidden();
 
-    const [{ data: branchRows }, { data: modules }, { data: grants }] = await Promise.all([
-      supabase
-        .from('branches')
-        .select('id, slug, name')
-        .eq('organization_id', org.id)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true }),
-      supabase
-        .from('organization_modules')
-        .select('module_key')
-        .eq('organization_id', org.id)
-        .eq('enabled', true),
-      supabase
-        .from('user_roles')
-        .select(
-          'branch_id, roles!inner(key, is_owner, organization_id, role_permissions(permission_key))',
-        )
-        .eq('roles.organization_id', org.id),
-    ]);
+    const org = membership.organizations as unknown as {
+      id: string;
+      slug: string;
+      name: string;
+      currency: string;
+      default_locale: string | null;
+      primary_module: string;
+    };
 
-    const branches = branchRows ?? [];
+    const [{ data: branchRows }, { data: memberBranches }, { data: modules }, { data: grants }] =
+      await Promise.all([
+        supabase
+          .from('branches')
+          .select('id, slug, name')
+          .eq('organization_id', org.id)
+          .eq('is_active', true)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true }),
+        supabase.from('member_branches').select('branch_id').eq('member_id', membership.id),
+        supabase
+          .from('organization_modules')
+          .select('module_key')
+          .eq('organization_id', org.id)
+          .eq('enabled', true),
+        supabase
+          .from('user_roles')
+          .select(
+            'branch_id, roles!inner(key, is_owner, organization_id, role_permissions(permission_key))',
+          )
+          .eq('roles.organization_id', org.id),
+      ]);
+
+    // Branch scope comes from the membership, not from what RLS returns: the
+    // platform read policy on branches is not scoped to a branch assignment,
+    // so a Platform Admin who is also a member of one branch would otherwise
+    // see every branch of that organization.
+    const assigned = membership.all_branches
+      ? null
+      : new Set((memberBranches ?? []).map((b) => b.branch_id));
+    const branches = (branchRows ?? []).filter((b) => assigned === null || assigned.has(b.id));
     if (branches.length === 0) throw forbidden();
 
     const branch = branchSlug
