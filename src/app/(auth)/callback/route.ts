@@ -17,7 +17,15 @@ import { safeNextPath } from '@/lib/auth/redirects';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = safeNextPath(searchParams.get('next'));
+
+  // A recovery link goes to the password form, whatever `next` says. Supabase
+  // appends type=recovery itself, and a link generated outside the app carries
+  // no `next` at all — without this it would fall through to the workspace,
+  // which is precisely where someone who cannot sign in must not be sent.
+  const next =
+    searchParams.get('type') === 'recovery'
+      ? '/reset-password'
+      : safeNextPath(searchParams.get('next'));
 
   // Supabase appends ?error=access_denied&error_code=otp_expired when a link
   // has already been used or has aged out. Say so instead of showing a bare

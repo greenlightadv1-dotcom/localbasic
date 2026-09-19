@@ -145,6 +145,38 @@ and revoke, staff may read the roster. Migration 0048 added those functions;
 before it, this sentence was aspirational and the roster could only be changed
 with a database console.
 
+### Auth URL configuration
+
+Authentication → URL Configuration, for the production project:
+
+* **Site URL** — `https://localbasic.vercel.app`, and nothing else. Paste the
+  value only: a Site URL of `Site URL https://localbasic.vercel.app` is not a
+  URL, so every verified link redirects to
+  `<project>.supabase.co/auth/v1/Site%20URL%20https:/...` and answers 401 after
+  a *successful* login. That failure looks exactly like a broken password.
+* **Redirect URLs** — must include `https://localbasic.vercel.app/callback`.
+  This is load-bearing, not decorative: `/forgot-password` sends an explicit
+  `redirectTo`, and Supabase silently falls back to the Site URL when the value
+  is not on the list. If a recovery link lands on the home page instead of
+  `/reset-password`, check this list first.
+
+Two flows reach the app and both are supported:
+
+* **PKCE** — started by the app's own `/forgot-password`. Supabase returns
+  `?code=`; `/callback` exchanges it server-side.
+* **Implicit** — what a link generated from the Dashboard uses, because the
+  recipient's browser holds no code verifier. Supabase returns the tokens in
+  the URL *fragment* and redirects to the bare Site URL. Fragments never reach
+  a server, so `RecoveryLinkHandler` on the marketing site posts them once to
+  `/callback/token`, which calls `setSession()` and writes the same httpOnly
+  cookies. Both flows then converge on `/reset-password`.
+
+Set `NEXT_PUBLIC_APP_URL=https://localbasic.vercel.app` in the Vercel project.
+The recovery action builds its link from that value — never from the request's
+`Host` header, which an attacker controls — and refuses to send at all when it
+resolves to localhost in production, rather than mailing a single-use token
+pointing at a dead address.
+
 ### Owner account creation
 
 `/admin/onboard` creates a workspace, applies the plan, opens the subscription
