@@ -10,7 +10,29 @@ import { clientEnv } from '@/lib/env';
  * Configuration cannot be spoofed by a request, so configuration wins.
  */
 export function appOrigin(): string {
-  return clientEnv.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '');
+  const configured = clientEnv.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '');
+  if (!isLoopbackOrigin(configured)) return configured;
+
+  // NEXT_PUBLIC_APP_URL is inlined at build time, so it is localhost whenever
+  // the variable was absent when the bundle was built — including the case
+  // where it is added to the host afterwards and nothing is rebuilt. Zod's
+  // default hides that: there is no error to see, just a link to a machine
+  // nobody else can reach.
+  //
+  // Vercel sets this one itself, at runtime, to the project's own production
+  // domain. It is platform state rather than anything a request carries, so
+  // trusting it does not reopen the host-header hole described above.
+  const platform = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (platform) return `https://${platform.replace(/\/+$/, '')}`;
+
+  return configured;
+}
+
+/** Which source supplied the origin. For diagnostics; never a secret. */
+export function appOriginSource(): 'NEXT_PUBLIC_APP_URL' | 'VERCEL_PROJECT_PRODUCTION_URL' | 'fallback' {
+  if (!isLoopbackOrigin(clientEnv.NEXT_PUBLIC_APP_URL)) return 'NEXT_PUBLIC_APP_URL';
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return 'VERCEL_PROJECT_PRODUCTION_URL';
+  return 'fallback';
 }
 
 /** Is this origin a developer machine rather than a reachable deployment? */
