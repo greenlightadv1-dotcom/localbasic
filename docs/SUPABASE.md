@@ -402,3 +402,53 @@ cannot be edited to disagree with its document. `anon` gets nothing.
 a deliberately broken schema (permission downgraded to `adjust`, the transfer
 constraint dropped, a broad tenant read policy) to confirm it is live.
 `src/modules/retail/inventory/transfers.test.ts` covers the service layer.
+
+## RBAC escalation guards (security audit, 0053)
+
+`src/modules/core/rbac/permissions.ts` has always stated the rule — *a member
+may only grant a permission they themselves hold* — but **nothing enforced it**.
+`ELEVATED_PERMISSIONS`, the constant written to express it, had no consumers
+anywhere in the codebase. Four doors led from one manage-permission to the
+entire catalog. All four were reproduced against a real database before being
+fixed.
+
+| # | Door | Proven escalation |
+|---|---|---|
+| 1 | `role_permissions` write policy asked only for `role.manage` | The **default `admin` template** holds `role.manage` and *not* `billing.manage`. It granted itself `billing.manage`, then all 53 permissions. |
+| 2 | `user_roles` write policy asked only for `member.manage` | A role holding only `member.read` + `member.manage` assigned itself the `admin` role, gaining `role.manage`, `treasury.manage`, `payment.refund`, `invoice.void`. |
+| 3 | `invitation_create` validated the role's *organization*, not its strength | `member.manage` could invite a new account as `admin`; the inviter controls the address. |
+| 4 | `organizations.owner_user_id` writable under `organization.manage` | An admin could name itself the owner of record shown to platform operators. |
+
+### The rule, once
+
+`app.role_grantable(role)` answers "does the caller hold everything this role
+holds?". One definition, used by the `user_roles` policy, the invitation trigger
+and the tests, so the three cannot drift. The `role_permissions` policy applies
+the same rule directly per permission key.
+
+### Deliberately still allowed
+
+**Revoking.** The `USING` clauses are untouched: `role.manage` may still remove
+a permission its holder does not have. Revocation is de-escalation, and
+requiring the permission to take it away would let a stray grant become
+permanent because nobody left is entitled to remove it.
+
+Owner roles were already protected by `not r.is_owner` and remain so.
+Provisioning is `SECURITY DEFINER` and is not subject to these policies, so no
+legitimate flow changed — the suite asserts an admin still assigns the standard
+templates, still grants what it holds, and that the owner can still grant
+anything.
+
+### Ownership
+
+`owner_user_id` is written once by provisioning and read by the platform console.
+No flow transfers it, so `app.freeze_organization_owner()` refuses any UPDATE
+that changes it. The rest of the organization row stays editable under
+`organization.manage`. A real transfer feature, if ever built, needs its own
+audited function.
+
+### Tests
+
+`supabase/tests/25_rbac_escalation.sql` — 9 checks, each verified against a
+schema with the corresponding guard reverted (both policies, both triggers) to
+confirm it is live.

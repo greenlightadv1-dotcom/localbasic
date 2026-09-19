@@ -64,9 +64,17 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
- * Permissions that can hand out other permissions. A member may only grant a
- * permission they themselves hold, and only holders of these may touch roles
- * at all — the two rules that together block privilege escalation.
+ * Permissions that can hand out other permissions.
+ *
+ * The rule they exist to express — a member may only grant a permission they
+ * themselves hold — is enforced in the DATABASE, by the policies and the
+ * app.role_grantable() helper in migration 0053, not here. It has to be: these
+ * writes reach role_permissions and user_roles through RLS, and a check in
+ * TypeScript would be advice rather than a boundary.
+ *
+ * This list is kept for the UI, which uses it to mark a permission as one that
+ * confers authority over others. It is not a guard, and nothing should treat
+ * it as one.
  */
 export const ELEVATED_PERMISSIONS: readonly Permission[] = [
   'member.manage',

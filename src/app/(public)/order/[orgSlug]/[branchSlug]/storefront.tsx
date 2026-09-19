@@ -76,9 +76,12 @@ export function Storefront({
 
   // One key per checkout attempt, so a double-click or a retry is recognised
   // server-side as the same attempt rather than a second order.
-  const [idempotencyKey] = useState(
-    () => `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
-  );
+  //
+  // crypto.randomUUID(), not Math.random(): presenting an existing key makes
+  // the server hand back that order's tracking token, so the key is a capability
+  // and has to be unguessable. The retail storefront already generates it this
+  // way; this one did not.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   // '' means "type a new address". Pre-selects the customer's default.
   const [savedAddressId, setSavedAddressId] = useState(
