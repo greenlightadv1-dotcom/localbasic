@@ -72,6 +72,35 @@ export async function middleware(request: NextRequest) {
     !isPlatformHost(host)
     && !HOST_NEUTRAL_PREFIXES.some((p) => path === p || path.startsWith(p));
 
+  // ---------------------------------------------------------------------
+  // Auth links that land on the site root.
+  //
+  // Supabase redirects to the project's Site URL — this origin's root — for
+  // any link it generates itself, because the Dashboard has nowhere to put a
+  // path. When that link uses the PKCE flow the result arrives as `?code=` in
+  // the query, which the marketing page silently ignores: the visitor just
+  // sees the home page and the link is spent.
+  //
+  // Forwarding here rather than in the page keeps it server-side and free of
+  // JavaScript, and `/callback` remains the only thing that redeems a code.
+  // The fragment form of the same link cannot be handled here — browsers never
+  // send fragments — so RecoveryLinkHandler covers that case in the client.
+  // ---------------------------------------------------------------------
+  if (!isCustomDomain && path === '/') {
+    const params = request.nextUrl.searchParams;
+    if (params.has('code')) {
+      const to = request.nextUrl.clone();
+      to.pathname = '/callback';
+      return NextResponse.redirect(to);
+    }
+    if (params.has('error') || params.has('error_code')) {
+      const to = request.nextUrl.clone();
+      to.pathname = '/sign-in';
+      to.search = '?error=link_invalid';
+      return NextResponse.redirect(to);
+    }
+  }
+
   let response: NextResponse;
   if (isCustomDomain) {
     const url = request.nextUrl.clone();

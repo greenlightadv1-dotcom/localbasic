@@ -19,6 +19,10 @@ const serverSchema = z.object({
   // runs fine without it, and createSupabaseAdminClient() fails loudly if it
   // is ever called while unset.
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  // Optional break-glass: enables /api/admin-bootstrap, which mints a single
+  // recovery link for the one platform-owner address without sending email.
+  // Absent by default, and the route answers 404 without it.
+  ADMIN_BOOTSTRAP_SECRET: z.string().min(32).optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal('')),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional().or(z.literal('')),
 });
