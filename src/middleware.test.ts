@@ -22,15 +22,6 @@ async function landOn(pathAndQuery: string): Promise<{ status: number; location:
   return { status: response.status, location: response.headers.get('location') ?? '' };
 }
 
-/** The headers middleware forwards to the render, as NextResponse encodes them. */
-function forwardedRequestHeader(response: Response, name: string): string | null {
-  return response.headers.get(`x-middleware-request-${name}`);
-}
-
-function nonceOf(csp: string | null): string | null {
-  return csp?.match(/'nonce-([^']+)'/)?.[1] ?? null;
-}
-
 describe('auth links that land on the site root', () => {
   // The regression: Supabase redirects its own links to the Site URL, which is
   // the root. A ?code= there used to render the marketing page and spend the
@@ -70,37 +61,32 @@ describe('auth links that land on the site root', () => {
 });
 
 describe('content security policy', () => {
-  // Without this the browser blocks every Next.js script: 'strict-dynamic'
-  // makes 'self' inert, and unnonced scripts have nothing else to match. The
-  // page still renders server-side, so nothing errors — it just never
-  // hydrates, and no client component runs.
-  it('forwards the policy on the request so Next.js can nonce its scripts', async () => {
-    const response = await run('/');
-    const forwarded = forwardedRequestHeader(response, 'content-security-policy');
-
-    expect(forwarded).toBeTruthy();
-    expect(forwarded).toContain("'strict-dynamic'");
-    expect(nonceOf(forwarded)).toBeTruthy();
+  // `/` and `/forgot-password` are statically prerendered, so their script
+  // tags are baked at build time. A per-request nonce can never match them,
+  // and 'strict-dynamic' makes browsers ignore 'self' — which blocked every
+  // Next.js script on exactly those pages while the markup still rendered.
+  it('carries no nonce, which a prerendered page could never match', async () => {
+    const csp = (await run('/')).headers.get('content-security-policy') ?? '';
+    expect(csp).not.toContain('nonce-');
+    expect(csp).not.toContain('strict-dynamic');
   });
 
-  it('uses the same nonce on the request and the response', async () => {
-    const response = await run('/');
-    const responseNonce = nonceOf(response.headers.get('content-security-policy'));
-    const requestNonce = nonceOf(forwardedRequestHeader(response, 'content-security-policy'));
-
-    expect(responseNonce).toBeTruthy();
-    expect(requestNonce).toBe(responseNonce);
+  it('allows the scripts Next.js actually emits', async () => {
+    const csp = (await run('/')).headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
   });
 
-  it('also forwards x-nonce, for components that read it directly', async () => {
-    const response = await run('/');
-    const nonce = nonceOf(response.headers.get('content-security-policy'));
-    expect(forwardedRequestHeader(response, 'x-nonce')).toBe(nonce);
+  it('keeps the rest of the policy tight', async () => {
+    const csp = (await run('/')).headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toContain("form-action 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
   });
 
-  it('gives each request its own nonce', async () => {
-    const a = nonceOf((await run('/')).headers.get('content-security-policy'));
-    const b = nonceOf((await run('/')).headers.get('content-security-policy'));
-    expect(a).not.toBe(b);
+  it('is identical across requests, so a CDN copy stays valid', async () => {
+    const a = (await run('/')).headers.get('content-security-policy');
+    const b = (await run('/')).headers.get('content-security-policy');
+    expect(a).toBe(b);
   });
 });

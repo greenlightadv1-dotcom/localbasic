@@ -5,7 +5,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
  * Middleware does three jobs and no more:
  *   1. route custom-domain traffic to the restaurant website
  *   2. refresh the Supabase session cookie so Server Components see a live user
- *   3. attach security headers, including a nonce-based CSP
+ *   3. attach security headers, including a content security policy
  *
  * Authorization is NOT done here. Middleware cannot be the security boundary —
  * services and RLS are. It only keeps the session fresh and the headers tight.
@@ -45,16 +45,29 @@ function isPlatformHost(host: string): boolean {
   return false;
 }
 /**
- * The page security policy, built once so the request and the response carry
- * exactly the same nonce. They must match: the response header is what the
- * browser enforces, and the request header is what Next.js reads to nonce its
- * own scripts.
+ * The page security policy.
+ *
+ * No nonce, and deliberately so. A nonce has to be minted per request, but
+ * `/` and `/forgot-password` are statically prerendered: their HTML — script
+ * tags included — is built once and served from the CDN, so a per-request
+ * nonce in the header can never match what is in the document. Combined with
+ * 'strict-dynamic', which tells browsers to ignore 'self' entirely, that
+ * blocked every Next.js script on exactly those two pages. The pages still
+ * rendered, because the markup is server-generated, so nothing looked wrong:
+ * the forms simply did nothing when submitted.
+ *
+ * Making every page dynamic would fix the nonce and cost the marketing site
+ * its static delivery. 'unsafe-inline' is the trade the other way: weaker in
+ * principle, since it permits an injected inline script, but React escapes
+ * interpolated values and nothing here renders raw HTML from user input. The
+ * rest of the policy — object-src 'none', base-uri 'self', form-action 'self',
+ * frame-ancestors 'none' — still constrains what an injection could do.
  */
-function contentSecurityPolicy(nonce: string, isDev: boolean): string {
+function contentSecurityPolicy(isDev: boolean): string {
   return [
     `default-src 'self'`,
     // 'unsafe-eval' is required by the Next.js dev overlay only.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data: https://fonts.gstatic.com`,
@@ -68,20 +81,10 @@ function contentSecurityPolicy(nonce: string, isDev: boolean): string {
 }
 
 export async function middleware(request: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV !== 'production';
-  const csp = contentSecurityPolicy(nonce, isDev);
+  const csp = contentSecurityPolicy(isDev);
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-  // Next.js reads the nonce out of the Content-Security-Policy header on the
-  // REQUEST and stamps it onto the script tags it emits. Setting the policy
-  // only on the response leaves those scripts unnonced, and because the policy
-  // below uses 'strict-dynamic' — which makes browsers ignore 'self' — every
-  // one of them is then blocked. The page still renders, because the HTML is
-  // server-rendered, so the failure is invisible: nothing hydrates, no client
-  // component ever runs, and no error reaches the server.
-  requestHeaders.set('Content-Security-Policy', csp);
 
   // ---------------------------------------------------------------------
   // Custom domains.
