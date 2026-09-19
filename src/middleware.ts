@@ -44,11 +44,44 @@ function isPlatformHost(host: string): boolean {
   }
   return false;
 }
+/**
+ * The page security policy, built once so the request and the response carry
+ * exactly the same nonce. They must match: the response header is what the
+ * browser enforces, and the request header is what Next.js reads to nonce its
+ * own scripts.
+ */
+function contentSecurityPolicy(nonce: string, isDev: boolean): string {
+  return [
+    `default-src 'self'`,
+    // 'unsafe-eval' is required by the Next.js dev overlay only.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    `img-src 'self' data: blob: https:`,
+    `font-src 'self' data: https://fonts.gstatic.com`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co`,
+    `frame-ancestors 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `object-src 'none'`,
+    ...(isDev ? [] : ['upgrade-insecure-requests']),
+  ].join('; ');
+}
+
 export async function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const isDev = process.env.NODE_ENV !== 'production';
+  const csp = contentSecurityPolicy(nonce, isDev);
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+  // Next.js reads the nonce out of the Content-Security-Policy header on the
+  // REQUEST and stamps it onto the script tags it emits. Setting the policy
+  // only on the response leaves those scripts unnonced, and because the policy
+  // below uses 'strict-dynamic' — which makes browsers ignore 'self' — every
+  // one of them is then blocked. The page still renders, because the HTML is
+  // server-rendered, so the failure is invisible: nothing hydrates, no client
+  // component ever runs, and no error reaches the server.
+  requestHeaders.set('Content-Security-Policy', csp);
 
   // ---------------------------------------------------------------------
   // Custom domains.
@@ -160,22 +193,6 @@ export async function middleware(request: NextRequest) {
   // cookie on `response`. Without this call Server Components can observe a
   // stale session.
   if (supabase) await supabase.auth.getUser();
-
-  const isDev = process.env.NODE_ENV !== 'production';
-  const csp = [
-    `default-src 'self'`,
-    // 'unsafe-eval' is required by the Next.js dev overlay only.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-    `img-src 'self' data: blob: https:`,
-    `font-src 'self' data: https://fonts.gstatic.com`,
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co`,
-    `frame-ancestors 'none'`,
-    `base-uri 'self'`,
-    `form-action 'self'`,
-    `object-src 'none'`,
-    ...(isDev ? [] : ['upgrade-insecure-requests']),
-  ].join('; ');
 
   response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-Content-Type-Options', 'nosniff');
