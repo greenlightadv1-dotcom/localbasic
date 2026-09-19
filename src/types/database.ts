@@ -891,6 +891,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      platform_website_versions: {
+        Row: {
+          id: string;
+          website_id: string;
+          version: number;
+          definition: Json;
+          published_at: string;
+          published_by: string | null;
+          note: string | null;
+        };
+        Insert: {
+          id?: string;
+          website_id: string;
+          version: number;
+          definition: Json;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Update: {
+          id?: string;
+          website_id?: string;
+          version?: number;
+          definition?: Json;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
+      platform_websites: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          slug: string;
+          site_type: string;
+          status: string;
+          draft_definition: Json;
+          published_definition: Json | null;
+          brief: Json;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+          published_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          slug: string;
+          site_type: string;
+          status?: string;
+          draft_definition: Json;
+          published_definition?: Json | null;
+          brief?: Json;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          published_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          name?: string;
+          slug?: string;
+          site_type?: string;
+          status?: string;
+          draft_definition?: Json;
+          published_definition?: Json | null;
+          brief?: Json;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          published_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -2861,6 +2945,8 @@ export type Database = {
       platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       platform_search_customers: { Args: Record<string, unknown>; Returns: Json };
+      platform_website_business_profile: { Args: Record<string, unknown>; Returns: Json };
+      platform_website_publish: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
       resolve_public_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_create_order: { Args: Record<string, unknown>; Returns: Json };

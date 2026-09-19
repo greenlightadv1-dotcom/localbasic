@@ -12,6 +12,7 @@ const NAV = [
   { href: '/admin', label: 'لوحة المنصة' },
   { href: '/admin/customers', label: 'العملاء' },
   { href: '/admin/onboard', label: 'عميل جديد' },
+  { href: '/admin/websites', label: 'المواقع' },
   { href: '/admin/leads', label: 'العملاء المحتملون' },
   { href: '/admin/subscriptions', label: 'الاشتراكات' },
   { href: '/admin/plans', label: 'الباقات' },

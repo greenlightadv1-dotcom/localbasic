@@ -191,3 +191,139 @@ unconfigured.
 
 No password is ever handled by the application: the owner receives an
 invitation and sets their own credentials through Supabase Auth.
+
+## Platform Website Builder
+
+Migration `0051_platform_website_builder.sql`. Platform Admin builds and
+operates websites **for** customers, across every vertical, from a single
+versioned document.
+
+### Not the same thing as 0042
+
+`0042_website_builder.sql` is a **tenant** feature: a restaurant edits its own
+page under `settings.manage`, as section rows frozen into revisions. It is
+untouched by 0051 and keeps working exactly as before.
+
+0051 is **platform-operated** and **multi-vertical**. A Platform Admin is
+deliberately not a member of any tenant, so tenant RBAC cannot gate it —
+`app.is_platform_admin()` does. The two builders share no table and no policy.
+They will converge in a later phase; until then, 0042 owns the restaurant's own
+page and 0051 owns sites the platform builds.
+
+### Tables
+
+| Table | Purpose |
+|---|---|
+| `platform_websites` | One row per website. `draft_definition` and `published_definition` side by side, so editing a draft never touches what is live. |
+| `platform_website_versions` | Append-only snapshot per publish. No update, delete or insert policy. The minimum that keeps rollback and compare possible later. |
+
+`status` is `draft` / `published` / `archived`. A website is archived, never
+deleted, so its published history stays attached to something.
+
+### Site Definition
+
+A website **is** a JSON document — `version: 1`, `metadata`, `theme`,
+`navigation`, `pages[].sections[]`, `settings`. It describes a website; it does
+not contain one. There is no stored markup, no CSS, no JavaScript, and no `html`
+prop anywhere in the schema.
+
+Validated in two places on purpose:
+
+- **Zod** (`src/modules/platform/websites/definition.ts`) — full prop-level
+  validation, and the message an operator actually reads.
+- **PostgreSQL** (`app.check_site_definition`) — structure, the closed section
+  list, and a recursive walk (`app.site_node_ok`) asserting every string is
+  bounded and free of angle brackets, and every `*_url` / `*_image` / `logo` /
+  `favicon` key is an https URL.
+
+The database check is not redundancy. The application is not the only way in,
+and "never trust model output" has to hold on a path a future refactor cannot
+skip.
+
+Refused outright, not sanitised: markup in any string, any non-https URL at any
+depth, a navigation target that is not a path of the same site (an open redirect
+on every generated page), a theme colour that is not a hex literal (it reaches a
+`style` attribute), a font outside the fixed list, an unknown section type, and
+an unrecognised `version`.
+
+### Section registry
+
+`src/modules/platform/websites/sections.ts` holds the closed list —
+`hero`, `about`, `services`, `products`, `menu`, `gallery`, `testimonials`,
+`features`, `contact`, `location`, `opening_hours`, `call_to_action`, `footer` —
+with a Zod props schema and editor metadata for each. `app.site_section_types()`
+holds the same list in SQL.
+
+Adding a section means editing **both** lists and adding a case to the renderer.
+That is the point: no section can reach a page without someone having drawn it.
+
+`menu` and `opening_hours` render the customer's real data at serve time rather
+than a copy inside the definition, so a published site cannot go stale against
+the system.
+
+### Brand identity precedence
+
+```
+website override  →  organization branding (branding_settings)  →  system default
+```
+
+Resolved by `resolveTheme()` at read time. The website stores only what it
+overrides, so Core stays the single answer to "what colour is this customer".
+A Core colour that is not a hex literal is ignored rather than passed through.
+
+### Business data
+
+`platform_website_business_profile(p_org)` — a narrow `SECURITY DEFINER`
+projection, following 0041. `branding_settings` and `settings` are tenant tables
+with no platform read policy, and they stay that way; the console gets the dozen
+fields it displays and nothing more. No business entity is duplicated into the
+builder.
+
+### AI provider abstraction
+
+```
+route → service → WebsiteAIService → WebsiteAIProvider → (Claude | OpenAI | …)
+                        ↓
+            parseSiteDefinition()  ← the only door model output comes through
+```
+
+`WebsiteAIProvider.generateSite()` returns `{ raw: unknown }`. A provider cannot
+assert that its own output is a SiteDefinition — only `WebsiteAIService`, by
+parsing it, can. A model that invents a section type, smuggles markup into a
+heading or returns prose produces a rejection, not a page. A provider that
+throws is a failed generation, and the upstream message is not shown to the
+operator.
+
+`MockWebsiteAIProvider` builds a starting site from the customer's own data. It
+calls nothing, so an operator can create a real draft before any AI is wired up.
+
+**For the Claude phase:** construct the provider in
+`websiteAIService()` (`ai/service.ts`) — server-side only. The key is read
+there and never reaches a client component. No route, service or renderer
+changes.
+
+### Security model
+
+- Every service function calls `requirePlatformAdmin()`; every table is behind
+  `app.is_platform_admin()` in RLS, enabled **and** forced. The TypeScript gate
+  is for a clean 404; RLS is the boundary.
+- `created_by` / `updated_by` are **set** by a trigger from `auth.uid()`, never
+  accepted. A forged value in an insert changes nothing.
+- The organization is verified server-side and a website cannot be moved to
+  another one.
+- Audit is written by a trigger, not the service layer, so every path leaves a
+  line: `platform.website_created` / `_updated` / `_published` / `_archived`,
+  through the existing `audit_logs` and the `platform.` prefix 0035 requires.
+  There is no second audit system.
+- `anon` has no policy and no privilege. **Public serving is not built yet.**
+  When it is, it will be a narrow `SECURITY DEFINER` projection of
+  `published_definition` — the way 0042 serves its live revision — never a
+  broadened policy on these tables. `slug` is reserved now so the entity does
+  not have to change shape then.
+
+### Tests
+
+`supabase/tests/23_platform_websites.sql` — 11 checks, each verified against a
+deliberately broken schema (broad read policy, neutered authorship trigger,
+removed definition validation, dropped audit trigger, widened section list) to
+confirm it is live. Unit tests in `src/modules/platform/websites/`.

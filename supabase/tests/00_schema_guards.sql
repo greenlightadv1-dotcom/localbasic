@@ -54,6 +54,9 @@ begin
       -- platform catalogs and child tables keyed through their parent
       'plans', 'permissions', 'profiles', 'roles', 'role_permissions', 'organizations',
       'user_roles', 'member_branches', 'invoice_items', 'document_counters',
+      -- published snapshots of a platform website; scoped through website_id,
+      -- whose row carries the organization
+      'platform_website_versions',
       -- platform-operator tables: deliberately not tenant-scoped. They are
       -- reachable only by a Platform Admin, never through tenant RLS.
       'platform_admins', 'promo_codes', 'platform_services'
