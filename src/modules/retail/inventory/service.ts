@@ -89,7 +89,7 @@ export async function adjustStock(
   input: {
     variantId: string;
     quantityDelta: number;
-    reason: 'adjustment' | 'damage' | 'stocktake' | 'transfer_in' | 'transfer_out' | 'initial';
+    reason: 'adjustment' | 'damage' | 'stocktake' | 'initial';
     note?: string;
   },
 ) {

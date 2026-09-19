@@ -37,6 +37,7 @@ export const PERMISSIONS = [
   'retail.product.manage',
   'retail.inventory.read',
   'retail.inventory.adjust',
+  'retail.inventory.transfer',
   'retail.supplier.manage',
   'retail.purchase.read',
   'retail.purchase.manage',

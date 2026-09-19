@@ -6,6 +6,7 @@ import { defineTenantAction } from '@/lib/action';
 import { createProductSchema, adjustStockSchema, createCategorySchema } from '@/modules/retail/products/schemas';
 import { createProduct, createCategory } from '@/modules/retail/products/service';
 import { adjustStock } from '@/modules/retail/inventory/service';
+import { transferStock, transferInput } from '@/modules/retail/inventory/transfers';
 import { posSaleSchema, posReturnSchema } from '@/modules/retail/pos/schemas';
 import { createSale } from '@/modules/retail/pos/service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -31,6 +32,24 @@ export const createCategoryAction = defineTenantAction({
   schema: createCategorySchema,
   permission: 'retail.product.manage',
   handler: async ({ ctx, input }) => createCategory(ctx, input.name),
+});
+
+/**
+ * Move stock between two branches.
+ *
+ * Its own permission, not retail.inventory.adjust: this reaches into a second
+ * branch and changes its stock. The wrapper checks it against the resolved
+ * tenant context, and retail_stock_transfer() checks it again for BOTH
+ * branches, which is the boundary that matters.
+ */
+export const transferStockAction = defineTenantAction({
+  schema: transferInput,
+  permission: 'retail.inventory.transfer',
+  handler: async ({ ctx, input }) => {
+    const result = await transferStock(ctx, input);
+    revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/inventory`);
+    return result;
+  },
 });
 
 export const adjustStockAction = defineTenantAction({

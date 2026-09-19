@@ -53,6 +53,9 @@ export const adjustStockSchema = z.object({
   // Signed: negative removes stock. The reason decides which permission the
   // database will demand.
   quantityDelta: z.coerce.number().refine((v) => v !== 0, 'أدخل كمية'),
-  reason: z.enum(['adjustment', 'damage', 'stocktake', 'transfer_in', 'transfer_out', 'initial']),
+  // No transfer_in/transfer_out here. A transfer moves stock between two
+  // branches and is written by retail_stock_transfer(); recording one leg as a
+  // manual adjustment is exactly the unpaired movement 0052 refuses.
+  reason: z.enum(['adjustment', 'damage', 'stocktake', 'initial']),
   note: z.string().trim().max(500).optional(),
 });

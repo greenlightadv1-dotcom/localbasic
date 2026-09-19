@@ -2474,6 +2474,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      retail_stock_transfer_lines: {
+        Row: {
+          id: string;
+          transfer_id: string;
+          organization_id: string;
+          variant_id: string;
+          quantity: number;
+        };
+        Insert: {
+          id?: string;
+          transfer_id: string;
+          organization_id: string;
+          variant_id: string;
+          quantity: number;
+        };
+        Update: {
+          id?: string;
+          transfer_id?: string;
+          organization_id?: string;
+          variant_id?: string;
+          quantity?: number;
+        };
+        Relationships: [];
+      };
+      retail_stock_transfers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          from_branch_id: string;
+          to_branch_id: string;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          from_branch_id: string;
+          to_branch_id: string;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          from_branch_id?: string;
+          to_branch_id?: string;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       retail_suppliers: {
         Row: {
           id: string;
@@ -2999,6 +3053,7 @@ export type Database = {
       retail_shipment_set_status: { Args: Record<string, unknown>; Returns: Json };
       retail_shipment_set_tracking: { Args: Record<string, unknown>; Returns: Json };
       retail_stock_of: { Args: Record<string, unknown>; Returns: Json };
+      retail_stock_transfer: { Args: Record<string, unknown>; Returns: Json };
       retail_store_catalog: { Args: Record<string, unknown>; Returns: Json };
       retail_store_context: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };

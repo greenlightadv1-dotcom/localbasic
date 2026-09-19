@@ -114,8 +114,6 @@ export function StockTable({
                             <option value="adjustment">تسوية</option>
                             <option value="stocktake">جرد</option>
                             <option value="damage">تالف</option>
-                            <option value="transfer_in">تحويل وارد</option>
-                            <option value="transfer_out">تحويل صادر</option>
                           </Select>
                           <Button size="sm" disabled={isPending} onClick={() => submit(row.variantId)}>
                             حفظ

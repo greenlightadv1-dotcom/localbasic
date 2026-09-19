@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
 import { StockTable } from './stock-table';
+import { TransferPanel } from './transfer-panel';
 
 export const metadata = { title: 'المخزون' };
 
@@ -36,6 +37,19 @@ export default async function InventoryPage({
       />
 
       <Card>
+        {/* ctx.branches is every branch this membership can reach, resolved
+            server-side. The panel never names a branch the user cannot use,
+            and the database checks the permission on both ends regardless. */}
+        {can(ctx, 'retail.inventory.transfer') && rows.length > 0 && (
+          <TransferPanel
+            rows={rows}
+            branches={ctx.branches.map((b) => ({ id: b.id, name: b.name }))}
+            currentBranchId={ctx.branchId}
+            organizationSlug={ctx.organizationSlug}
+            branchSlug={ctx.branchSlug}
+          />
+        )}
+
         {rows.length === 0 ? (
           <EmptyState
             icon={Boxes}

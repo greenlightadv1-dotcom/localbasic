@@ -327,3 +327,78 @@ changes.
 deliberately broken schema (broad read policy, neutered authorship trigger,
 removed definition validation, dropped audit trigger, widened section list) to
 confirm it is live. Unit tests in `src/modules/platform/websites/`.
+
+## Retail stock transfers
+
+Migration `0052_retail_stock_transfers.sql`.
+
+### The problem it fixes
+
+0012 listed `transfer_in` and `transfer_out` among the movement reasons, but
+nothing ever paired them. Moving stock between branches meant two unrelated
+manual adjustments, which left two real defects:
+
+1. **Nothing tied the legs together.** Stock could be recorded leaving branch A
+   and never arriving at branch B — or arriving in a different quantity. Each
+   branch's ledger balanced; the organization's did not.
+2. **`transfer_in` was unaudited stock creation.** Anyone holding
+   `retail.inventory.adjust` could add any quantity to their own branch and call
+   it an incoming transfer, with no source branch to reconcile against.
+
+### The model
+
+| Table | Purpose |
+|---|---|
+| `retail_stock_transfers` | The movement of goods as a document: organization, source branch, destination branch, note, actor. |
+| `retail_stock_transfer_lines` | What moved, per variant. `unique (transfer_id, variant_id)`. |
+
+`retail_stock_transfer(p_org, p_from_branch, p_to_branch, p_items, p_note)`
+writes the header, the lines and **both** movement legs in one transaction.
+0012's trigger takes the row lock and refuses to drive stock negative, so an
+over-transfer aborts entirely — no partial move, no phantom arrival.
+
+Transfers are **immediate**: stock leaves and arrives in the same commit. There
+is no in-transit state, because modelling one means deciding who owns goods on a
+van and what happens when they never arrive — a business decision nobody has
+made. The document exists so an in-transit status can later be added *to* it
+rather than replacing it.
+
+### Permission
+
+`retail.inventory.transfer`, seeded to the `admin`, `manager` and `storekeeper`
+templates, with the same owner-role backfill 0019 used so existing organizations
+are not locked out.
+
+Deliberately **separate from `retail.inventory.adjust`**. Adjusting is a
+statement about one branch's own shelves (a breakage, a recount). A transfer
+reaches into a second branch and changes its stock. The function requires the
+permission on **both** branches — holding it only at the source would let
+someone inflate a branch's inventory from a distance.
+
+`transfer_in` / `transfer_out` were removed from the manual-adjustment schema and
+from the inventory UI's reason list.
+
+### Constraint
+
+```sql
+check (reason not in ('transfer_in','transfer_out') or ref_type = 'transfer')
+```
+
+Added `NOT VALID` on purpose: rows written before this migration were legal when
+they were written, and rejecting history to satisfy a new rule would be worse
+than the rule not being retroactive. It is enforced on every row from here on.
+
+### RLS
+
+Read requires `retail.inventory.read` on **either** end — both branches took
+part, and a branch manager needs to see what left as well as what arrived. There
+is **no insert, update or delete policy at all**: the document is written solely
+by the function, so a transfer cannot exist without its movements and a movement
+cannot be edited to disagree with its document. `anon` gets nothing.
+
+### Tests
+
+`supabase/tests/24_retail_stock_transfers.sql` — 10 checks, each verified against
+a deliberately broken schema (permission downgraded to `adjust`, the transfer
+constraint dropped, a broad tenant read policy) to confirm it is live.
+`src/modules/retail/inventory/transfers.test.ts` covers the service layer.
