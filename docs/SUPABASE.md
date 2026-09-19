@@ -452,3 +452,88 @@ audited function.
 `supabase/tests/25_rbac_escalation.sql` — 9 checks, each verified against a
 schema with the corresponding guard reverted (both policies, both triggers) to
 confirm it is live.
+
+## RBAC reconciliation (read-only investigation)
+
+`supabase/scripts/rbac_reconciliation.sql` — an investigative report for the
+escalation paths migration 0053 closed. It **decides nothing and changes
+nothing**. There is deliberately no remediation script: revoking a permission
+from a live tenant is a business decision, not a query.
+
+```bash
+psql "$DATABASE_URL" -f supabase/scripts/rbac_reconciliation.sql
+
+# Narrow to the vulnerable window by passing when 0053 was deployed:
+psql "$DATABASE_URL" -v cutoff="2026-09-19T18:00:00Z" \
+     -f supabase/scripts/rbac_reconciliation.sql
+```
+
+### Safety
+
+The script runs inside `set transaction read only` and ends in `ROLLBACK`.
+PostgreSQL refuses `INSERT`, `UPDATE`, `DELETE` and `CREATE` — including
+temporary tables — inside such a transaction, so this is **enforced by the
+server**, not promised by the author. `supabase/tests/26_rbac_reconciliation.sql`
+asserts each of those four refusals.
+
+### What it checks
+
+| Section | Question |
+|---|---|
+| 0 | What provenance this database actually holds |
+| 1 | Template-cloned roles holding permissions their template never had |
+| 2 | Role assignments the product could not have produced |
+| 3 | Invitations carrying roles the inviter does not currently hold |
+| 4 | Organization ownership (informational only) |
+| 5 | Role population, so section 1 is read in proportion |
+
+Section 1 is the main report. Provisioning clones a template's permission set
+exactly (0031), and **the application has no write path to `role_permissions` at
+all** — the roles screen is read-only. A cloned role that differs from its
+template was therefore written directly against the API or the database.
+
+### What it cannot prove
+
+**`role_permissions` carries `created_at` and nothing else** — no `granted_by`,
+and no trigger writes an audit line when a permission is attached to a role. For
+the main escalation path the database can say *when* and never *who*.
+
+**No output of this script is ever CONFIRMED.** The strongest available verdict
+is `SUSPICIOUS`. The classifications are:
+
+- `SUSPICIOUS` — the product could not have produced this row.
+- `UNKNOWN` — no baseline exists (template renamed or removed), the row
+  postdates the cutoff, or no actor was recorded.
+- `LEGITIMATE_CUSTOMIZATION` — counted in section 5, never reported.
+
+`user_roles.granted_by` is **not trustworthy attribution**: the column has no
+default and the pre-0053 policy never required it, so a direct API insert could
+omit it or name somebody else. A missing actor proves only that the row was not
+written by the product — a seed, a data migration and an operator working in SQL
+are indistinguishable from an escalation, which is why that case is `UNKNOWN`.
+
+Organization ownership history is **not retained at all**, so whether
+`owner_user_id` was ever reassigned cannot be answered. 0053 freezes it going
+forward.
+
+### Why a custom role is not a finding
+
+An organization may create its own roles, and their permission sets were never
+templated — divergence from a template is not even *defined* for them. Only
+roles with `is_system = true` have a baseline, and only those are compared. The
+test suite asserts a custom role holding `payment.refund` produces no finding.
+
+### How to review the output
+
+1. Start with section 0. If `role_permissions.granted_by` is absent, no row
+   below can name a person.
+2. In section 1, check each permission against what that role is *for*. A
+   `cashier` holding `treasury.manage` deserves attention; an `admin` holding
+   one extra reporting permission probably does not.
+3. Cross-reference `permission_attached_at` with the role's `created_at`. A
+   permission attached long after provisioning is more interesting than one
+   attached in the same second.
+4. Treat section 2's `UNKNOWN` rows as questions for whoever administers the
+   database, not as incidents.
+5. Nothing here justifies revoking a permission on its own. Confirm with the
+   organization before changing a live tenant.
