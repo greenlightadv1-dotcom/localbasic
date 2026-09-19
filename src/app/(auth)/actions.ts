@@ -97,33 +97,51 @@ export async function signOutAction() {
 // nothing writes auth.users directly.
 // ---------------------------------------------------------------------------
 
-const emailOnly = z.object({ email: z.string().email('بريد إلكتروني غير صحيح') });
+const emailOnly = z.object({ email: z.string().email() });
 
 const newPassword = z
   .object({
-    password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل').max(72, 'كلمة المرور طويلة جدًا'),
+    password: z.string().min(8).max(72),
     confirm: z.string(),
   })
-  .refine((v) => v.password === v.confirm, {
-    message: 'كلمتا المرور غير متطابقتين',
-    path: ['confirm'],
-  });
+  .refine((v) => v.password === v.confirm);
 
 /**
- * The answer is the same whether or not the address has an account.
- *
- * A "no such user" here would turn the form into a membership oracle for every
- * email someone cares to try — the same reason sign-in has one generic error.
+ * A short id that ties the lines of one submission together in the server log.
+ * Not a secret and not derived from anything about the person.
  */
-const RESET_SENT_NOTICE =
-  'لو كان هذا البريد مسجّلًا، هنبعتلك رابط لإعادة تعيين كلمة المرور. راجع بريدك.';
+function correlationId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
 
-export async function requestPasswordResetAction(
-  _prev: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
+/** Server-log breadcrumb. Never carries an address, token, cookie or key. */
+function trace(id: string, step: string, detail?: string) {
+  console.log(`[RECOVERY_DEBUG] ${id} ${step}${detail ? ` ${detail}` : ''}`);
+}
+
+/**
+ * Request a recovery link.
+ *
+ * A plain Server Action taking FormData, invoked by `<form action={...}>` in a
+ * Server Component. No useFormState, no useFormStatus, no client component:
+ * the form posts natively, so it works with JavaScript disabled, blocked by a
+ * content security policy, or simply not yet hydrated. The previous version
+ * depended on hydration, and when the policy blocked the page's scripts the
+ * button silently did nothing at all — no request, no error, no email.
+ *
+ * The outcome is carried back in the query string rather than component state,
+ * which keeps the whole path server-side and makes the page dynamic.
+ */
+export async function requestPasswordResetAction(formData: FormData): Promise<void> {
+  const id = correlationId();
+  trace(id, 'submit_received');
+
   const parsed = emailOnly.safeParse({ email: formData.get('email') });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'بريد إلكتروني غير صحيح' };
+  if (!parsed.success) {
+    trace(id, 'validation_failed');
+    redirect('/forgot-password?status=invalid');
+  }
+  trace(id, 'validation_passed');
 
   const email = parsed.data.email.toLowerCase();
 
@@ -131,37 +149,51 @@ export async function requestPasswordResetAction(
   // one per IP so a script cannot walk a list of addresses.
   for (const key of [`reset:ip:${getClientIp()}`, `reset:email:${email}`]) {
     if (!checkRateLimit(key, RATE_LIMITS.passwordReset).ok) {
-      return { error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' };
+      trace(id, 'rate_limited');
+      redirect('/forgot-password?status=rate_limited');
     }
   }
 
-  // Refuse to mail a link nobody can open. Without this an unset
-  // NEXT_PUBLIC_APP_URL in production sends a working, single-use token
-  // pointing at http://localhost:3000 and burns it on a dead page.
   const origin = appOrigin();
+  trace(id, 'origin_resolved', origin);
+
+  // Refuse to mail a link nobody can open, rather than burning a single-use
+  // token on a machine only the developer can reach.
   if (process.env.NODE_ENV === 'production' && isLoopbackOrigin(origin)) {
-    return { error: 'إعداد الموقع غير مكتمل. تواصل مع الدعم.' };
+    trace(id, 'origin_unusable');
+    redirect('/forgot-password?status=unconfigured');
   }
 
-  const supabase = createSupabaseServerClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: recoveryRedirectUrl(origin),
-  });
+  const redirectTo = recoveryRedirectUrl(origin);
+  trace(id, 'calling_supabase', redirectTo);
 
-  // The result is discarded on purpose — see RESET_SENT_NOTICE.
-  return { notice: RESET_SENT_NOTICE };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo });
+
+  // Never swallowed. The message is logged, the address is not.
+  if (error) {
+    trace(id, 'supabase_result error', `${error.status ?? ''} ${error.message}`.trim());
+    redirect('/forgot-password?status=failed');
+  }
+
+  trace(id, 'supabase_result ok');
+  redirect('/forgot-password?status=sent');
 }
 
-export async function updatePasswordAction(
-  _prev: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
+/**
+ * Set the new password against the session the recovery link produced.
+ *
+ * Also a plain FormData action, for the same reason: this page is the last step
+ * of a flow whose whole purpose is to let someone back in, so it must not
+ * depend on client JavaScript running.
+ */
+export async function updatePasswordAction(formData: FormData): Promise<void> {
   const parsed = newPassword.safeParse({
     password: formData.get('password'),
     confirm: formData.get('confirm'),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'تحقق من البيانات المدخلة.' };
+    redirect('/reset-password?status=invalid');
   }
 
   const supabase = createSupabaseServerClient();
@@ -170,11 +202,14 @@ export async function updatePasswordAction(
   // was invalid, already used, or expired.
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError || !data?.user) {
-    return { error: 'رابط الاستعادة غير صالح أو منتهي الصلاحية. اطلب رابطًا جديدًا.' };
+    redirect('/reset-password?status=expired');
   }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return { error: 'تعذّر تحديث كلمة المرور. جرّب رابطًا جديدًا.' };
+  if (error) {
+    console.log(`[RECOVERY_DEBUG] update_password_failed ${error.message}`);
+    redirect('/reset-password?status=failed');
+  }
 
   redirect('/workspace');
 }

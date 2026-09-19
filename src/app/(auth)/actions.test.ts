@@ -28,7 +28,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 type AuthError = { message: string } | null;
-type AuthResult = { data: unknown; error: AuthError };
+type AuthError2 = { message: string; status?: number } | null;
+type AuthResult = { data: unknown; error: AuthError2 };
 type UserResult = { data: { user: { id: string; email: string } | null }; error: AuthError };
 
 const resetPasswordForEmail = vi.fn(
@@ -58,6 +59,17 @@ function form(values: Record<string, string>): FormData {
   return fd;
 }
 
+/** The actions redirect rather than return; capture where they went. */
+async function destinationOf(run: Promise<unknown>): Promise<string> {
+  try {
+    await run;
+  } catch (e) {
+    if (e instanceof RedirectError) return e.to;
+    throw e;
+  }
+  throw new Error('expected a redirect');
+}
+
 /** Each test needs its own address and IP: the limiter is process-wide. */
 let n = 0;
 function freshEmail() {
@@ -73,108 +85,88 @@ beforeEach(() => {
   getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } }, error: null });
 });
 
-// --- forgot-password request --------------------------------------------
 describe('requestPasswordResetAction', () => {
-  it('asks Supabase for a recovery email pointing at the production callback', async () => {
+  it('calls Supabase with the production callback and reports success', async () => {
     const email = freshEmail();
-    const state = await requestPasswordResetAction(undefined, form({ email }));
+    const to = await destinationOf(requestPasswordResetAction(form({ email })));
 
-    expect(state?.notice).toBeTruthy();
-    expect(state?.error).toBeUndefined();
+    expect(to).toBe('/forgot-password?status=sent');
     expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
 
-    const call = resetPasswordForEmail.mock.calls[0]!;
-    const [sentTo, options] = call;
+    const [sentTo, options] = resetPasswordForEmail.mock.calls[0]!;
     expect(sentTo).toBe(email);
     expect(options.redirectTo).toBe('https://localbasic.vercel.app/callback/recovery');
-    // No query string: Supabase allow-lists the whole URL, and a failed match
-    // falls back to the Site URL without reporting anything.
     expect(new URL(options.redirectTo).search).toBe('');
-    // The whole point of the exercise: never a developer machine.
     expect(options.redirectTo).not.toContain('localhost');
   });
 
   it('rejects a malformed address without contacting Supabase', async () => {
-    const state = await requestPasswordResetAction(undefined, form({ email: 'not-an-email' }));
-    expect(state?.error).toBeTruthy();
+    const to = await destinationOf(requestPasswordResetAction(form({ email: 'nope' })));
+    expect(to).toBe('/forgot-password?status=invalid');
     expect(resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
-  it('answers identically for an unknown address, so it cannot enumerate users', async () => {
-    const known = await requestPasswordResetAction(undefined, form({ email: freshEmail() }));
-
+  // Never swallowed: the previous version discarded the result entirely, so a
+  // refusal from Supabase looked exactly like a delivered email.
+  it('surfaces a Supabase failure instead of claiming success', async () => {
     resetPasswordForEmail.mockResolvedValueOnce({
       data: null,
-      error: { message: 'User not found' },
+      error: { message: 'redirect_to not allowed', status: 400 },
     });
-    const unknown = await requestPasswordResetAction(undefined, form({ email: freshEmail() }));
-
-    expect(unknown).toEqual(known);
+    const to = await destinationOf(requestPasswordResetAction(form({ email: freshEmail() })));
+    expect(to).toBe('/forgot-password?status=failed');
   });
 
   it('stops mail-bombing one address', async () => {
     const email = freshEmail();
     ip.mockImplementation(() => '203.0.113.99');
 
-    const results = [];
+    const destinations: string[] = [];
     for (let i = 0; i < 7; i += 1) {
-      results.push(await requestPasswordResetAction(undefined, form({ email })));
+      destinations.push(await destinationOf(requestPasswordResetAction(form({ email }))));
     }
-
-    expect(results.some((r) => r?.error)).toBe(true);
+    expect(destinations).toContain('/forgot-password?status=rate_limited');
     expect(resetPasswordForEmail.mock.calls.length).toBeLessThan(7);
   });
 });
 
-// --- password update ------------------------------------------------------
 describe('updatePasswordAction', () => {
-  it('sets the password against the recovery session and lands in the workspace', async () => {
-    const promise = updatePasswordAction(
-      undefined,
-      form({ password: 'correct horse battery', confirm: 'correct horse battery' }),
+  it('sets the password and lands in the workspace', async () => {
+    const to = await destinationOf(
+      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
     );
-    await expect(promise).rejects.toBeInstanceOf(RedirectError);
-    await promise.catch((e: RedirectError) => expect(e.to).toBe('/workspace'));
-
+    expect(to).toBe('/workspace');
     expect(updateUser).toHaveBeenCalledWith({ password: 'correct horse battery' });
   });
 
   it('refuses a mismatched confirmation', async () => {
-    const state = await updatePasswordAction(
-      undefined,
-      form({ password: 'correct horse battery', confirm: 'something else' }),
+    const to = await destinationOf(
+      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'other' })),
     );
-    expect(state?.error).toBe('كلمتا المرور غير متطابقتين');
+    expect(to).toBe('/reset-password?status=invalid');
     expect(updateUser).not.toHaveBeenCalled();
   });
 
   it('refuses a short password', async () => {
-    const state = await updatePasswordAction(undefined, form({ password: 'short', confirm: 'short' }));
-    expect(state?.error).toBeTruthy();
+    const to = await destinationOf(updatePasswordAction(form({ password: 'short', confirm: 'short' })));
+    expect(to).toBe('/reset-password?status=invalid');
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  // --- invalid / expired recovery link -----------------------------------
-  it('reports an expired or already-used link instead of writing a password', async () => {
+  it('reports an expired or already-used link', async () => {
     getUser.mockResolvedValueOnce({ data: { user: null }, error: null });
-
-    const state = await updatePasswordAction(
-      undefined,
-      form({ password: 'correct horse battery', confirm: 'correct horse battery' }),
+    const to = await destinationOf(
+      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
     );
-
-    expect(state?.error).toContain('غير صالح');
+    expect(to).toBe('/reset-password?status=expired');
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it('surfaces a Supabase rejection rather than claiming success', async () => {
-    updateUser.mockResolvedValueOnce({ data: null, error: { message: 'same as old password' } });
-
-    const state = await updatePasswordAction(
-      undefined,
-      form({ password: 'correct horse battery', confirm: 'correct horse battery' }),
+  it('surfaces a Supabase rejection', async () => {
+    updateUser.mockResolvedValueOnce({ data: null, error: { message: 'same as old' } });
+    const to = await destinationOf(
+      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
     );
-
-    expect(state?.error).toBeTruthy();
+    expect(to).toBe('/reset-password?status=failed');
   });
 });
