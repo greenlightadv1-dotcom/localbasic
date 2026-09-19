@@ -145,7 +145,7 @@ export async function requestPasswordResetAction(
 
   const supabase = createSupabaseServerClient();
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: recoveryRedirectUrl('/reset-password', origin),
+    redirectTo: recoveryRedirectUrl(origin),
   });
 
   // The result is discarded on purpose — see RESET_SENT_NOTICE.

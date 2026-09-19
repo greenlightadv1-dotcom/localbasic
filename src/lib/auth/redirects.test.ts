@@ -18,6 +18,7 @@ import {
   appOrigin,
   appOriginSource,
   isLoopbackOrigin,
+  RECOVERY_CALLBACK_PATH,
   recoveryRedirectUrl,
   safeNextPath,
 } from './redirects';
@@ -78,24 +79,24 @@ describe('isLoopbackOrigin', () => {
 describe('recoveryRedirectUrl', () => {
   const origin = 'https://localbasic.vercel.app';
 
-  it('points at the shared callback with a validated next', () => {
-    expect(recoveryRedirectUrl('/reset-password', origin)).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
+  it('points at the dedicated recovery callback', () => {
+    expect(recoveryRedirectUrl(origin)).toBe(
+      'https://localbasic.vercel.app/callback/recovery',
     );
   });
 
-  it('never emits an off-origin next, even when asked', () => {
-    expect(recoveryRedirectUrl('https://evil.example', origin)).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
-    );
-    expect(recoveryRedirectUrl('//evil.example', origin)).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
-    );
+  // Supabase matches its allow-list against the whole URL, so a query string
+  // would need its own entry — and a failed match silently falls back to the
+  // Site URL, which is the marketing page.
+  it('carries no query string, so one allow-list entry covers it', () => {
+    const url = new URL(recoveryRedirectUrl(origin));
+    expect(url.search).toBe('');
+    expect(url.pathname).toBe(RECOVERY_CALLBACK_PATH);
   });
 
   it('tolerates a trailing slash on the configured origin', () => {
-    expect(recoveryRedirectUrl('/reset-password', `${origin}/`)).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
+    expect(recoveryRedirectUrl(`${origin}/`)).toBe(
+      'https://localbasic.vercel.app/callback/recovery',
     );
   });
 });
@@ -142,8 +143,8 @@ describe('appOrigin', () => {
     clientEnv.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
     process.env.VERCEL_PROJECT_PRODUCTION_URL = 'localbasic.vercel.app';
 
-    expect(recoveryRedirectUrl('/reset-password', appOrigin())).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
+    expect(recoveryRedirectUrl(appOrigin())).toBe(
+      'https://localbasic.vercel.app/callback/recovery',
     );
   });
 });

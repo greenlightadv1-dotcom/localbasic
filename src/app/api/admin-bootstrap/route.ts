@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email: PLATFORM_OWNER_EMAIL,
-    options: { redirectTo: recoveryRedirectUrl('/reset-password', appOrigin()) },
+    options: { redirectTo: recoveryRedirectUrl(appOrigin()) },
   });
 
   // Deliberately opaque: the caller learns that it failed, not why.

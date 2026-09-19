@@ -86,9 +86,10 @@ describe('requestPasswordResetAction', () => {
     const call = resetPasswordForEmail.mock.calls[0]!;
     const [sentTo, options] = call;
     expect(sentTo).toBe(email);
-    expect(options.redirectTo).toBe(
-      'https://localbasic.vercel.app/callback?next=%2Freset-password',
-    );
+    expect(options.redirectTo).toBe('https://localbasic.vercel.app/callback/recovery');
+    // No query string: Supabase allow-lists the whole URL, and a failed match
+    // falls back to the Site URL without reporting anything.
+    expect(new URL(options.redirectTo).search).toBe('');
     // The whole point of the exercise: never a developer machine.
     expect(options.redirectTo).not.toContain('localhost');
   });

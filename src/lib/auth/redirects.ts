@@ -74,14 +74,18 @@ export function safeNextPath(
 /**
  * The absolute URL Supabase should send a recovery link back to.
  *
- * It points at `/callback`, which is the single place that exchanges a code for
- * a session, so recovery reuses the confirmation flow rather than introducing a
- * second one. `next` rides along as a validated relative path.
+ * Deliberately carries no query string: Supabase matches its redirect
+ * allow-list against the whole URL, so `…/callback?next=…` is not covered by an
+ * entry of `…/callback`, and a failed match falls back to the Site URL without
+ * saying so.
  */
-export function recoveryRedirectUrl(
-  next = '/reset-password',
-  origin: string = appOrigin(),
-): string {
-  const target = safeNextPath(next, '/reset-password');
-  return `${origin.replace(/\/+$/, '')}/callback?next=${encodeURIComponent(target)}`;
+export function recoveryRedirectUrl(origin: string = appOrigin()): string {
+  return `${origin.replace(/\/+$/, '')}${RECOVERY_CALLBACK_PATH}`;
 }
+
+/**
+ * The one path a recovery email returns to. Exported so the value in the
+ * Supabase allow-list, the link the app sends and the route that redeems it
+ * can never drift apart.
+ */
+export const RECOVERY_CALLBACK_PATH = '/callback/recovery';

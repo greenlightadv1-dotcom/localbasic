@@ -34,7 +34,7 @@ export function GET() {
       source: appOriginSource(),
       origin,
       isLoopback: isLoopbackOrigin(origin),
-      recoveryRedirectUrl: recoveryRedirectUrl('/reset-password', origin),
+      recoveryRedirectUrl: recoveryRedirectUrl(origin),
       // The guard in requestPasswordResetAction that refuses to send.
       wouldSendRecoveryEmail:
         !(process.env.NODE_ENV === 'production' && isLoopbackOrigin(origin)),
