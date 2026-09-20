@@ -21,6 +21,15 @@ export type TenantContext = {
   organizationName: string;
   currency: string;
   locale: 'ar' | 'en';
+  /**
+   * The organization's IANA timezone, e.g. 'Africa/Cairo'.
+   *
+   * Reports decide what "today" means with it. Carried on the context rather
+   * than fetched per report: it rides the membership query that resolves this
+   * context anyway, so it costs nothing extra and cannot be supplied by a
+   * browser.
+   */
+  timezone: string;
   /** The branch the user is currently acting in. */
   branchId: string;
   branchSlug: string;
@@ -71,7 +80,7 @@ export const resolveTenantContext = cache(
     const { data: membership } = await supabase
       .from('organization_members')
       .select(
-        'id, all_branches, organizations!inner(id, slug, name, currency, default_locale, primary_module)',
+        'id, all_branches, organizations!inner(id, slug, name, currency, default_locale, primary_module, timezone)',
       )
       .eq('user_id', user.id)
       .eq('status', 'active')
@@ -90,6 +99,7 @@ export const resolveTenantContext = cache(
       currency: string;
       default_locale: string | null;
       primary_module: string;
+      timezone: string | null;
     };
 
     const [{ data: branchRows }, { data: memberBranches }, { data: modules }, { data: grants }] =
@@ -159,6 +169,9 @@ export const resolveTenantContext = cache(
       organizationName: org.name,
       currency: org.currency,
       locale: (org.default_locale as 'ar' | 'en') ?? 'ar',
+      // NOT NULL in the schema with a default, so the fallback is for a row
+      // written before the column existed rather than an expected case.
+      timezone: org.timezone ?? 'UTC',
       branchId: branch.id,
       branchSlug: branch.slug,
       branchName: branch.name,

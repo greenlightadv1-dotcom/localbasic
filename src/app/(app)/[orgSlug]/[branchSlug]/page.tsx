@@ -71,7 +71,7 @@ function Stat({
 async function RestaurantSummary({ ctx }: { ctx: TenantContext }) {
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
   const [report, orders, floor] = await Promise.all([
-    getRestaurantReport(ctx, resolveRange('today')),
+    getRestaurantReport(ctx, resolveRange('today', undefined, undefined, ctx.timezone)),
     listOrders(ctx, { statuses: ['new', 'confirmed', 'preparing', 'ready', 'served'] }),
     can(ctx, 'restaurant.table.read') ? listFloor(ctx) : Promise.resolve([]),
   ]);

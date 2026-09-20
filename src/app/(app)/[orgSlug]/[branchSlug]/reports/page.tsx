@@ -94,7 +94,11 @@ export default async function ReportsPage({
 
   const rangeKey = (RANGES.find((r) => r.key === searchParams.range)?.key ??
     (searchParams.from ? 'custom' : 'today')) as DateRangeKey;
-  const range = resolveRange(rangeKey, searchParams.from, searchParams.to);
+  // The organization's timezone, not the server's. The same range object is
+  // handed to the Retail panel below — deliberately: one page, one window, and
+  // Retail was reading the identical UTC-based boundaries, so this corrects
+  // both rather than giving the two verticals different days.
+  const range = resolveRange(rangeKey, searchParams.from, searchParams.to, ctx.timezone);
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
 
   // Which vertical's figures this branch should see. A shop and a restaurant

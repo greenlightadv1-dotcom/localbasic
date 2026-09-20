@@ -47,6 +47,7 @@ function ctx(permissions: string[]): TenantContext {
     organizationName: 'Shop',
     currency: 'EGP',
     locale: 'ar',
+    timezone: 'Africa/Cairo',
     branchId: BRANCH_A,
     branchSlug: 'main',
     branchName: 'Main',

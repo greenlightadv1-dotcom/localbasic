@@ -646,3 +646,66 @@ Still **unbounded in span**: a custom range of a century is accepted. That is
 tenant- and branch-scoped and was harmless at fixture size, but it has not been
 measured against production volumes. Covered by
 `src/modules/restaurant/reports/range.test.ts`.
+
+## Report day boundaries use the organization's timezone
+
+`resolveRange()` decided what "today" meant with `setHours(0, 0, 0, 0)`, which is
+local to the **process**. The process runs at UTC, so for a Cairo restaurant
+"today" began at 03:00 local and ended at 03:00 the next morning — three hours
+of trade on the wrong day, every day. Every preset range was affected, and the
+same range object feeds the Retail panel on that page, so both verticals were
+reading the same wrong window.
+
+It now takes the organization's IANA timezone from `TenantContext`. The value
+rides the membership query that resolves the context anyway, so reports cost no
+extra round trip, and it can never come from a browser.
+
+### Semantics
+
+**"Today" is the organization's local calendar day, midnight to midnight.**
+No business-day or shift-cutoff rule was introduced: an order taken at 01:00
+belongs to that calendar date, exactly as before.
+
+### DST
+
+`src/lib/time.ts` works from `Intl.DateTimeFormat`, so daylight saving comes
+from the real IANA tables rather than a hard-coded offset. Local midnight is
+resolved in two passes: the first guesses using the offset at the UTC instant
+with the same digits, the second recomputes using the offset actually in force
+at that guess.
+
+The second pass is not decoration. **Cairo's DST change happens at midnight** —
+on 24 April 2026 the clock jumps 00:00 → 01:00, so local midnight never occurs.
+A single pass answers 21:00Z, an hour before the day really begins; the refined
+pass answers 22:00Z. Removing it fails
+`handles a transition that happens at midnight (Africa/Cairo)`.
+
+### Date-only inputs
+
+`new Date('2026-01-15')` is UTC midnight, which in any zone **behind** UTC still
+belongs to the 14th — New York would read it as 19:00 on the previous day. A
+bare `YYYY-MM-DD` is therefore read as a calendar date in the zone, not routed
+through an instant. A date that does not exist (`2026-02-30`) is refused rather
+than rolled forward, which is what `new Date()` would do.
+
+`from > to` is corrected on the inclusive bounds **before** the exclusive end is
+computed; swapping afterwards lost a day at each edge, giving `[31 Mar, 2 Mar)`
+instead of `[1 Mar, 1 Apr)`.
+
+### Verified boundaries
+
+| Zone | Local day | UTC window | Length |
+|---|---|---|---|
+| Africa/Cairo | 2026-09-20 | `2026-09-19T21:00Z → 2026-09-20T21:00Z` | 24h |
+| Africa/Cairo | 2026-04-24 (DST at midnight) | `2026-04-23T22:00Z → 2026-04-24T21:00Z` | 23h |
+| America/New_York | 2026-01-15 | `2026-01-15T05:00Z → 2026-01-16T05:00Z` | 24h |
+| Europe/Berlin | 2026-03-29 (spring forward) | `2026-03-28T23:00Z → 2026-03-29T22:00Z` | 23h |
+| UTC | 2026-09-20 | `2026-09-20T00:00Z → 2026-09-21T00:00Z` | 24h |
+
+An unrecognised zone falls back to UTC rather than throwing `RangeError` inside
+`Intl` — provisioning validates the timezone only as a 3-character string, so a
+nonsense value can reach the column.
+
+Covered by `src/lib/time.test.ts` and
+`src/modules/restaurant/reports/range.test.ts`. No migration: the column exists
+and is `NOT NULL` with a default.

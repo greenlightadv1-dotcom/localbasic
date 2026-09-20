@@ -2,68 +2,111 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { toAppError } from '@/lib/errors';
 import { can, type TenantContext } from '@/modules/core/tenancy/context';
+import {
+  isValidTimeZone,
+  startOfCalendarDateInZone,
+  startOfDayInZone,
+  startOfDayInZoneOffset,
+  startOfMonthInZone,
+} from '@/lib/time';
 
 export type DateRangeKey = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
-export function resolveRange(key: DateRangeKey, from?: string, to?: string) {
+/**
+ * The window a report covers, as absolute instants.
+ *
+ * `timeZone` is the ORGANIZATION's, taken from the tenant context. It used to
+ * be the server's: setHours(0, 0, 0, 0) is local-to-the-process, and the
+ * process runs at UTC, so "today" for a Cairo restaurant began at 03:00 local
+ * and ended at 03:00 the next morning. Three hours of trade landed on the
+ * wrong day, every day.
+ *
+ * "Today" here means the organization's local CALENDAR day, midnight to
+ * midnight. A business day that runs past midnight is a different idea and is
+ * deliberately not modelled: an order taken at 01:00 belongs to the date on
+ * the calendar, as it did before.
+ *
+ * The returned Dates are absolute instants, so the caller's toISOString() is
+ * the correct UTC boundary for a timestamptz comparison.
+ */
+export function resolveRange(
+  key: DateRangeKey,
+  from?: string,
+  to?: string,
+  timeZone = 'UTC',
+) {
+  // The value is trusted — it comes from the organization row, never a
+  // request — but a zone this runtime cannot name would throw RangeError deep
+  // inside Intl, so it falls back rather than taking the page down.
+  const zone = isValidTimeZone(timeZone) ? timeZone : 'UTC';
   const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+
+  let start = startOfDayInZone(now, zone);
+  let end = startOfDayInZoneOffset(now, zone, 1);
 
   switch (key) {
     case 'yesterday':
-      start.setDate(start.getDate() - 1);
-      end.setDate(end.getDate() - 1);
+      start = startOfDayInZoneOffset(now, zone, -1);
+      end = startOfDayInZone(now, zone);
       break;
     case 'week':
-      start.setDate(start.getDate() - 6);
+      // The last seven calendar days, today included.
+      start = startOfDayInZoneOffset(now, zone, -6);
       break;
     case 'month':
-      start.setDate(1);
+      start = startOfMonthInZone(now, zone);
       break;
     case 'custom': {
       // Both come straight from the query string, so both can be nonsense.
-      // new Date('abc') is an Invalid Date, whose setHours() returns NaN;
-      // setTime(NaN) then poisons the range and getRestaurantReport()'s
-      // toISOString() throws RangeError: Invalid time value — a malformed
-      // link broke the whole page rather than showing a report.
-      const parsed = (value: string | undefined): Date | null => {
+      // new Date('abc') is an Invalid Date, and letting one through poisoned
+      // the range until toISOString() threw RangeError: Invalid time value.
+      const parseDay = (value: string | undefined): Date | null => {
         if (!value) return null;
-        const d = new Date(value);
-        if (Number.isNaN(d.getTime())) return null;
-        d.setHours(0, 0, 0, 0);
-        return d;
+        // A bare YYYY-MM-DD means that calendar date where the business is.
+        // Parsing it as an instant would put it a day early in any zone behind
+        // UTC, because new Date('2026-01-15') is UTC midnight.
+        const asCalendarDate = startOfCalendarDateInZone(value, zone);
+        if (asCalendarDate) return asCalendarDate;
+        // It looked like a bare date and was rejected, so it names a day that
+        // does not exist. Falling through would hand it to new Date(), which
+        // rolls '2026-02-30' forward to 2 March rather than refusing it.
+        if (/^\s*\d{4}-\d{2}-\d{2}\s*$/.test(value)) return null;
+
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return startOfDayInZone(parsed, zone);
       };
 
-      const parsedFrom = parsed(from);
-      const parsedTo = parsed(to);
+      const parsedFrom = parseDay(from);
+      const parsedTo = parseDay(to);
 
       // If either bound is unusable the request cannot be honoured, so the
-      // default window stands. Applying only the half that parsed would
-      // invent a range nobody asked for — a bad `from` with a good `to` would
-      // silently report from today back to some date months earlier.
+      // default window stands. Applying only the half that parsed would invent
+      // a range nobody asked for — a bad `from` with a good `to` would report
+      // from today back to some date months earlier.
       if ((from && !parsedFrom) || (to && !parsedTo)) break;
 
-      if (parsedFrom) start.setTime(parsedFrom.getTime());
-      if (parsedTo) {
-        parsedTo.setDate(parsedTo.getDate() + 1);
-        end.setTime(parsedTo.getTime());
+      // Both bounds are still INCLUSIVE first-moments here. They are ordered
+      // before the end is made exclusive, because swapping afterwards would
+      // lose a day at each edge: [31 Mar, 2 Mar) rather than [1 Mar, 1 Apr).
+      let firstDay = parsedFrom ?? start;
+      let lastDay = parsedTo ?? startOfDayInZoneOffset(end, zone, -1);
+      if (firstDay.getTime() > lastDay.getTime()) {
+        const swap = firstDay;
+        firstDay = lastDay;
+        lastDay = swap;
       }
 
-      // A backwards range returns nothing, which reads as "no sales" rather
-      // than "the dates are the wrong way round".
-      if (start.getTime() > end.getTime()) {
-        const swap = start.getTime();
-        start.setTime(end.getTime());
-        end.setTime(swap);
-      }
+      start = firstDay;
+      // Exclusive: midnight starting the day after the last day requested,
+      // stepped on the calendar so a DST day is not assumed to be 24 hours.
+      end = startOfDayInZoneOffset(lastDay, zone, 1);
       break;
     }
     default:
       break;
   }
+
   return { start, end };
 }
 
