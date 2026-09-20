@@ -537,3 +537,49 @@ test suite asserts a custom role holding `payment.refund` produces no finding.
    database, not as incidents.
 5. Nothing here justifies revoking a permission on its own. Confirm with the
    organization before changing a live tenant.
+
+## Restaurant payment concurrency (0054)
+
+`restaurant_pay_order()` decides how much is still owed by reading the order and
+summing the payments already recorded against its invoice. It did both without
+locking anything.
+
+Under READ COMMITTED that is a double-payment race: two cashiers pressing "take
+payment" on the same order within the same second each see an unpaid order,
+because neither transaction can see the other's uncommitted rows. Reproduced
+against a real database — one order of 10,000 taken twice:
+
+```
+completed_payments = 2    total_taken = 20000
+invoices           = 2    order_total  = 10000
+```
+
+Both sessions reported `due = 0`, and the second invoice overwrote the first on
+the order, so the books showed twice the takings and a receipt number that no
+longer pointed at the order's invoice.
+
+**The fix is one clause**: `for update` on the order lookup, before anything is
+read or decided. The second cashier blocks until the first commits, re-reads the
+row, and is refused by the existing "already paid in full" check. No new error
+path and no change to the function's contract.
+
+### Deliberately not changed
+
+**Order status transitions.** `app.check_order_transition()` is a `BEFORE UPDATE`
+trigger, so it validates against the real `OLD` row after the row lock the
+`UPDATE` itself takes. Verified under concurrency: a second session attempting
+an illegal move was refused with `invalid order transition ready → preparing`.
+No lock needed.
+
+**Table QR issuance.** `restaurant_issue_table_link()` accepts the token from its
+caller, but `public_links.token` is `unique` with
+`check (token ~ '^[A-Za-z0-9_-]{22,64}$')`, and the value is generated
+server-side by `generatePublicToken()` (`randomBytes(32)`). A collision is
+refused by the unique index and a short or malformed token by the check. Not a
+finding.
+
+### Test
+
+`supabase/tests/27_restaurant_payment_concurrency.sh` — two real connections,
+asserting one payment, one invoice and the exact amount. Verified against a
+database built without 0054, where it exits 1.
