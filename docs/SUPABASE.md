@@ -583,3 +583,66 @@ finding.
 `supabase/tests/27_restaurant_payment_concurrency.sh` — two real connections,
 asserting one payment, one invoice and the exact amount. Verified against a
 database built without 0054, where it exits 1.
+
+## Kitchen display: what it sends and how it refreshes
+
+**Mechanism: polling, not Realtime.** There is no Supabase Realtime anywhere in
+the application — no channel, no `postgres_changes` subscription, no helper.
+`kitchen-board.tsx` calls `router.refresh()` on a 20-second interval, plus a
+30-second tick that re-renders ticket ages without a request. `service-board.tsx`
+does the same.
+
+Consequences worth stating plainly, because they are properties rather than
+gaps:
+
+- New orders appear within 20 seconds without anyone touching the screen.
+- There is **no client-side order store**. Every refresh replaces the whole list
+  from the server, so duplicate events cannot duplicate a ticket and a stale
+  event cannot overwrite newer state — there are no events.
+- Reconnect behaviour is whatever the next `router.refresh()` does. A failed
+  refresh leaves the previous render on screen and the following one recovers.
+- Two cooks advancing the same ticket is settled by the transition trigger; the
+  loser gets "invalid order transition" in a toast.
+
+### No money reaches the kitchen
+
+The page used to build tickets with `listOrders()` followed by `getOrder()` per
+order. `getOrder()` issues up to five queries — order, items, modifiers, table
+and **invoice** — so a board of thirty tickets cost roughly 150 round trips,
+every twenty seconds, from every tablet.
+
+It also shipped `totalCents`, `paidCents`, `unitPriceCents`, `lineTotalCents`
+and `invoiceId` to the browser. The board renders none of it, but a React Server
+Component payload is readable in DevTools, so "not rendered" was never "not
+sent". RLS *does* let the kitchen role read `restaurant_orders.total_cents`, so
+this was not an authorization bypass — it contradicted what the board documents
+about itself.
+
+`listKitchenTickets()` replaces both: **four queries regardless of ticket
+count**, and no price column selected at all, so the money never leaves the
+database rather than being dropped on the way out.
+
+Covered by `src/modules/restaurant/orders/kitchen.test.ts` (the query must not
+ask for a price column; the payload must not contain one; the query count must
+stay flat) and by a browser assertion in
+`e2e/restaurant-responsive.spec.ts` that inspects what actually arrives.
+
+## Report date ranges
+
+`resolveRange('custom', from, to)` takes two strings straight from the query
+string. `new Date('abc')` is an Invalid Date whose `setHours()` returns `NaN`,
+and `setTime(NaN)` poisoned the range until `getRestaurantReport()` called
+`toISOString()` and threw `RangeError: Invalid time value` — a malformed link
+was enough to break the page. Confirmed in the running application before the
+fix and absent after it.
+
+Now: an unparseable bound is refused and the default window stands. Applying
+only the half that parsed would invent a range nobody asked for — a bad `from`
+with a good `to` would report from today back to some date months earlier. A
+backwards range is swapped rather than returning nothing, because an empty
+result reads as "no sales" instead of "the dates are the wrong way round".
+
+Still **unbounded in span**: a custom range of a century is accepted. That is
+tenant- and branch-scoped and was harmless at fixture size, but it has not been
+measured against production volumes. Covered by
+`src/modules/restaurant/reports/range.test.ts`.

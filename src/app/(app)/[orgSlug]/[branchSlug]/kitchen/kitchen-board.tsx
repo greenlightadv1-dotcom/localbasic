@@ -8,10 +8,15 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
-import type { OrderLine, OrderSummary } from '@/modules/restaurant/orders/service';
+import type { KitchenTicket } from '@/modules/restaurant/orders/service';
 import { setOrderStatusAction } from '../restaurant-actions';
 
-type Ticket = { summary: OrderSummary; lines: OrderLine[] };
+/**
+ * The board's ticket carries no money. That is enforced by the type coming
+ * from listKitchenTickets(), which never selects a price column — not by this
+ * component choosing not to render one.
+ */
+type Ticket = KitchenTicket;
 
 /** Minutes since the order was placed, for the ageing colour. */
 function minutesSince(iso: string) {

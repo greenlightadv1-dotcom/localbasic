@@ -23,15 +23,44 @@ export function resolveRange(key: DateRangeKey, from?: string, to?: string) {
     case 'month':
       start.setDate(1);
       break;
-    case 'custom':
-      if (from) start.setTime(new Date(from).setHours(0, 0, 0, 0));
-      if (to) {
-        const t = new Date(to);
-        t.setHours(0, 0, 0, 0);
-        t.setDate(t.getDate() + 1);
-        end.setTime(t.getTime());
+    case 'custom': {
+      // Both come straight from the query string, so both can be nonsense.
+      // new Date('abc') is an Invalid Date, whose setHours() returns NaN;
+      // setTime(NaN) then poisons the range and getRestaurantReport()'s
+      // toISOString() throws RangeError: Invalid time value — a malformed
+      // link broke the whole page rather than showing a report.
+      const parsed = (value: string | undefined): Date | null => {
+        if (!value) return null;
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return null;
+        d.setHours(0, 0, 0, 0);
+        return d;
+      };
+
+      const parsedFrom = parsed(from);
+      const parsedTo = parsed(to);
+
+      // If either bound is unusable the request cannot be honoured, so the
+      // default window stands. Applying only the half that parsed would
+      // invent a range nobody asked for — a bad `from` with a good `to` would
+      // silently report from today back to some date months earlier.
+      if ((from && !parsedFrom) || (to && !parsedTo)) break;
+
+      if (parsedFrom) start.setTime(parsedFrom.getTime());
+      if (parsedTo) {
+        parsedTo.setDate(parsedTo.getDate() + 1);
+        end.setTime(parsedTo.getTime());
+      }
+
+      // A backwards range returns nothing, which reads as "no sales" rather
+      // than "the dates are the wrong way round".
+      if (start.getTime() > end.getTime()) {
+        const swap = start.getTime();
+        start.setTime(end.getTime());
+        end.setTime(swap);
       }
       break;
+    }
     default:
       break;
   }

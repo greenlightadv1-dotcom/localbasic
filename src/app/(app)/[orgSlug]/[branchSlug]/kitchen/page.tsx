@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext } from '@/modules/core/tenancy/context';
-import { listOrders } from '@/modules/restaurant/orders/service';
-import { getOrder } from '@/modules/restaurant/orders/service';
+import { listKitchenTickets } from '@/modules/restaurant/orders/service';
 import { KitchenBoard } from './kitchen-board';
 
 export const metadata = { title: 'شاشة المطبخ' };
@@ -16,13 +15,9 @@ export default async function KitchenPage({
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!ctx.permissions.has('restaurant.kitchen.use')) notFound();
 
-  const orders = await listOrders(ctx, { statuses: ['confirmed', 'preparing', 'ready'] });
-  const tickets = await Promise.all(
-    orders.map(async (summary) => {
-      const { lines } = await getOrder(ctx, summary.id);
-      return { summary, lines };
-    }),
-  );
+  // One batched call: four queries whatever the board holds, and no price
+  // column selected, so nothing financial reaches the client payload.
+  const tickets = await listKitchenTickets(ctx);
 
   return (
     <KitchenBoard

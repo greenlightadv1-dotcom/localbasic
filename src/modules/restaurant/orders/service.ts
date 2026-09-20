@@ -117,6 +117,123 @@ export async function listOrders(
 
 export const listActiveOrders = (ctx: TenantContext) => listOrders(ctx, { statuses: ACTIVE });
 
+/**
+ * A kitchen ticket: what to cook, for which table, and how long it has been
+ * waiting. Deliberately carries no money.
+ *
+ * The kitchen page used to build this by calling listOrders() and then
+ * getOrder() once per order. getOrder() issues up to five queries — the order,
+ * its items, their modifiers, the table and the INVOICE — so a board showing
+ * thirty tickets cost about 150 round trips, repeated every twenty seconds by
+ * every tablet in the kitchen.
+ *
+ * It also meant every ticket arrived at the browser carrying unit prices, line
+ * totals, the order total and the invoice id. The board renders none of it, but
+ * a React Server Component payload is readable in the browser, so it was there
+ * for anyone on the kitchen tablet to open DevTools and read. That contradicts
+ * what the board itself documents: no financial information of any kind.
+ *
+ * This is four queries regardless of how many tickets are on the board, and no
+ * price column is selected at all — the money never leaves the database rather
+ * than being dropped on the way out.
+ */
+export type KitchenTicket = {
+  summary: {
+    id: string;
+    number: string;
+    status: OrderStatus;
+    tableName: string | null;
+    note: string | null;
+    placedAt: string;
+  };
+  lines: {
+    id: string;
+    productName: string;
+    variantName: string;
+    quantity: number;
+    note: string | null;
+    modifiers: { name: string }[];
+  }[];
+};
+
+export async function listKitchenTickets(
+  ctx: TenantContext,
+  statuses: OrderStatus[] = ['confirmed', 'preparing', 'ready'],
+): Promise<KitchenTicket[]> {
+  const supabase = createSupabaseServerClient();
+
+  const { data: rows, error } = await supabase
+    .from('restaurant_orders')
+    .select('id, number, status, table_id, note, placed_at')
+    .eq('organization_id', ctx.organizationId)
+    .eq('branch_id', ctx.branchId)
+    .in('status', statuses)
+    .order('placed_at', { ascending: false })
+    .limit(300);
+
+  if (error) throw toAppError(error, 'listKitchenTickets');
+  if (!rows?.length) return [];
+
+  // Oldest first on the board — the order a kitchen cooks in. The query takes
+  // the newest window so the cap drops the stalest rows, as listOrders explains.
+  const orders = [...rows].reverse();
+  const orderIds = orders.map((o) => o.id);
+  const tableIds = [...new Set(orders.map((o) => o.table_id).filter(Boolean))] as string[];
+
+  const [{ data: items }, { data: tables }] = await Promise.all([
+    supabase
+      .from('restaurant_order_items')
+      .select('id, order_id, product_name, variant_name, quantity, note')
+      .in('order_id', orderIds)
+      .order('position'),
+    tableIds.length
+      ? supabase.from('restaurant_tables').select('id, name').in('id', tableIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+
+  const itemIds = (items ?? []).map((i) => i.id);
+  const { data: modifiers } = itemIds.length
+    ? await supabase
+        .from('restaurant_order_item_modifiers')
+        .select('order_item_id, name')
+        .in('order_item_id', itemIds)
+    : { data: [] as { order_item_id: string; name: string }[] };
+
+  const tableName = new Map((tables ?? []).map((t) => [t.id, t.name]));
+  const modsByItem = new Map<string, { name: string }[]>();
+  for (const m of modifiers ?? []) {
+    const list = modsByItem.get(m.order_item_id) ?? [];
+    list.push({ name: m.name });
+    modsByItem.set(m.order_item_id, list);
+  }
+
+  const linesByOrder = new Map<string, KitchenTicket['lines']>();
+  for (const i of items ?? []) {
+    const list = linesByOrder.get(i.order_id) ?? [];
+    list.push({
+      id: i.id,
+      productName: i.product_name,
+      variantName: i.variant_name,
+      quantity: i.quantity,
+      note: i.note,
+      modifiers: modsByItem.get(i.id) ?? [],
+    });
+    linesByOrder.set(i.order_id, list);
+  }
+
+  return orders.map((o) => ({
+    summary: {
+      id: o.id,
+      number: o.number,
+      status: o.status as OrderStatus,
+      tableName: o.table_id ? (tableName.get(o.table_id) ?? null) : null,
+      note: o.note,
+      placedAt: o.placed_at,
+    },
+    lines: linesByOrder.get(o.id) ?? [],
+  }));
+}
+
 /** One order with its lines and modifiers — the kitchen ticket and the bill. */
 export async function getOrder(ctx: TenantContext, orderId: string) {
   const supabase = createSupabaseServerClient();

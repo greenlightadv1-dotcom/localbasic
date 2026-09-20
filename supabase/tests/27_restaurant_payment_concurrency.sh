@@ -104,10 +104,51 @@ INVOICES="$("${PSQL[@]}" -c "
   join organizations o on o.id = i.organization_id
   where o.slug = 'payconc';")"
 
+# The refused transaction must leave nothing behind. restaurant_pay_order also
+# writes invoice_items, a treasury movement and an audit line, and any of those
+# surviving a rejected payment would be a partial commit.
+ROWS="$("${PSQL[@]}" -c "
+  select count(*) from payments p
+  join invoices i on i.id = p.invoice_id
+  join organizations o on o.id = i.organization_id
+  where o.slug = 'payconc';")"
+ITEMS="$("${PSQL[@]}" -c "
+  select count(*) from invoice_items ii
+  join organizations o on o.id = ii.organization_id
+  where o.slug = 'payconc';")"
+TREASURY="$("${PSQL[@]}" -c "
+  select count(*) from treasury_transactions t
+  join organizations o on o.id = t.organization_id
+  where o.slug = 'payconc';")"
+AUDIT="$("${PSQL[@]}" -c "
+  select count(*) from audit_logs a
+  join organizations o on o.id = a.organization_id
+  where o.slug = 'payconc' and a.action = 'restaurant.order.paid';")"
+
 echo "   payments=$PAYMENTS taken=$TAKEN invoices=$INVOICES (expected 1 / $TOT / 1)"
+echo "   rows_any_status=$ROWS invoice_items=$ITEMS treasury=$TREASURY audit=$AUDIT (expected 1 / 1 / 1 / 1)"
 
 [ "$PAYMENTS" = "1" ] || { echo "FAIL: expected exactly 1 payment, got $PAYMENTS — the order was paid twice"; exit 1; }
 [ "$TAKEN" = "$TOT" ]  || { echo "FAIL: expected $TOT taken, got $TAKEN"; exit 1; }
 [ "$INVOICES" = "1" ] || { echo "FAIL: expected exactly 1 invoice, got $INVOICES"; exit 1; }
+# Any status, not just completed: a refused attempt must not leave a pending or
+# failed payment row either.
+[ "$ROWS" = "1" ]     || { echo "FAIL: expected 1 payment row in any status, got $ROWS"; exit 1; }
+[ "$ITEMS" = "1" ]    || { echo "FAIL: expected 1 invoice item, got $ITEMS — a second invoice was built"; exit 1; }
+[ "$TREASURY" = "1" ] || { echo "FAIL: expected 1 treasury movement, got $TREASURY — the till was credited twice"; exit 1; }
+[ "$AUDIT" = "1" ]    || { echo "FAIL: expected 1 payment audit line, got $AUDIT"; exit 1; }
 
-echo "RESTAURANT PAYMENT CONCURRENCY: passed — one payment, one invoice, no double charge"
+# Retrying after a refusal must stay refused and must not add rows.
+echo "→ retry after refusal"
+pay_sql 0 | "${PSQL[@]}" >/tmp/lb-pay-retry.log 2>&1 || true
+grep -q "already paid in full" /tmp/lb-pay-retry.log || {
+  echo "FAIL: a retry after refusal was not refused:"; cat /tmp/lb-pay-retry.log; exit 1; }
+AFTER="$("${PSQL[@]}" -c "
+  select count(*) from payments p
+  join invoices i on i.id = p.invoice_id
+  join organizations o on o.id = i.organization_id
+  where o.slug = 'payconc';")"
+[ "$AFTER" = "1" ] || { echo "FAIL: a refused retry added a payment row ($AFTER)"; exit 1; }
+
+echo "RESTAURANT PAYMENT CONCURRENCY: passed — one payment, one invoice, one treasury"
+echo "                                movement, no partial side effects, retry safe"
