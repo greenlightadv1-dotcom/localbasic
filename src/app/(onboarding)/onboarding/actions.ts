@@ -31,7 +31,10 @@ export async function provisionWorkspaceAction(
     branchName: formData.get('branchName') || undefined,
     country: formData.get('country') || 'EG',
     currency: formData.get('currency') || 'EGP',
-    timezone: formData.get('timezone') || 'Africa/Cairo',
+    // Left undefined when absent so the schema's own default applies. The
+    // value is NOT defaulted here: a posted-but-invalid zone must reach the
+    // validator and be rejected, not be papered over by the action.
+    timezone: formData.get('timezone') || undefined,
   });
 
   if (!result.ok) {

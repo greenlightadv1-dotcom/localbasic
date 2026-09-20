@@ -159,3 +159,29 @@ export function isValidTimeZone(timeZone: string): boolean {
     return false;
   }
 }
+
+/**
+ * Shape of an IANA zone name: `Region/City`, or a bare name like `UTC`.
+ *
+ * `Intl` alone is too permissive to use as an input filter. It accepts fixed
+ * offsets such as `+03:00`, which have no DST rules at all — storing one would
+ * quietly freeze a tenant's reports at a single offset and break every spring
+ * and autumn. Zone NAMES are allowed in every form the tz database defines
+ * them, links (`GMT`, `Asia/Calcutta`) included.
+ */
+const IANA_NAME = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/;
+
+/**
+ * Is this an IANA zone identifier this runtime can resolve?
+ *
+ * Stricter than `isValidTimeZone`, which exists to keep a bad stored value
+ * from taking a report down. This one is the INPUT gate: it decides what is
+ * allowed to be persisted in the first place, so it also refuses the
+ * offset-shaped values `Intl` would otherwise wave through.
+ */
+export function isIanaTimeZone(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  if (value !== value.trim() || value.length === 0) return false;
+  if (!IANA_NAME.test(value)) return false;
+  return isValidTimeZone(value);
+}

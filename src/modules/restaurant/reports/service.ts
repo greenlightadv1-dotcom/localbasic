@@ -1,6 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { toAppError } from '@/lib/errors';
+import { fetchAllRows, fetchAllRowsIn } from '@/lib/supabase/paginate';
 import { can, type TenantContext } from '@/modules/core/tenancy/context';
 import {
   isValidTimeZone,
@@ -154,14 +154,27 @@ export async function getRestaurantReport(
     topProducts: [],
   };
 
-  const { data: orders, error: orderError } = await supabase
-    .from('restaurant_orders')
-    .select('id, status, total_cents, discount_cents, invoice_id')
-    .eq('organization_id', ctx.organizationId)
-    .eq('branch_id', ctx.branchId)
-    .gte('placed_at', from)
-    .lt('placed_at', to);
-  if (orderError) throw toAppError(orderError, 'restaurant report orders');
+  // Every scan below is paginated. A plain .select() is capped server-side by
+  // PostgREST's db-max-rows, and these figures are summed in JavaScript, so a
+  // truncated list does not error — it under-reports the day's takings.
+  const orders = await fetchAllRows<{
+    id: string;
+    status: string;
+    total_cents: number;
+    discount_cents: number;
+    invoice_id: string | null;
+  }>('restaurant report orders', (offset, limit) =>
+    supabase
+      .from('restaurant_orders')
+      .select('id, status, total_cents, discount_cents, invoice_id', { count: 'exact' })
+      .eq('organization_id', ctx.organizationId)
+      .eq('branch_id', ctx.branchId)
+      .gte('placed_at', from)
+      .lt('placed_at', to)
+      // Unique within the filter, so pages partition the result exactly.
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1),
+  );
 
   report.openOrders = (orders ?? []).filter((o) =>
     ['new', 'confirmed', 'preparing', 'ready', 'served'].includes(o.status),
@@ -170,15 +183,23 @@ export async function getRestaurantReport(
   report.discountsCents = (orders ?? []).reduce((sum, o) => sum + o.discount_cents, 0);
 
   if (can(ctx, 'payment.read')) {
-    const { data: payments, error } = await supabase
-      .from('payments')
-      .select('amount_cents, method, created_by, invoice_id')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .eq('status', 'completed')
-      .gte('created_at', from)
-      .lt('created_at', to);
-    if (error) throw toAppError(error, 'restaurant report payments');
+    const payments = await fetchAllRows<{
+      amount_cents: number;
+      method: string;
+      created_by: string | null;
+      invoice_id: string | null;
+    }>('restaurant report payments', (offset, limit) =>
+      supabase
+        .from('payments')
+        .select('amount_cents, method, created_by, invoice_id', { count: 'exact' })
+        .eq('organization_id', ctx.organizationId)
+        .eq('branch_id', ctx.branchId)
+        .eq('status', 'completed')
+        .gte('created_at', from)
+        .lt('created_at', to)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     report.revenueCents = (payments ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
 
@@ -205,10 +226,17 @@ export async function getRestaurantReport(
       : 0;
 
     if (byUser.size) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', [...byUser.keys()]);
+      const profiles = await fetchAllRowsIn<{ id: string; full_name: string | null }, string>(
+        'restaurant report cashiers',
+        [...byUser.keys()],
+        (ids, offset, limit) =>
+          supabase
+            .from('profiles')
+            .select('id, full_name', { count: 'exact' })
+            .in('id', ids)
+            .order('id', { ascending: true })
+            .range(offset, offset + limit - 1),
+      );
       const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? '—']));
       report.byCashier = [...byUser.entries()]
         .map(([id, v]) => ({
@@ -221,14 +249,21 @@ export async function getRestaurantReport(
   }
 
   if (can(ctx, 'treasury.read')) {
-    const { data: ledger, error } = await supabase
-      .from('treasury_transactions')
-      .select('direction, amount_cents, category')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .gte('occurred_at', from)
-      .lt('occurred_at', to);
-    if (error) throw toAppError(error, 'restaurant report treasury');
+    const ledger = await fetchAllRows<{
+      direction: string;
+      amount_cents: number;
+      category: string | null;
+    }>('restaurant report treasury', (offset, limit) =>
+      supabase
+        .from('treasury_transactions')
+        .select('direction, amount_cents, category', { count: 'exact' })
+        .eq('organization_id', ctx.organizationId)
+        .eq('branch_id', ctx.branchId)
+        .gte('occurred_at', from)
+        .lt('occurred_at', to)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     report.expensesCents = (ledger ?? [])
       .filter((t) => t.direction === 'out')
@@ -239,11 +274,25 @@ export async function getRestaurantReport(
   // Best sellers come from the order lines, which carry the price snapshots.
   const orderIds = (orders ?? []).map((o) => o.id);
   if (orderIds.length) {
-    const { data: items } = await supabase
-      .from('restaurant_order_items')
-      .select('product_name, quantity, line_total_cents, order_id')
-      .in('order_id', orderIds)
-      .limit(2000);
+    // The id list grows with the range, so it is chunked as well as paged:
+    // a few thousand ids in one .in() would overflow the request URL. The
+    // .limit(2000) this replaces truncated best-sellers without saying so.
+    const items = await fetchAllRowsIn<
+      {
+        product_name: string;
+        quantity: number;
+        line_total_cents: number;
+        order_id: string;
+      },
+      string
+    >('restaurant report items', orderIds, (ids, offset, limit) =>
+      supabase
+        .from('restaurant_order_items')
+        .select('product_name, quantity, line_total_cents, order_id', { count: 'exact' })
+        .in('order_id', ids)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     const cancelled = new Set(
       (orders ?? []).filter((o) => o.status === 'cancelled').map((o) => o.id),

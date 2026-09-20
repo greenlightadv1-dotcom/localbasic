@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AppError, conflict, toAppError } from '@/lib/errors';
 import { slugify } from '@/lib/tokens';
+import { isIanaTimeZone } from '@/lib/time';
 import { requireUser } from './context';
+
+/** Used when a caller supplies no timezone at all. */
+export const DEFAULT_TIMEZONE = 'Africa/Cairo';
 
 export const MODULE_KEYS = ['retail', 'restaurant', 'medical', 'workshop'] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
@@ -21,7 +25,24 @@ export const provisionWorkspaceSchema = z.object({
   branchName: z.string().trim().min(1).max(120).optional(),
   country: z.string().trim().length(2).default('EG'),
   currency: z.string().trim().length(3).default('EGP'),
-  timezone: z.string().trim().min(3).default('Africa/Cairo'),
+  /**
+   * The organization's IANA timezone. Every report boundary is derived from
+   * it, so a bad value is not cosmetic: it decides which day a sale lands on.
+   *
+   * Validation is server-side and authoritative — the onboarding form posts a
+   * hidden field, which is to say the browser can post anything.
+   *
+   * Missing means "use the platform default" (`DEFAULT_TIMEZONE`). Supplied
+   * and invalid is an ERROR, never a silent fallback: quietly rewriting a
+   * tenant's zone would put their reports on the wrong day without telling
+   * anyone. Whitespace is trimmed first, so ' Africa/Cairo ' is accepted and
+   * persisted as 'Africa/Cairo'; empty and whitespace-only are rejected.
+   */
+  timezone: z
+    .string()
+    .trim()
+    .refine(isIanaTimeZone, 'المنطقة الزمنية غير صالحة')
+    .default(DEFAULT_TIMEZONE),
 });
 
 export type ProvisionWorkspaceInput = z.infer<typeof provisionWorkspaceSchema>;

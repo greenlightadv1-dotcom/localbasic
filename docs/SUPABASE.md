@@ -709,3 +709,58 @@ nonsense value can reach the column.
 Covered by `src/lib/time.test.ts` and
 `src/modules/restaurant/reports/range.test.ts`. No migration: the column exists
 and is `NOT NULL` with a default.
+
+### The organization timezone is validated on the way in
+
+The zone decides which calendar day every sale is reported on, so it is
+validated server-side before it is ever stored. `provisionWorkspaceSchema`
+trims the value and runs `isIanaTimeZone()` (`src/lib/time.ts`) over it.
+
+- **Absent** → the platform default, `DEFAULT_TIMEZONE` (`Africa/Cairo`).
+- **Supplied and invalid** → a validation error. It is never quietly replaced
+  with a default: rewriting a tenant's zone behind their back moves their
+  business day without telling anyone.
+- Empty and whitespace-only are invalid. `' Africa/Cairo '` is accepted and
+  persisted trimmed.
+
+`isIanaTimeZone` is deliberately stricter than `isValidTimeZone`. `Intl` accepts
+fixed offsets such as `+03:00`, which carry no DST rules at all — storing one
+would freeze a tenant at a single offset and break twice a year. `isValidTimeZone`
+stays as the *read* guard, so a row written before a zone was renamed falls back
+to UTC instead of throwing inside a report.
+
+The onboarding form posts the zone as a hidden field, which is to say the
+browser can post anything; nothing about this validation is client-side.
+
+## Reports read every matching row, not the first page
+
+PostgREST caps any request that does not ask for an explicit range at
+`db-max-rows`. The cap is applied silently — the response body is simply
+shorter. Both report services sum their rows in JavaScript, so a truncated list
+does not raise: it **under-reports revenue**, which is the worst possible
+failure on a financial screen because nothing looks wrong.
+
+`db-max-rows` is a deployment setting and is **not verifiable from this
+repository**, so the fix cannot be "stay under it". Every range-scanning query
+in `src/modules/restaurant/reports/service.ts` and
+`src/modules/retail/reports/service.ts` now goes through
+`fetchAllRows()` / `fetchAllRowsIn()` (`src/lib/supabase/paginate.ts`), which:
+
+- asks for `{ count: 'exact' }` and pages until the reported total is collected,
+  so it is correct whatever the cap is — including when the server returns fewer
+  rows than the page requested;
+- orders by a column unique within the filter, so pages partition the result and
+  no row is counted twice or skipped;
+- chunks long `.in()` id lists, so a wide range cannot overflow the request URL;
+- **raises** rather than truncating past `MAX_ROWS` (50 000). A refusal the user
+  can see beats a total that is quietly wrong.
+
+This replaced two arbitrary caps that were silently losing data: `.limit(2000)`
+on restaurant order lines (truncated best-sellers) and `.limit(1000)` on retail
+stock levels (hid every low-stock line past the thousandth).
+
+**Still to verify in production:** the actual `db-max-rows` value on the hosted
+project, from the Supabase dashboard (API settings → "Max rows") or
+`PGRST_DB_MAX_ROWS`. The pagination above makes the value irrelevant to
+correctness, but it decides how many round trips a wide range costs, which is
+worth knowing before a tenant asks for a year at a time.

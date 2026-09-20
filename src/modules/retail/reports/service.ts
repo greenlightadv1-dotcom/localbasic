@@ -1,6 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { toAppError } from '@/lib/errors';
+import { fetchAllRows, fetchAllRowsIn } from '@/lib/supabase/paginate';
 import { can, type TenantContext } from '@/modules/core/tenancy/context';
 
 export { resolveRange, type DateRangeKey } from '@/modules/restaurant/reports/service';
@@ -84,15 +84,26 @@ export async function getRetailReport(
 
   // ---- money -------------------------------------------------------------
   if (can(ctx, 'payment.read')) {
-    const { data: payments, error } = await supabase
-      .from('payments')
-      .select('amount_cents, method, invoice_id, kind')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .eq('status', 'completed')
-      .gte('created_at', from)
-      .lt('created_at', to);
-    if (error) throw toAppError(error, 'retail report payments');
+    // Paginated for the same reason the Restaurant report is: this panel is
+    // rendered from the SAME range object, so it scans the same corrected
+    // window and would be truncated by db-max-rows in exactly the same way.
+    const payments = await fetchAllRows<{
+      amount_cents: number;
+      method: string;
+      invoice_id: string | null;
+      kind: string;
+    }>('retail report payments', (offset, limit) =>
+      supabase
+        .from('payments')
+        .select('amount_cents, method, invoice_id, kind', { count: 'exact' })
+        .eq('organization_id', ctx.organizationId)
+        .eq('branch_id', ctx.branchId)
+        .eq('status', 'completed')
+        .gte('created_at', from)
+        .lt('created_at', to)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     // A refund is a negative payment in the same table, so netting them here
     // is what makes revenue mean "what the shop kept".
@@ -115,10 +126,17 @@ export async function getRetailReport(
     // Which door each sale came through. `source` is set by whoever created
     // the invoice — 'pos' by the till, 'online' by the storefront.
     if (invoiceIds.length && can(ctx, 'invoice.read')) {
-      const { data: invoices } = await supabase
-        .from('invoices')
-        .select('id, source, total_cents')
-        .in('id', invoiceIds);
+      const invoices = await fetchAllRowsIn<
+        { id: string; source: string; total_cents: number },
+        string
+      >('retail report invoices', invoiceIds, (ids, offset, limit) =>
+        supabase
+          .from('invoices')
+          .select('id, source, total_cents', { count: 'exact' })
+          .in('id', ids)
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1),
+      );
 
       const bySource = new Map<string, { amount: number; count: number }>();
       for (const inv of invoices ?? []) {
@@ -135,14 +153,19 @@ export async function getRetailReport(
   }
 
   if (can(ctx, 'treasury.read')) {
-    const { data: treasury, error } = await supabase
-      .from('treasury_transactions')
-      .select('direction, amount_cents')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .gte('occurred_at', from)
-      .lt('occurred_at', to);
-    if (error) throw toAppError(error, 'retail report treasury');
+    const treasury = await fetchAllRows<{ direction: string; amount_cents: number }>(
+      'retail report treasury',
+      (offset, limit) =>
+        supabase
+          .from('treasury_transactions')
+          .select('direction, amount_cents', { count: 'exact' })
+          .eq('organization_id', ctx.organizationId)
+          .eq('branch_id', ctx.branchId)
+          .gte('occurred_at', from)
+          .lt('occurred_at', to)
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1),
+    );
 
     report.outflowCents = (treasury ?? [])
       .filter((t) => t.direction === 'out')
@@ -151,14 +174,22 @@ export async function getRetailReport(
 
   // ---- goods -------------------------------------------------------------
   if (can(ctx, 'retail.inventory.read')) {
-    const { data: movements, error } = await supabase
-      .from('retail_stock_movements')
-      .select('variant_id, quantity_delta, reason, unit_cost_cents')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .gte('occurred_at', from)
-      .lt('occurred_at', to);
-    if (error) throw toAppError(error, 'retail report movements');
+    const movements = await fetchAllRows<{
+      variant_id: string;
+      quantity_delta: number;
+      reason: string;
+      unit_cost_cents: number | null;
+    }>('retail report movements', (offset, limit) =>
+      supabase
+        .from('retail_stock_movements')
+        .select('variant_id, quantity_delta, reason, unit_cost_cents', { count: 'exact' })
+        .eq('organization_id', ctx.organizationId)
+        .eq('branch_id', ctx.branchId)
+        .gte('occurred_at', from)
+        .lt('occurred_at', to)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     const sold = new Map<string, number>();
     for (const m of movements ?? []) {
@@ -189,10 +220,17 @@ export async function getRetailReport(
       .map(([id]) => id);
 
     if (topIds.length) {
-      const { data: variants } = await supabase
-        .from('retail_variants')
-        .select('id, name, price_cents, retail_products!inner(name)')
-        .in('id', topIds);
+      const variants = await fetchAllRowsIn<
+        { id: string; name: string; price_cents: number; retail_products: unknown },
+        string
+      >('retail report top products', topIds, (ids, offset, limit) =>
+        supabase
+          .from('retail_variants')
+          .select('id, name, price_cents, retail_products!inner(name)', { count: 'exact' })
+          .in('id', ids)
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1),
+      );
 
       report.topProducts = topIds
         .map((id) => {
@@ -214,20 +252,38 @@ export async function getRetailReport(
     }
 
     // Low stock is a NOW figure, not a range one: what needs reordering today.
-    const { data: levels } = await supabase
-      .from('retail_stock_levels')
-      .select('variant_id, quantity')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .limit(1000);
+    // A NOW figure, not a range one, but the same truncation applies: the
+    // .limit(1000) this replaces hid every low-stock line past the thousandth.
+    const levels = await fetchAllRows<{ variant_id: string; quantity: number }>(
+      'retail report stock levels',
+      (offset, limit) =>
+        supabase
+          .from('retail_stock_levels')
+          .select('variant_id, quantity', { count: 'exact' })
+          .eq('organization_id', ctx.organizationId)
+          .eq('branch_id', ctx.branchId)
+          // Unique per (organization, branch), which the filter above fixes.
+          .order('variant_id', { ascending: true })
+          .range(offset, offset + limit - 1),
+    );
 
     if (levels?.length) {
-      const { data: variants } = await supabase
-        .from('retail_variants')
-        .select('id, name, reorder_point, retail_products!inner(name)')
-        .in('id', levels.map((l) => l.variant_id))
-        .eq('is_active', true)
-        .is('deleted_at', null);
+      const variants = await fetchAllRowsIn<
+        { id: string; name: string; reorder_point: number; retail_products: unknown },
+        string
+      >(
+        'retail report low stock',
+        levels.map((l) => l.variant_id),
+        (ids, offset, limit) =>
+          supabase
+            .from('retail_variants')
+            .select('id, name, reorder_point, retail_products!inner(name)', { count: 'exact' })
+            .in('id', ids)
+            .eq('is_active', true)
+            .is('deleted_at', null)
+            .order('id', { ascending: true })
+            .range(offset, offset + limit - 1),
+      );
 
       report.lowStock = (variants ?? [])
         .map((v) => {
@@ -250,14 +306,21 @@ export async function getRetailReport(
 
   // ---- purchasing --------------------------------------------------------
   if (can(ctx, 'retail.purchase.read')) {
-    const { data: orders, error } = await supabase
-      .from('retail_purchase_orders')
-      .select('status, total_cents, paid_cents')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .gte('created_at', from)
-      .lt('created_at', to);
-    if (error) throw toAppError(error, 'retail report purchasing');
+    const orders = await fetchAllRows<{
+      status: string;
+      total_cents: number;
+      paid_cents: number;
+    }>('retail report purchasing', (offset, limit) =>
+      supabase
+        .from('retail_purchase_orders')
+        .select('status, total_cents, paid_cents', { count: 'exact' })
+        .eq('organization_id', ctx.organizationId)
+        .eq('branch_id', ctx.branchId)
+        .gte('created_at', from)
+        .lt('created_at', to)
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1),
+    );
 
     const live = (orders ?? []).filter((o) => o.status !== 'cancelled');
     report.purchasing = {
@@ -270,14 +333,19 @@ export async function getRetailReport(
 
   // ---- the storefront ----------------------------------------------------
   if (can(ctx, 'retail.order.read')) {
-    const { data: orders, error } = await supabase
-      .from('retail_orders')
-      .select('status')
-      .eq('organization_id', ctx.organizationId)
-      .eq('branch_id', ctx.branchId)
-      .gte('placed_at', from)
-      .lt('placed_at', to);
-    if (error) throw toAppError(error, 'retail report store orders');
+    const orders = await fetchAllRows<{ status: string }>(
+      'retail report store orders',
+      (offset, limit) =>
+        supabase
+          .from('retail_orders')
+          .select('status', { count: 'exact' })
+          .eq('organization_id', ctx.organizationId)
+          .eq('branch_id', ctx.branchId)
+          .gte('placed_at', from)
+          .lt('placed_at', to)
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1),
+    );
 
     report.storeOrders = {
       placed: (orders ?? []).length,
