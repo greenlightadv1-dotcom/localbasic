@@ -6,6 +6,12 @@ only — no other host is configured, and nothing here assumes one.
 For a throwaway preview, `DEPLOY_PREVIEW.md` is shorter and enough. This
 document is the one to follow when the deployment will have real tenants.
 
+**Standing up staging from nothing starts at `STAGING_SETUP.md`**, which covers
+what has to exist before any of this applies: a dedicated Supabase project,
+migrations applied and verified, and test-only seed data. The existing
+`localbasic` project is not usable as staging — it holds real tenant data and
+is behind on migrations.
+
 ---
 
 ## 1. What runs where
