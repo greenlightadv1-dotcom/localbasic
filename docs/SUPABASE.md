@@ -806,3 +806,193 @@ It is benign, and deliberately left alone:
 
 Hosted PostgREST computes the count with the join applied, so the divergence
 does not exist there.
+
+## Report pagination: what it fixed, and what it did not
+
+Four statements, in order of importance. They are not the same claim and
+should not be collapsed into one.
+
+1. **Pagination fixed silent `db-max-rows` truncation.** An unranged
+   `.select()` is capped server-side and the response body is simply shorter,
+   with no error. Both report services sum their rows in JavaScript, so every
+   busy day was under-reported and nothing indicated it. That is fixed: each
+   scan now pages to the exact row count PostgREST reports.
+2. **OFFSET pagination is not snapshot-consistent.** Each page is a separate
+   request in its own implicit transaction. A row committed between two pages
+   changes the result set underneath the cursor.
+3. **The remaining risk is known and bounded by multi-page scans — but it is
+   not eliminated.** A window that fits in one page has no exposure at all. A
+   window that does not can miscount by one row per concurrent write.
+4. **Hosted PostgREST behaviour remains unverified from the development
+   environment.** Outbound access to the project host is blocked, so `.range()`,
+   `count: 'exact'`, non-selected-column ordering and `.in()` chunking have been
+   verified against real PostgreSQL and the real postgrest-js implementation,
+   but never over the hosted HTTP layer.
+
+### Why a row can shift
+
+`id` is `gen_random_uuid()` on every scanned table — random, not time-ordered.
+A row committed mid-scan therefore sorts at an arbitrary position. If it lands
+**before** the cursor, every later row shifts one place right and the row on the
+page boundary is returned twice. If a row is **removed** before the cursor,
+rows shift left and one is skipped. Reproduced in isolation:
+
+```
+page1: A,B
+   ← a row whose uuid sorts first is committed here
+page2: B,C      ← B counted twice
+page3: D
+```
+
+### Which windows are exposed
+
+`resolveRange()` returns a half-open `[start, end)` in the organization's zone:
+
+| Range | End | Classification |
+|---|---|---|
+| `yesterday` | start of today | **closed historical** |
+| `custom`, `to` in the past | day after `to` | **closed historical** |
+| `today` | start of tomorrow | **open** |
+| `week` (last 7 days) | start of tomorrow | **open** |
+| `month` (month to date) | start of tomorrow | **open** |
+| `custom`, `to` today or later | day after `to` | **open** |
+
+A closed window takes no new rows from any ordinary application flow. It is
+**not** guaranteed immutable: `occurred_at` on `treasury_transactions` is an
+insertable column, so a client with treasury permission can post a backdated
+expense through the API into a window already considered closed. No UI does
+this, and no code path writes these timestamps — they always take `default
+now()` — but the surface exists, so "closed" here means *settled in practice*,
+not *immutable by construction*.
+
+### Which reports and screens are affected
+
+- `getRestaurantReport` — the branch dashboard (`today`, every load) and the
+  reports screen (every range).
+- `getRetailReport` — the retail panel on the same reports screen, which
+  receives the identical `range` object.
+
+Both are exposed on open, multi-page windows; neither is exposed on a window
+that fits in one page.
+
+### Which races are actually reachable, per table
+
+Grants decide this, and the money tables are append-only by design:
+
+| Table | Feeds | INSERT | UPDATE | DELETE | Reachable race |
+|---|---|---|---|---|---|
+| `payments` | revenue, by method, by cashier | ✅ | ✗ | ✗ | duplicate only |
+| `treasury_transactions` | expenses, net | ✅ | ✗ | ✗ | duplicate only |
+| `retail_stock_movements` | COGS, units, top products | ✅ | ✗ | ✗ | duplicate only |
+| `restaurant_orders` | order counts, discounts | ✅ | ✅ | ✗ | duplicate; window-membership change |
+| `invoices` | sales by source | ✅ | ✅ | ✗ | duplicate; window-membership change |
+| `restaurant_order_items` | best sellers | ✅ | ✅ | ✅ | duplicate **and skip** |
+| `retail_orders` | storefront counts | ✅ | ✅ | ✅ | duplicate **and skip** |
+| `retail_purchase_orders` | purchasing | ✅ | ✅ | ✅ | duplicate **and skip** |
+
+- **Inserts during pagination** — reachable on every table above. The common
+  case: a payment taken while someone has the month report open.
+- **Deletes during pagination** — *not* reachable on `payments`,
+  `treasury_transactions` or `retail_stock_movements`: `authenticated` holds no
+  DELETE. Reachable on the three order/line tables. The only delete in the
+  migrations removes a scratch quote order created and destroyed inside one
+  statement, which a concurrent reader never sees committed.
+- **Timestamp updates** — impossible on the append-only tables. Elsewhere the
+  ordering key is `id`, which nothing updates, so an update cannot *reorder*
+  rows; but moving `placed_at`/`created_at` across a window boundary changes
+  the size of the result set mid-scan, which shifts the cursor just as an
+  insert or delete would.
+- **Backdated inserts** — not produced by any application code path, since
+  these timestamps always default to `now()`. Reachable through the API for
+  `treasury_transactions`, as described above.
+
+### Triggering conditions and financial impact
+
+State them exactly; do not argue from the size of today's dataset.
+
+**All of these must hold:**
+
+1. The window holds **more than `PAGE_SIZE` (1 000) matching rows for one
+   branch**, so more than one request is issued. At or below one page there is
+   no exposure whatever the write traffic.
+2. A qualifying write **commits in the gap between two page requests** —
+   typically tens to hundreds of milliseconds.
+3. The new or removed row **sorts before the current cursor**, which for a
+   random UUID is roughly the fraction of the scan already consumed.
+
+**Impact when they do hold:** one row per occurrence, counted twice or missed.
+
+- Revenue and expenses come from append-only tables, so they can be
+  **overstated by one payment or one expense**, never understated by a missed
+  one. Net movement is revenue − expenses, so it can move either way.
+- Average order value and paid-order count derive from the same payment rows
+  and move with them.
+- Best sellers, storefront counts and purchasing read tables that permit
+  DELETE, so those figures can be **overstated or understated**.
+
+A thousand rows in one branch within one window is not an exotic figure for a
+month-to-date report on a busy venue — roughly thirty-three payments a day.
+The mitigation for now is not that it cannot happen; it is that the error is
+bounded at one row per concurrent write and cannot silently scale, which is a
+materially different position from the `db-max-rows` truncation it replaced.
+
+### Possible mitigations, compared — none implemented
+
+**A. Clamp the scan's upper bound to `scanStartedAt`**
+Pass `min(range.end, <instant the scan began>)` as the exclusive bound, so
+every page filters against the same ceiling.
+*Addresses:* inserts during pagination whose timestamp is `now()` — the common
+case, and the only one reachable on the append-only money tables.
+*Remains:* backdated inserts, deletes, and timestamp updates that move a row
+across a boundary.
+*Complexity:* low; a few lines in the report services, no schema change.
+*Financial correctness:* removes the duplicate-revenue and duplicate-expense
+paths entirely. Best sellers and storefront counts keep their skip exposure.
+Changes the meaning of "today" from *through the end of the day* to *as of the
+moment you asked*, which is arguably what a report already means, but it is a
+semantic change and needs to be stated to users.
+
+**B. Keyset pagination**
+Replace `offset` with `id > <last id seen>` on the same ordering key.
+*Addresses:* every shift caused by rows appearing or disappearing **before**
+the cursor — inserts, deletes and backdated inserts alike. No row is ever
+returned twice or skipped because of a neighbour.
+*Remains:* the scan is still not a snapshot. A row inserted at a position the
+cursor has not reached yet is included, one removed ahead of the cursor is
+missed, so two figures on the same screen can still reflect slightly different
+instants.
+*Complexity:* moderate; the helper's contract changes from an offset to a
+cursor, and every call site must order by a unique key — which they already all
+do.
+*Financial correctness:* strictly better than OFFSET and eliminates
+double-counting, which is the most damaging direction.
+
+**C. Server-side aggregate / report RPC**
+A `SECURITY DEFINER` function returning the computed totals.
+*Addresses:* everything within a single report figure — one statement, one
+snapshot, no pagination at all. Also removes the row ceiling and the round-trip
+cost.
+*Remains:* separate RPCs still see separate snapshots unless combined; and it
+moves report logic into SQL, which has to keep RLS and tenant scoping right by
+hand.
+*Complexity:* high; a migration per report, plus the SQL security review that
+every `SECURITY DEFINER` function in this project gets.
+*Financial correctness:* the strongest option. Each figure is computed over one
+consistent view of the data.
+
+**D. Snapshot / transaction-based reporting**
+Run the whole report inside one `REPEATABLE READ` transaction.
+*Addresses:* every race listed here, across all figures simultaneously — the
+only option that makes the whole screen one consistent instant.
+*Remains:* nothing, for consistency.
+*Complexity:* highest, and **not reachable through PostgREST at all**: each
+request is its own implicit transaction. It would require a direct database
+connection from the server, or wrapping the report in one `SECURITY DEFINER`
+function — which is option C with a stricter isolation level. The project has
+no transaction or reporting-consistency pattern today.
+
+**No option is applied.** C or D would be a redesign; A and B are smaller but
+still change working financial code. Which to take is a product decision about
+how much cross-page consistency the reporting screens must guarantee, and it
+should be made before these reports carry load an order of magnitude above a
+single page.
