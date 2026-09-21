@@ -31,6 +31,12 @@ concurrency:
   group: staging-migrate
   cancel-in-progress: false
 
+# The job carries a Supabase access token and a database password. It has no
+# business also holding write access to the repository, so the token is cut
+# back to the minimum `actions/checkout` needs.
+permissions:
+  contents: read
+
 jobs:
   migrate:
     name: Apply migrations to staging
@@ -82,10 +88,21 @@ jobs:
           echo "Target confirmed: ${TYPED_REF}"
 
       - name: Verify the migration set before applying it
+        env:
+          EXPECTED_MIGRATIONS: '54'
         run: |
           set -euo pipefail
           count=$(ls supabase/migrations/*.sql | wc -l)
           echo "migrations found: ${count}"
+
+          # Asserted, not merely reported. Contiguity alone cannot catch a
+          # truncated checkout: 0001..0030 is perfectly contiguous and would
+          # push an incomplete schema. EXPECTED_MIGRATIONS is the floor, so
+          # adding 0055 does not break the run; losing 0054 does.
+          if [ "${count}" -lt "${EXPECTED_MIGRATIONS}" ]; then
+            echo "::error::expected at least ${EXPECTED_MIGRATIONS} migrations, found ${count}. Checkout is incomplete."
+            exit 1
+          fi
 
           first=$(ls supabase/migrations/*.sql | head -1 | xargs basename)
           last=$(ls supabase/migrations/*.sql  | tail -1 | xargs basename)
@@ -95,7 +112,9 @@ jobs:
           # Contiguous numbering, no gaps and no duplicate prefixes. A gap means
           # a migration is missing from the checkout; a duplicate means two
           # files claim the same position and their order is undefined.
-          ls supabase/migrations/ | sed 's/_.*//' | sort > /tmp/nums
+          # *.sql only: a stray README or .gitkeep would otherwise land in the
+          # prefix list as a non-numeric entry and be read as a gap.
+          ls supabase/migrations/*.sql | xargs -n1 basename | sed 's/_.*//' | sort > /tmp/nums
           if uniq -d /tmp/nums | grep -q .; then
             echo "::error::duplicate migration prefixes: $(uniq -d /tmp/nums | tr '\n' ' ')"
             exit 1
@@ -104,9 +123,13 @@ jobs:
 
           echo "Migration set is contiguous."
 
+      # Pinned, not `latest`. This step's CLI runs with the access token and the
+      # database password in its environment, so which build executes is part
+      # of the security boundary: `latest` means a version nobody reviewed can
+      # acquire those credentials on the next run. Bump deliberately.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.117.0
 
       - name: Link to staging
         env:
