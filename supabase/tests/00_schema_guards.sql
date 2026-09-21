@@ -60,17 +60,11 @@ begin
       -- platform-operator tables: deliberately not tenant-scoped. They are
       -- reachable only by a Platform Admin, never through tenant RLS.
       'platform_admins', 'promo_codes', 'platform_services',
-      -- Site Engine (0055). `sites` is owned by a USER rather than an
-      -- organization, so organization_id would be meaningless on it; its
-      -- policy is `user_id = auth.uid()`, which is as self-contained as this
-      -- rule asks for. The other three are child tables keyed through their
-      -- parent, the same exemption platform_website_versions holds.
-      --
-      -- This is the one place the platform has a website that belongs to a
-      -- person instead of a workspace. If sites should become team-owned,
-      -- add organization_id to `sites`, rewrite the four policies, and take
-      -- `sites` back out of this list.
-      'sites', 'site_pages', 'site_sections', 'site_settings'
+      -- Site Engine (0055) child tables, keyed through their parent site —
+      -- the same exemption platform_website_versions holds. `sites` itself
+      -- carries organization_id and is deliberately NOT listed here, so this
+      -- guard enforces it.
+      'site_pages', 'site_sections', 'site_settings'
     )
     and not exists (
       select 1 from information_schema.columns col

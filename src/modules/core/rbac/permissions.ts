@@ -30,6 +30,11 @@ export const PERMISSIONS = [
   'treasury.create',
   'treasury.manage',
   'report.read',
+  // Organization websites (Site Engine). Owner and admin only for now: a
+  // branch manager runs a branch, and the company website is not
+  // branch-scoped.
+  'site.read',
+  'site.manage',
   'notification.read',
   'publiclink.read',
   'publiclink.manage',
