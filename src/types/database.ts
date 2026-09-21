@@ -2720,6 +2720,129 @@ export type Database = {
         };
         Relationships: [];
       };
+      site_pages: {
+        Row: {
+          id: string;
+          site_id: string;
+          title: string;
+          slug: string;
+          is_homepage: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          site_id: string;
+          title: string;
+          slug: string;
+          is_homepage?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          site_id?: string;
+          title?: string;
+          slug?: string;
+          is_homepage?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      site_sections: {
+        Row: {
+          id: string;
+          page_id: string;
+          section_type: string;
+          content: Json;
+          sort_order: number;
+          is_visible: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          page_id: string;
+          section_type: string;
+          content?: Json;
+          sort_order?: number;
+          is_visible?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          page_id?: string;
+          section_type?: string;
+          content?: Json;
+          sort_order?: number;
+          is_visible?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      site_settings: {
+        Row: {
+          id: string;
+          site_id: string;
+          settings: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          site_id: string;
+          settings?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          site_id?: string;
+          settings?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      sites: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          slug: string;
+          template_id: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          slug: string;
+          template_id?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          slug?: string;
+          template_id?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       subscription_events: {
         Row: {
           id: number;
@@ -3056,6 +3179,7 @@ export type Database = {
       retail_stock_transfer: { Args: Record<string, unknown>; Returns: Json };
       retail_store_catalog: { Args: Record<string, unknown>; Returns: Json };
       retail_store_context: { Args: Record<string, unknown>; Returns: Json };
+      site_provision: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
       write_platform_audit: { Args: Record<string, unknown>; Returns: Json };
