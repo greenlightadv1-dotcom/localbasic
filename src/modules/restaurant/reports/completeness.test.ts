@@ -264,6 +264,35 @@ describe('getRestaurantReport completeness', () => {
     expect(h.requests.filter((r) => r.table === 'payments').length).toBe(40);
   });
 
+  // The server cap is the exact place an off-by-one hides: a total that lands
+  // on the boundary, and one that lands a single row past it.
+  it.each([
+    ['exactly at the server cap', 100, 100],
+    ['one row above the server cap', 101, 100],
+    ['twice the cap plus one', 201, 100],
+  ])('sums a result %s', async (_label, total, cap) => {
+    h.serverCap = cap;
+    h.rows.payments = payments(total);
+    h.rows.restaurant_orders = [];
+    h.rows.profiles = [{ id: 'u-1', full_name: 'أمين' }];
+
+    const report = await getRestaurantReport(ctx, range);
+    expect(report.revenueCents).toBe(total * 100);
+    expect(report.paidOrders).toBe(total);
+  });
+
+  it('reports the same total however the pages fall', async () => {
+    h.rows.restaurant_orders = [];
+    h.rows.profiles = [{ id: 'u-1', full_name: 'أمين' }];
+    const totals: number[] = [];
+    for (const cap of [1, 3, 17, 500]) {
+      h.serverCap = cap;
+      h.rows.payments = payments(120);
+      totals.push((await getRestaurantReport(ctx, range)).revenueCents);
+    }
+    expect(new Set(totals)).toEqual(new Set([12_000]));
+  });
+
   it('skips the sections the caller has no permission for', async () => {
     h.rows.payments = payments(10);
     h.rows.restaurant_orders = [];

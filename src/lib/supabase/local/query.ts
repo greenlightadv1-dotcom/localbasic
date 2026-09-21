@@ -86,6 +86,7 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
   private selectColumns = '*';
   private orders: { column: string; ascending: boolean }[] = [];
   private limitValue: number | null = null;
+  private rangeValue: { from: number; to: number } | null = null;
   private mode: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select';
   /** jsonb columns on this table, resolved once per query. */
   private jsonbCols: Set<string> | undefined;
@@ -171,6 +172,18 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
 
   limit(value: number) {
     this.limitValue = value;
+    return this;
+  }
+
+  /**
+   * PostgREST's `offset`/`limit`, inclusive of both bounds — the paginated
+   * report reads depend on it.
+   *
+   * postgrest-js sets these as query PARAMETERS rather than a Range header, so
+   * an offset past the end is an empty result, never a 416. This mirrors that.
+   */
+  range(from: number, to: number) {
+    this.rangeValue = { from, to };
     return this;
   }
 
@@ -277,18 +290,36 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
           .map((o) => `${quote(o.column)} ${o.ascending ? 'asc' : 'desc'}`)
           .join(', ')}`;
       }
-      if (this.limitValue !== null) sql += ` limit ${Number(this.limitValue)}`;
+      if (this.rangeValue) {
+        sql += ` limit ${Number(this.rangeValue.to - this.rangeValue.from + 1)}`;
+        sql += ` offset ${Number(this.rangeValue.from)}`;
+      } else if (this.limitValue !== null) {
+        sql += ` limit ${Number(this.limitValue)}`;
+      }
     }
 
     const result = await client.query(sql, params);
     let rows = result.rows as Record<string, unknown>[];
 
-    if (this.wantCount && this.headOnly) {
+    /**
+     * The TOTAL matching rows, which is what PostgREST reports after the slash
+     * in Content-Range and what supabase-js exposes as `count`. It ignores
+     * limit and offset, so it stays the same across pages — returning the page
+     * length here instead would have told a paginating caller it was finished
+     * after the first page.
+     */
+    const totalCount = async (): Promise<number> => {
       const countParams: unknown[] = [];
       const countSql = `select count(*)::int as count from ${quote(this.table)} ${this.buildWhere(countParams, 1)}`;
       const countResult = await client.query(countSql, countParams);
-      return { data: null as T, error: null, count: countResult.rows[0]?.count ?? 0 };
+      return countResult.rows[0]?.count ?? 0;
+    };
+
+    if (this.wantCount && this.headOnly) {
+      return { data: null as T, error: null, count: await totalCount() };
     }
+
+    const count = this.wantCount ? await totalCount() : null;
 
     // Resolve embeds the way PostgREST does: parent side by foreign key, child
     // side by the reverse foreign key, recursing so a nested select such as
@@ -312,7 +343,7 @@ export class LocalQuery<T = unknown> implements PromiseLike<PostgrestResult<T>> 
       return { data: (rows[0] ?? null) as T, error: null };
     }
 
-    return { data: rows as T, error: null, count: this.wantCount ? rows.length : null };
+    return { data: rows as T, error: null, count };
   }
 
   then<TResult1 = PostgrestResult<T>, TResult2 = never>(

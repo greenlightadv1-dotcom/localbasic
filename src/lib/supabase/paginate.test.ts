@@ -157,6 +157,67 @@ describe('fetchAllRowsIn', () => {
     expect(called).toBe(0);
   });
 
+  it('deduplicates ids, so one cannot be fetched twice across chunks', async () => {
+    // 250 unique ids repeated — without a dedupe, the repeat lands in a
+    // different chunk than the original and its row is counted twice.
+    const unique = Array.from({ length: 250 }, (_, i) => `id-${i}`);
+    const rows = await fetchAllRowsIn<{ id: string }, string>(
+      'test',
+      [...unique, ...unique],
+      (part, offset, limit) =>
+        Promise.resolve({
+          data: part.slice(offset, offset + limit).map((id) => ({ id })),
+          error: null,
+          count: part.length,
+        }),
+    );
+    expect(rows).toHaveLength(250);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(250);
+  });
+
+  it.each([
+    ['exactly one chunk', 200, 1],
+    ['one past a chunk boundary', 201, 2],
+    ['several chunks', 650, 4],
+  ])('covers %s (%i ids) in %i request groups', async (_label, count, expectedChunks) => {
+    const ids = Array.from({ length: count }, (_, i) => `id-${i}`);
+    const chunksSeen: string[][] = [];
+    const rows = await fetchAllRowsIn<{ id: string }, string>(
+      'test',
+      ids,
+      (part, offset, limit) => {
+        if (offset === 0) chunksSeen.push(part);
+        return Promise.resolve({
+          data: part.slice(offset, offset + limit).map((id) => ({ id })),
+          error: null,
+          count: part.length,
+        });
+      },
+    );
+    expect(chunksSeen).toHaveLength(expectedChunks);
+    expect(chunksSeen.flat()).toEqual(ids);
+    expect(rows.map((r) => r.id)).toEqual(ids);
+  });
+
+  it('surfaces an error raised in a LATER chunk rather than swallowing it', async () => {
+    const ids = Array.from({ length: 500 }, (_, i) => `id-${i}`);
+    let group = 0;
+    await expect(
+      fetchAllRowsIn<{ id: string }, string>('test', ids, (part, offset, limit) => {
+        if (offset === 0) group += 1;
+        // Third chunk fails; the first two succeeded.
+        if (group === 3) {
+          return Promise.resolve({ data: null, error: { message: 'boom' }, count: null });
+        }
+        return Promise.resolve({
+          data: part.slice(offset, offset + limit).map((id) => ({ id })),
+          error: null,
+          count: part.length,
+        });
+      }),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
   it('applies the row ceiling across chunks, not per chunk', async () => {
     const ids = Array.from({ length: 1000 }, (_, i) => `id-${i}`);
     await expect(

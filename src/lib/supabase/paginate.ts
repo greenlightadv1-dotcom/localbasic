@@ -66,7 +66,11 @@ export async function fetchAllRows<T>(
 
     const page = data ?? [];
     rows.push(...page);
-    if (total === null && typeof count === 'number') total = count;
+    // Number.isFinite, not typeof: postgrest-js builds `count` with
+    // parseInt() over the Content-Range header, which yields NaN when
+    // PostgREST answers `*/*` instead of a total. NaN would compare false
+    // against every bound below and silently disable the ceiling.
+    if (total === null && Number.isFinite(count)) total = count as number;
 
     // Checked before the exit conditions: a scan that has already blown the
     // ceiling must raise, not return the oversized list it happens to hold.
@@ -98,6 +102,12 @@ export function chunk<T>(values: T[], size = IN_CHUNK): T[][] {
  *
  * Each chunk is paginated independently and the results concatenated. The
  * chunks partition the id list, so no row can be counted twice.
+ *
+ * Ids are DEDUPLICATED first. A repeated id inside one chunk is harmless —
+ * SQL `in` collapses it — but the same id landing in two different chunks
+ * would fetch its row twice and double it in the totals. No caller passes
+ * duplicates today; this makes that a property of the helper rather than a
+ * standing assumption about every future caller.
  */
 export async function fetchAllRowsIn<T, Id>(
   context: string,
@@ -107,7 +117,7 @@ export async function fetchAllRowsIn<T, Id>(
 ): Promise<T[]> {
   const maxRows = options?.maxRows ?? MAX_ROWS;
   const out: T[] = [];
-  for (const part of chunk(ids)) {
+  for (const part of chunk([...new Set(ids)])) {
     // The ceiling is on the whole scan, not on each chunk, so a long id list
     // cannot multiply it.
     const rows = await fetchAllRows<T>(context, (o, l) => query(part, o, l), {

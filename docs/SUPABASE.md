@@ -764,3 +764,21 @@ project, from the Supabase dashboard (API settings → "Max rows") or
 `PGRST_DB_MAX_ROWS`. The pagination above makes the value irrelevant to
 correctness, but it decides how many round trips a wide range costs, which is
 worth knowing before a tenant asks for a year at a time.
+
+### The local adapter has to keep up
+
+`src/lib/supabase/local/query.ts` is a hand-written stand-in for the Supabase
+query builder used when `LOCALBASIC_LOCAL_DB=1`. A method the services call but
+it does not implement is not a degraded experience — it is a `TypeError` that
+takes the page down.
+
+Pagination added `.range()` to every report query, and the adapter had no
+`.range()`, so every report screen died locally. Its `count` was also the page
+length rather than the total, which is precisely the value a paginating caller
+reads to decide it is finished. Both are fixed, and
+`src/lib/supabase/local/query.test.ts` now pins the builder surface so the next
+method to arrive fails a unit test instead of a screen.
+
+`.range()` mirrors postgrest-js, which sets `offset`/`limit` as query
+parameters rather than a `Range` header — so an offset past the end is an empty
+result, never a 416.
