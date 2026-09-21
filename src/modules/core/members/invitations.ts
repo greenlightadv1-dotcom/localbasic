@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AppError, toAppError } from '@/lib/errors';
 import { requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
-import { clientEnv } from '@/lib/env';
+import { appOrigin } from '@/lib/auth/redirects';
 
 /**
  * Inviting a colleague.
@@ -69,9 +69,15 @@ export async function listInvitations(ctx: TenantContext): Promise<Invitation[]>
   }));
 }
 
-/** The link an invitee follows. Built from the configured app URL, not a header. */
+/**
+ * The link an invitee follows. Built from configuration, never from a header.
+ *
+ * appOrigin() rather than the raw variable: same value when it is configured,
+ * and the deployment's own URL rather than localhost when it was missing at
+ * build time. An invitation that points at localhost cannot be used at all.
+ */
 export function acceptUrl(token: string): string {
-  return `${clientEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')}/join/${encodeURIComponent(token)}`;
+  return `${appOrigin()}/join/${encodeURIComponent(token)}`;
 }
 
 export async function createInvitation(

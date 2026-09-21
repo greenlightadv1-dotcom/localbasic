@@ -2,7 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { serverEnv, clientEnv } from '@/lib/env';
+import { serverEnv } from '@/lib/env';
+import { appOrigin } from '@/lib/auth/redirects';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AppError } from '@/lib/errors';
 import { BILLING_PERIODS } from '@/modules/platform/billing/schemas';
@@ -97,7 +98,9 @@ async function resolveOwner(
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
-    redirectTo: `${clientEnv.NEXT_PUBLIC_APP_URL}/callback`,
+    // appOrigin(), so an invite cannot be mailed pointing at localhost when
+    // NEXT_PUBLIC_APP_URL was absent for the build that produced this bundle.
+    redirectTo: `${appOrigin()}/callback`,
   });
 
   if (error || !data.user) {

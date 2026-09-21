@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AppError, conflict, notFound, toAppError } from '@/lib/errors';
 import { generatePublicToken } from '@/lib/tokens';
-import { clientEnv } from '@/lib/env';
+import { appOrigin } from '@/lib/auth/redirects';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import type { TableStatus } from './schemas';
 
@@ -20,8 +20,19 @@ export type FloorTable = {
   openTotalCents: number;
 };
 
+/**
+ * The address a table's QR code points at.
+ *
+ * Through appOrigin(), not NEXT_PUBLIC_APP_URL directly. The variable is
+ * inlined at build time and falls back to localhost when it was absent for
+ * that build, and a QR code is the one link that gets PRINTED and glued to a
+ * table — a wrong one is recalled by hand, table by table. appOrigin() returns
+ * the identical string whenever the variable is set properly, and otherwise
+ * falls back to the deployment's own production URL rather than to a machine
+ * no customer can reach.
+ */
 export function publicUrlForToken(token: string): string {
-  return `${clientEnv.NEXT_PUBLIC_APP_URL}/p/${token}`;
+  return `${appOrigin()}/p/${token}`;
 }
 
 /**

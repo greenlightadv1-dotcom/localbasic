@@ -3,10 +3,31 @@ import 'server-only';
 /**
  * Sliding-window rate limiter.
  *
- * Backed by an in-memory map, which is correct for a single instance and for
- * local development. When UPSTASH_REDIS_REST_URL is configured the same
- * interface is served by Redis so limits hold across instances — swap the
- * implementation here, not at the call sites.
+ * IN-MEMORY ONLY. There is no shared backend behind this, today.
+ *
+ * The map lives in one process, so a limit holds for exactly as long as that
+ * process does and only for the requests it happens to receive. On a single
+ * long-lived server that is a real limit. On Vercel it is much weaker than it
+ * looks: each serverless instance keeps its own map, instances scale out under
+ * load — which is precisely when an attacker is applying it — and a cold start
+ * begins with an empty one. Treat these numbers as a brake on casual abuse
+ * from one client, not as a guarantee.
+ *
+ * UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are read by the env
+ * schema and RESERVED for a shared implementation. Nothing reads them yet:
+ * setting them changes nothing. A previous version of this comment said Redis
+ * took over when they were configured, which was never true — the note is
+ * corrected rather than the behaviour, because wiring a new backend is not a
+ * change to make quietly.
+ *
+ * Where a limit genuinely has to hold across instances, that backend has to
+ * exist first. Swap the implementation here, not at the call sites.
+ *
+ * Partly compensating today, and worth knowing before relying on either:
+ *   * `signIn`, `signUp` and `passwordReset` sit in front of Supabase Auth,
+ *     which applies its own server-side limits per project;
+ *   * `publicOrder` and `storeCheckout` have no such backstop — the database
+ *     constraints stop bad orders, not repeated ones.
  */
 type Bucket = { hits: number[] };
 const buckets = new Map<string, Bucket>();
