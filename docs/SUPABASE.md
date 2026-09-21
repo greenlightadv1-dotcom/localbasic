@@ -782,3 +782,27 @@ method to arrive fails a unit test instead of a screen.
 `.range()` mirrors postgrest-js, which sets `offset`/`limit` as query
 parameters rather than a `Range` header — so an offset past the end is an empty
 result, never a 416.
+
+#### One known divergence: `!inner` and the local count
+
+The local adapter resolves embedded selects in JavaScript after the SQL query,
+so `!inner` drops its rows *after* `count(*)` has been taken. A local count can
+therefore be higher than the number of rows a page actually yields. Two report
+queries are affected, both on `retail_variants` with `retail_products!inner`.
+
+It is benign, and deliberately left alone:
+
+- **No infinite loop.** The loop's first exit is an empty page, which is
+  reached as soon as the offset passes the end, whatever the count claimed.
+  `fetchAllRows` is covered for exactly this by *stops rather than looping
+  forever when the count is wrong* in `paginate.test.ts`.
+- **No incomplete data.** An over-reported total only makes the loop keep
+  going, so every surviving row is still collected.
+- **No false refusal.** The row ceiling is measured against rows actually
+  collected, never against the reported total.
+- **Cost only.** At most a small number of extra requests, in local
+  development, where it does not matter. In practice `!inner` drops nothing
+  here: every variant has a product.
+
+Hosted PostgREST computes the count with the join applied, so the divergence
+does not exist there.

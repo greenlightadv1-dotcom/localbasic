@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/lib/errors';
 
 /**
  * A report that reads only the first page of a busy day under-reports revenue
@@ -314,6 +315,22 @@ describe('getRestaurantReport completeness', () => {
     expect(report.expensesCents).toBe(0);
     expect(h.filters.some((f) => f.table === 'payments')).toBe(false);
   });
+
+  // The whole point of the ceiling: past it the report REFUSES. A partial
+  // total rendered as if it were the day's takings is the failure this work
+  // exists to prevent, so it must not be reachable from the service either.
+  it('raises rather than returning a partial total past the row ceiling', async () => {
+    h.serverCap = 5_000;
+    h.rows.restaurant_orders = [];
+    h.rows.payments = payments(50_001);
+    h.rows.profiles = [{ id: 'u-1', full_name: 'أمين' }];
+
+    await expect(getRestaurantReport(ctx, range)).rejects.toBeInstanceOf(AppError);
+    // And nothing partial escaped: the caller gets an error, not a number.
+    await expect(getRestaurantReport(ctx, range)).rejects.toMatchObject({
+      code: 'validation',
+    });
+  }, 30_000);
 
   it('uses the organization timezone for the window it then scans', async () => {
     h.rows.payments = [];
