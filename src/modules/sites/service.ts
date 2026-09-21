@@ -1,8 +1,11 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { Database } from '@/types/database';
 import { AppError, conflict, notFound, toAppError } from '@/lib/errors';
 import { can, requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 import { SECTION_TYPES, type CreateSiteInput, type SectionType } from './schemas';
+import { resolveTemplate, DEFAULT_TEMPLATE_ID } from './templates';
+import { siteSettingsSchema } from './templates/types';
 import type { Site, SiteDetail, SitePage, SiteSection, SiteSettings } from './types';
 
 /**
@@ -198,7 +201,67 @@ export async function createSite(
   const siteId = data as unknown as string | null;
   if (!siteId) throw new AppError('internal');
 
+  await seedTemplate(siteId);
   return { siteId };
+}
+
+/**
+ * Fills a freshly provisioned site with its template's sections and theme.
+ *
+ * Deliberately NOT in site_provision(): a template is a product decision that
+ * changes with the front end, and baking its copy into a migration would mean
+ * a database change every time a heading is reworded. The SQL function creates
+ * the structural minimum — site, homepage, settings row — and this fills it.
+ *
+ * Best effort by design. A site with a homepage and no sections is a usable,
+ * repairable state; failing the whole creation because seed copy did not land
+ * would throw away a site the caller already owns. The failure is logged, and
+ * the renderer treats an empty page as empty rather than broken.
+ */
+async function seedTemplate(siteId: string): Promise<void> {
+  const supabase = createSupabaseServerClient();
+  const template = resolveTemplate(DEFAULT_TEMPLATE_ID);
+
+  const { data: page } = await supabase
+    .from('site_pages')
+    .select('id')
+    .eq('site_id', siteId)
+    .eq('is_homepage', true)
+    .maybeSingle();
+
+  if (!page) return;
+
+  const rows = template.sections.map((section, index) => ({
+    page_id: page.id as string,
+    section_type: section.type,
+    // Template content is a JSON literal authored in this repository, not user
+    // input, so it is structurally Json already. The generated Insert type
+    // wants that nominal type rather than Record<string, unknown>, and the
+    // cast says so rather than widening the template's own type.
+    content: section.content as Database['public']['Tables']['site_sections']['Insert']['content'],
+    sort_order: index,
+    is_visible: true,
+  }));
+
+  const { error: sectionError } = await supabase.from('site_sections').insert(rows);
+  if (sectionError) {
+    console.error('[localbasic] site template sections', sectionError);
+    return;
+  }
+
+  // The settings row already exists — site_provision created it — so this
+  // records which template was applied and the theme it came with.
+  const settings = siteSettingsSchema.parse({
+    templateId: template.id,
+    theme: template.theme,
+  });
+
+  const { error: settingsError } = await supabase
+    .from('site_settings')
+    .update({ settings })
+    .eq('site_id', siteId);
+
+  if (settingsError) console.error('[localbasic] site template settings', settingsError);
 }
 
 /** The site detail, or a 404 for a caller who cannot reach it. */

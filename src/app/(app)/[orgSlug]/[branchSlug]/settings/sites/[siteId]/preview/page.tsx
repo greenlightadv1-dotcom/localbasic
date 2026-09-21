@@ -4,6 +4,8 @@ import { resolveTenantContext } from '@/modules/core/tenancy/context';
 import { Button } from '@/components/ui/button';
 import { SiteRenderer } from '@/modules/sites/renderer';
 import { getSiteDetail } from '@/modules/sites/service';
+import { siteSettingsSchema } from '@/modules/sites/templates/types';
+import { resolveTemplate } from '@/modules/sites/templates';
 
 export const metadata = { title: 'معاينة الموقع' };
 export const dynamic = 'force-dynamic';
@@ -25,10 +27,17 @@ export default async function SitePreviewPage({
   const detail = await getSiteDetail(ctx, params.siteId);
   if (!detail) notFound();
 
-  const { site, pages, sections } = detail;
+  const { site, pages, sections, settings } = detail;
   const homepage = pages.find((p) => p.isHomepage) ?? pages[0] ?? null;
   const pageSections = homepage ? sections.filter((s) => s.pageId === homepage.id) : [];
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}/settings/sites`;
+
+  // Parsed, never trusted: a settings row can be written by hand, or by a
+  // build that had different fields. Anything unusable falls back to the
+  // template's own theme rather than reaching a style attribute.
+  const config = siteSettingsSchema.parse(settings?.settings ?? {});
+  const template = resolveTemplate(config.templateId);
+  const theme = { ...template.theme, ...config.theme };
 
   return (
     <div className="space-y-4">
@@ -37,6 +46,7 @@ export default async function SitePreviewPage({
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2">
         <p className="truncate text-sm text-muted">
           معاينة: <span className="font-semibold text-fg">{site.name}</span>
+          <span className="ms-2 text-xs">· قالب {template.nameAr}</span>
         </p>
         <Link href={`${base}/${site.id}`}>
           <Button variant="outline" size="sm">
@@ -45,8 +55,15 @@ export default async function SitePreviewPage({
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-bg">
-        <SiteRenderer sections={pageSections} />
+      {/* The rendered site is isolated from the application chrome: its own
+          direction and its own colour variables, so a template's theme cannot
+          leak into the dashboard around it. */}
+      <div className="overflow-hidden rounded-xl border border-border">
+        <SiteRenderer
+          sections={pageSections}
+          theme={theme}
+          direction={config.direction}
+        />
       </div>
     </div>
   );
