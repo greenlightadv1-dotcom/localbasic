@@ -49,6 +49,11 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
   { href: '/settings/store', label: 'المتجر الإلكتروني', icon: 'Store', permission: 'settings.manage' },
   { href: '/settings/website', label: 'الموقع الإلكتروني', icon: 'Globe', permission: 'settings.manage' },
+  // The Site Engine. Distinct from /settings/website above, which is the
+  // restaurant's single live-data site; this one is many sites per
+  // organization with their own pages. Gated on site.read, so it stays hidden
+  // from anyone the feature has not been granted to.
+  { href: '/settings/sites', label: 'المواقع', icon: 'LayoutTemplate', permission: 'site.read' },
   { href: '/settings/audit', label: 'سجل النشاط', icon: 'ScrollText', permission: 'audit.read' },
 ];
 

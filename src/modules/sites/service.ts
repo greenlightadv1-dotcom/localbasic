@@ -1,23 +1,29 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AppError, conflict, notFound, toAppError } from '@/lib/errors';
-import { requireUser } from '@/modules/core/tenancy/context';
+import { can, requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 import { SECTION_TYPES, type CreateSiteInput, type SectionType } from './schemas';
 import type { Site, SiteDetail, SitePage, SiteSection, SiteSettings } from './types';
 
 /**
  * The Site Engine's data access.
  *
- * Every query here runs as the signed-in user through the ordinary server
- * client, so RLS is what enforces ownership — there is no `.eq('user_id', …)`
- * anywhere below, and there should not be. A filter the application adds can
- * be forgotten; the policy cannot. requireUser() is still called first so an
- * unauthenticated caller gets a clean 401 instead of an empty list that looks
- * like "you have no sites".
+ * Every query runs as the signed-in member through the ordinary server client,
+ * so RLS and `site.read` / `site.manage` are what decide. The organization
+ * filter below is a scope filter, not the authorization: without it a member of
+ * two organizations would see both organizations' sites on one screen, which is
+ * wrong but not unsafe. What makes it safe is the policy, and the policy is
+ * what a forgotten filter cannot bypass.
+ *
+ * The context comes from the URL via resolveTenantContext(), never from a
+ * submitted payload, so a forged organization id in a form body changes
+ * nothing.
  */
 
 type SiteRow = {
   id: string;
+  organization_id: string;
+  created_by: string | null;
   name: string;
   slug: string;
   template_id: string | null;
@@ -29,6 +35,8 @@ type SiteRow = {
 function toSite(row: SiteRow): Site {
   return {
     id: row.id,
+    organizationId: row.organization_id,
+    createdBy: row.created_by,
     name: row.name,
     slug: row.slug,
     templateId: row.template_id,
@@ -40,36 +48,49 @@ function toSite(row: SiteRow): Site {
   };
 }
 
-/** Every site the caller owns, newest first. */
-export async function listMySites(): Promise<Site[]> {
-  await requireUser();
+const SITE_COLUMNS =
+  'id, organization_id, created_by, name, slug, template_id, status, created_at, updated_at';
+
+/** Every site in this organization, newest first. */
+export async function listSites(ctx: TenantContext): Promise<Site[]> {
+  // Checked here as well as in the policy so a caller without the permission
+  // gets a 404 rather than a convincing empty list.
+  requirePermission(ctx, 'site.read');
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
     .from('sites')
-    .select('id, name, slug, template_id, status, created_at, updated_at')
+    .select(SITE_COLUMNS)
+    .eq('organization_id', ctx.organizationId)
     .order('created_at', { ascending: false });
 
-  if (error) throw toAppError(error, 'listMySites');
+  if (error) throw toAppError(error, 'listSites');
   return (data ?? []).map((row) => toSite(row as SiteRow));
 }
 
 /**
  * One site with its pages, sections and settings.
  *
- * Returns null rather than throwing when the site is not the caller's: RLS
- * filters it out, which is indistinguishable from "does not exist" — and
- * deliberately so, since telling the caller a site exists but is not theirs
- * would leak that it exists at all.
+ * Returns null rather than throwing when the site is out of reach: RLS filters
+ * it out, which is indistinguishable from "does not exist" — and deliberately
+ * so, since saying "it exists, but not for you" would confirm the id belongs
+ * to some organization.
+ *
+ * The organization filter is explicit as well, so a site id from another
+ * organization cannot resolve even if its policy were ever loosened.
  */
-export async function getSiteDetail(siteId: string): Promise<SiteDetail | null> {
-  await requireUser();
+export async function getSiteDetail(
+  ctx: TenantContext,
+  siteId: string,
+): Promise<SiteDetail | null> {
+  if (!can(ctx, 'site.read')) return null;
   const supabase = createSupabaseServerClient();
 
   const { data: siteRow, error: siteError } = await supabase
     .from('sites')
-    .select('id, name, slug, template_id, status, created_at, updated_at')
+    .select(SITE_COLUMNS)
     .eq('id', siteId)
+    .eq('organization_id', ctx.organizationId)
     .maybeSingle();
 
   if (siteError) throw toAppError(siteError, 'getSiteDetail site');
@@ -146,24 +167,30 @@ export async function getSiteDetail(siteId: string): Promise<SiteDetail | null> 
  * One RPC, one transaction. Doing this as three inserts from here would leave
  * a site with no homepage whenever the second call failed, and nothing would
  * ever repair it. site_provision() runs as the caller, so RLS still applies to
- * every row it writes.
+ * every row it writes, and it re-checks site.manage itself.
+ *
+ * The organization comes from the context, never from the form.
  */
-export async function createSite(input: CreateSiteInput): Promise<{ siteId: string }> {
-  await requireUser();
+export async function createSite(
+  ctx: TenantContext,
+  input: CreateSiteInput,
+): Promise<{ siteId: string }> {
+  requirePermission(ctx, 'site.manage');
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('site_provision', {
+    p_org: ctx.organizationId,
     p_name: input.name,
     p_slug: input.slug,
     p_template_id: null,
   });
 
   if (error) {
-    // 23505 = unique_violation, which here means this owner already has a site
-    // on that slug. Slugs are unique per owner, so someone else holding it is
-    // not a conflict and cannot produce this.
+    // 23505 = unique_violation, which here means this ORGANIZATION already has
+    // a site on that slug. Slugs are unique per organization, so another
+    // organization holding it is not a conflict and cannot produce this.
     if ((error as { code?: string }).code === '23505') {
-      throw conflict('لديك موقع بهذا المعرّف بالفعل. اختر معرّفًا آخر.');
+      throw conflict('يوجد موقع بهذا المعرّف في هذه المؤسسة. اختر معرّفًا آخر.');
     }
     throw toAppError(error, 'createSite');
   }
@@ -174,9 +201,12 @@ export async function createSite(input: CreateSiteInput): Promise<{ siteId: stri
   return { siteId };
 }
 
-/** The site detail, or a 404 for a caller who does not own it. */
-export async function requireSiteDetail(siteId: string): Promise<SiteDetail> {
-  const detail = await getSiteDetail(siteId);
+/** The site detail, or a 404 for a caller who cannot reach it. */
+export async function requireSiteDetail(
+  ctx: TenantContext,
+  siteId: string,
+): Promise<SiteDetail> {
+  const detail = await getSiteDetail(ctx, siteId);
   if (!detail) throw notFound();
   return detail;
 }

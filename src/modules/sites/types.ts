@@ -3,13 +3,19 @@ import type { SectionType, SiteStatus } from './schemas';
 /**
  * The Site Engine's read models.
  *
- * Deliberately not the raw database rows: the columns are snake_case and carry
- * ownership fields the UI has no use for. A site's owner never needs to be
- * rendered, because a caller can only ever see their own.
+ * Deliberately not the raw database rows: the columns are snake_case, and the
+ * shape the screens want is not the shape the tables have.
+ *
+ * `organizationId` is carried so a caller can assert a site belongs to the
+ * context it was loaded under. `createdBy` is authorship for display and audit
+ * — it authorizes nothing, and is null once that profile is removed.
  */
 
 export type Site = {
   id: string;
+  organizationId: string;
+  /** Who first created it. Null once that profile is removed. */
+  createdBy: string | null;
   name: string;
   slug: string;
   templateId: string | null;

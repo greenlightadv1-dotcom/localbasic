@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { PageHeader } from '@/components/patterns/page-header';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getSiteDetail } from '@/modules/sites/service';
-import { requireSignedIn } from '@/modules/sites/guard';
 import { SECTION_LABELS } from '@/modules/sites/schemas';
 
 export const metadata = { title: 'تفاصيل الموقع' };
@@ -14,30 +14,37 @@ export const dynamic = 'force-dynamic';
 export default async function SiteDetailPage({
   params,
 }: {
-  params: { siteId: string };
+  params: { orgSlug: string; branchSlug: string; siteId: string };
 }) {
-  await requireSignedIn();
-  const detail = await getSiteDetail(params.siteId);
+  const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
+  const detail = await getSiteDetail(ctx, params.siteId);
 
-  // Null means RLS filtered it out, which is the same answer as "no such
-  // site" — and deliberately so. Saying "exists, but not yours" would confirm
-  // the id belongs to someone.
+  // Null covers both "no such site" and "not this organization's" — the same
+  // answer on purpose, so an id cannot be probed for which organization owns it.
   if (!detail) notFound();
 
   const { site, pages, sections, settings } = detail;
   const homepage = pages.find((p) => p.isHomepage) ?? pages[0] ?? null;
+  const base = `/${ctx.organizationSlug}/${ctx.branchSlug}/settings/sites`;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
+    <div className="space-y-5">
       <PageHeader
         title={site.name}
         description={`المعرّف: ${site.slug}`}
         actions={
-          <Link href={`/sites/${site.id}/preview`}>
-            <Button variant="outline" size="sm">
-              معاينة
-            </Button>
-          </Link>
+          <>
+            <Link href={`${base}/${site.id}/preview`}>
+              <Button variant="outline" size="sm">
+                معاينة
+              </Button>
+            </Link>
+            <Link href={base}>
+              <Button variant="ghost" size="sm">
+                كل المواقع
+              </Button>
+            </Link>
+          </>
         }
       />
 
@@ -53,6 +60,7 @@ export default async function SiteDetailPage({
             {pages.length} صفحة · {sections.length} قسم
           </span>
           <span>{settings ? 'الإعدادات جاهزة' : 'لا توجد إعدادات'}</span>
+          {can(ctx, 'site.manage') ? null : <Badge tone="info">للعرض فقط</Badge>}
         </CardBody>
       </Card>
 
@@ -90,9 +98,7 @@ export default async function SiteDetailPage({
         </CardHeader>
         <CardBody>
           {(() => {
-            const own = homepage
-              ? sections.filter((s) => s.pageId === homepage.id)
-              : [];
+            const own = homepage ? sections.filter((s) => s.pageId === homepage.id) : [];
             if (own.length === 0) {
               return (
                 <p className="text-sm text-muted">

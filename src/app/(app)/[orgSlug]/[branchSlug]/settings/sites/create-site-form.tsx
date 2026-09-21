@@ -20,11 +20,22 @@ function SubmitButton() {
 /**
  * Create a site.
  *
- * The slug is suggested from the name but stays editable, and once the user
- * has edited it the suggestion stops overwriting their choice — a field that
- * rewrites itself as you type above it is worse than no suggestion at all.
+ * The org and branch ride along as hidden fields, but they are not trusted:
+ * the action resolves the tenant context from them and re-checks membership
+ * and `site.manage` server-side, so a tampered value fails rather than
+ * reaching another organization.
+ *
+ * The slug is suggested from the name and stops overwriting the field once
+ * the user edits it — a field that rewrites itself as you type above it is
+ * worse than no suggestion at all.
  */
-export function CreateSiteForm() {
+export function CreateSiteForm({
+  orgSlug,
+  branchSlug,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+}) {
   const [state, formAction] = useFormState<CreateSiteState, FormData>(
     createSiteAction,
     undefined,
@@ -34,6 +45,9 @@ export function CreateSiteForm() {
 
   return (
     <form action={formAction} className="space-y-4">
+      <input type="hidden" name="orgSlug" value={orgSlug} />
+      <input type="hidden" name="branchSlug" value={branchSlug} />
+
       {state?.error && <Alert tone="danger">{state.error}</Alert>}
 
       <Field label="اسم الموقع" required error={state?.fieldErrors?.name}>
@@ -43,7 +57,7 @@ export function CreateSiteForm() {
             name="name"
             required
             maxLength={120}
-            placeholder="مقهى الحارة"
+            placeholder="موقع الشركة"
             onChange={(e) => {
               if (!slugTouched) setSlug(suggestSiteSlug(e.target.value));
             }}
@@ -68,7 +82,7 @@ export function CreateSiteForm() {
               setSlugTouched(true);
               setSlug(e.target.value);
             }}
-            placeholder="my-cafe"
+            placeholder="main-site"
           />
         )}
       </Field>

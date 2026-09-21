@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { resolveTenantContext } from '@/modules/core/tenancy/context';
 import { Button } from '@/components/ui/button';
 import { SiteRenderer } from '@/modules/sites/renderer';
 import { getSiteDetail } from '@/modules/sites/service';
-import { requireSignedIn } from '@/modules/sites/guard';
 
 export const metadata = { title: 'معاينة الموقع' };
 export const dynamic = 'force-dynamic';
@@ -11,44 +11,43 @@ export const dynamic = 'force-dynamic';
 /**
  * Preview, not publication.
  *
- * Authenticated and owner-only: the same getSiteDetail() the details screen
- * uses, so RLS decides. A site's public address is a later phase — this route
- * exists so an owner can see what the renderer makes of their data, and it
- * deliberately does not serve anyone else's site to anyone.
+ * Behind the same tenant context and `site.read` as the details screen, so a
+ * preview is never a way to see a site the caller could not otherwise open.
+ * Public hosting is a later phase; this exists so a member can see what the
+ * renderer makes of their data.
  */
 export default async function SitePreviewPage({
   params,
 }: {
-  params: { siteId: string };
+  params: { orgSlug: string; branchSlug: string; siteId: string };
 }) {
-  await requireSignedIn();
-  const detail = await getSiteDetail(params.siteId);
+  const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
+  const detail = await getSiteDetail(ctx, params.siteId);
   if (!detail) notFound();
 
   const { site, pages, sections } = detail;
   const homepage = pages.find((p) => p.isHomepage) ?? pages[0] ?? null;
-  const pageSections = homepage
-    ? sections.filter((s) => s.pageId === homepage.id)
-    : [];
+  const pageSections = homepage ? sections.filter((s) => s.pageId === homepage.id) : [];
+  const base = `/${ctx.organizationSlug}/${ctx.branchSlug}/settings/sites`;
 
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="space-y-4">
       {/* Deliberately outside the rendered site: a preview must be obviously a
           preview, and the way back must not depend on browser history. */}
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2">
         <p className="truncate text-sm text-muted">
           معاينة: <span className="font-semibold text-fg">{site.name}</span>
         </p>
-        <Link href={`/sites/${site.id}`}>
+        <Link href={`${base}/${site.id}`}>
           <Button variant="outline" size="sm">
             رجوع
           </Button>
         </Link>
       </div>
 
-      <main className="mx-auto w-full max-w-3xl">
+      <div className="overflow-hidden rounded-xl border border-border bg-bg">
         <SiteRenderer sections={pageSections} />
-      </main>
+      </div>
     </div>
   );
 }
