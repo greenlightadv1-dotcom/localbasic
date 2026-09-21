@@ -5,18 +5,22 @@
 -- `supabase db push` and before any smoke test. Read-only: it inspects the
 -- catalog and changes nothing.
 --
---   psql "$STAGING_DATABASE_URL" -f supabase/scripts/staging_verify.sql
+--   psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 \
+--        -f supabase/scripts/staging_verify.sql
+--
+-- Deliberately free of psql meta-commands, so the whole file can also be
+-- pasted straight into the Supabase dashboard's SQL Editor on a machine with
+-- no psql installed. ON_ERROR_STOP is passed on the command line instead, so
+-- that a failing check also gives psql a non-zero exit status for scripting.
 --
 -- Every check raises on failure, so a clean run means every line passed. A
 -- database that fails any of these is not representing production and a
 -- payment smoke test against it proves nothing.
 --
 -- NEVER run this against a project holding real tenant data. It is harmless
--- to run, but its purpose is to gate a database that is about to be seeded
--- with throwaway data.
+-- to run — it only reads the catalog — but its purpose is to gate a database
+-- that is about to be seeded with throwaway data.
 -- =============================================================================
-
-\set ON_ERROR_STOP on
 
 do $$
 declare
