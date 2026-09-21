@@ -1,0 +1,165 @@
+name: Staging migrate
+
+# Applies the committed migrations to the STAGING Supabase project and runs the
+# read-only verification script against the result.
+#
+# Manual only. There is deliberately no `push` or `pull_request` trigger: a
+# migration is not something a merge should set off by itself, and the run has
+# to be an explicit, attributable act.
+#
+# This workflow exists because migrations cannot be applied from the agent
+# sandbox — its egress to api.supabase.com and *.supabase.co is blocked, and
+# its Supabase credential is scoped to a different organization. A GitHub
+# runner has neither limitation.
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: 'Staging project ref — type it in full to confirm. Anything else aborts.'
+        required: true
+        type: string
+      dry_run:
+        description: 'List what would be applied, change nothing'
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  # Two migration runs against one database at the same time is the one thing
+  # that must never happen. No cancel-in-progress: a half-cancelled `db push`
+  # is worse than a queued one.
+  group: staging-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations to staging
+    runs-on: ubuntu-latest
+    # Bind to a GitHub Environment so the secrets below are scoped to it and,
+    # if you add required reviewers there, a run waits for approval first.
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Guard rails ──────────────────────────────────────────────────────
+      # Three independent checks, before anything can touch a database. Each
+      # one alone would be enough to stop the accident it is aimed at; the
+      # point of having all three is that they fail for different reasons.
+      - name: Refuse anything that is not the staging project
+        env:
+          TYPED_REF: ${{ inputs.project_ref }}
+          EXPECTED_REF: ${{ vars.STAGING_PROJECT_REF }}
+          PRODUCTION_REF: sztwmzwoxogxyabipwyo
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXPECTED_REF}" ]; then
+            echo "::error::Repository variable STAGING_PROJECT_REF is not set."
+            echo "Set it under Settings → Secrets and variables → Actions → Variables."
+            exit 1
+          fi
+
+          # 1. The production ref is never acceptable, however it arrived.
+          if [ "${TYPED_REF}" = "${PRODUCTION_REF}" ] || [ "${EXPECTED_REF}" = "${PRODUCTION_REF}" ]; then
+            echo "::error::Refusing to run against the production project."
+            exit 1
+          fi
+
+          # 2. What was typed must match what the repository holds, so a
+          #    mistyped ref cannot reach a real database by coincidence.
+          if [ "${TYPED_REF}" != "${EXPECTED_REF}" ]; then
+            echo "::error::Typed ref does not match STAGING_PROJECT_REF. Aborting."
+            exit 1
+          fi
+
+          # 3. Shape check, so a truncated or pasted-over value is caught.
+          if ! printf '%s' "${TYPED_REF}" | grep -Eq '^[a-z]{20}$'; then
+            echo "::error::Ref is not a 20-character project reference."
+            exit 1
+          fi
+
+          echo "Target confirmed: ${TYPED_REF}"
+
+      - name: Verify the migration set before applying it
+        run: |
+          set -euo pipefail
+          count=$(ls supabase/migrations/*.sql | wc -l)
+          echo "migrations found: ${count}"
+
+          first=$(ls supabase/migrations/*.sql | head -1 | xargs basename)
+          last=$(ls supabase/migrations/*.sql  | tail -1 | xargs basename)
+          echo "first: ${first}"
+          echo "last:  ${last}"
+
+          # Contiguous numbering, no gaps and no duplicate prefixes. A gap means
+          # a migration is missing from the checkout; a duplicate means two
+          # files claim the same position and their order is undefined.
+          ls supabase/migrations/ | sed 's/_.*//' | sort > /tmp/nums
+          if uniq -d /tmp/nums | grep -q .; then
+            echo "::error::duplicate migration prefixes: $(uniq -d /tmp/nums | tr '\n' ' ')"
+            exit 1
+          fi
+          awk 'NR>1 && $1+0 != prev+1 { printf "::error::gap in migrations: %s -> %s\n", prev, $1; bad=1 } { prev=$1+0 } END { exit bad?1:0 }' /tmp/nums
+
+          echo "Migration set is contiguous."
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          REF: ${{ inputs.project_ref }}
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "${REF}"
+          # Read back what was actually linked rather than trusting the command
+          # above to have linked what it was asked to.
+          linked=$(cat supabase/.temp/project-ref)
+          echo "linked project: ${linked}"
+          if [ "${linked}" != "${REF}" ]; then
+            echo "::error::linked ${linked}, expected ${REF}"
+            exit 1
+          fi
+
+      - name: Dry run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase db push --dry-run
+
+      - name: Apply migrations
+        if: ${{ inputs.dry_run == false }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase db push
+
+      - name: Applied migration list
+        if: ${{ inputs.dry_run == false }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration list
+
+      # ── Verification ─────────────────────────────────────────────────────
+      # Read-only. Seven checks, each raising on failure, so a green step here
+      # is the gate for seeding and for any payment test.
+      - name: Verify the result
+        if: ${{ inputs.dry_run == false }}
+        env:
+          # Session pooler URI for the staging project. Held as a secret because
+          # it embeds the database password.
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${STAGING_DATABASE_URL}" ]; then
+            echo "::error::STAGING_DATABASE_URL is not set; cannot verify."
+            exit 1
+          fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          psql "${STAGING_DATABASE_URL}" -v ON_ERROR_STOP=1 \
+               -f supabase/scripts/staging_verify.sql
