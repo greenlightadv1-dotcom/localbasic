@@ -9,8 +9,8 @@ import { Pool } from 'pg';
  * renderer, the resolver and the services in isolation. Neither of them ever
  * opens a browser, so this walks the one journey an owner actually performs:
  *
- *   create a site → add a page → add a section → save → preview → publish →
- *   confirm a live revision exists → roll back
+ *   create a site → add a page → add a section → save → preview → set the
+ *   appearance → publish → confirm a live revision exists → roll back
  *
  * ONE test, deliberately. This is a smoke test for manual-verification
  * readiness, not a replacement for the suites above: it answers "does the
@@ -101,6 +101,22 @@ test('an owner creates, edits, previews, publishes and rolls back a site', async
   await page.getByRole('link', { name: 'معاينة هذه الصفحة' }).click();
   await page.waitForURL(/\/preview\?page=/);
   await expect(page.getByText('قسم الاختبار')).toBeVisible();
+
+  // ── Appearance reaches the renderer ───────────────────────────────────────
+  // Saving a colour is only half the claim. The other half is that the theme
+  // actually drives the rendered page, so this asserts on the RGB channels the
+  // renderer emits for #b91c1c rather than on the form echoing back its input.
+  await page.goto(siteUrl);
+  await page.locator('input[name="primary"]').fill('#b91c1c');
+  await page.getByRole('button', { name: 'حفظ المظهر' }).click();
+  await expect(page.getByText('تم حفظ التغييرات')).toBeVisible();
+
+  // A reload proves it was persisted, not just held in the form's state.
+  await page.reload();
+  await expect(page.locator('input[name="primary"]')).toHaveValue('#b91c1c');
+
+  await page.goto(`${siteUrl}/preview`);
+  expect(await page.content()).toContain('185 28 28');
 
   // ── Publish ───────────────────────────────────────────────────────────────
   await page.goto(siteUrl);
