@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { getLiveRevision, getSiteDetail, listRevisions } from '@/modules/sites/service';
 import { draftDiffersFrom } from '@/modules/sites/publishing';
+import { siteSettingsSchema } from '@/modules/sites/templates/types';
 import { selectPage } from '@/modules/sites/pages';
 import {
   CreatePageForm,
   DeletePageButton,
+  AppearanceForm,
   GeneralForm,
   MoveButtons,
   PublishForm,
@@ -59,6 +61,9 @@ export default async function SiteDetailPage({
   // A badge, not a guarantee: computed from what this screen already loaded.
   // The revision itself is the only authority on what is serving.
   const pendingChanges = live ? draftDiffersFrom(live.snapshot, { pages, sections }) : true;
+  // Parsed, never trusted: a settings row written by hand or by an older build
+  // falls back to the template's own values rather than reaching the form.
+  const appearance = siteSettingsSchema.parse(settings?.settings ?? {});
   const manage = can(ctx, 'site.manage');
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}/settings/sites`;
   const scope = { orgSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug };
@@ -129,6 +134,22 @@ export default async function SiteDetailPage({
           ) : null}
         </CardBody>
       </Card>
+
+      {manage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>المظهر</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <AppearanceForm
+              orgSlug={scope.orgSlug}
+              branchSlug={scope.branchSlug}
+              siteId={site.id}
+              config={appearance}
+            />
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

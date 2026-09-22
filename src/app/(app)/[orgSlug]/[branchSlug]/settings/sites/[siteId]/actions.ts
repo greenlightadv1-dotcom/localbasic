@@ -8,6 +8,7 @@ import {
   createPageSchema,
   renamePageSchema,
   reorderPagesSchema,
+  updateAppearanceSchema,
   updateSiteSchema,
 } from '@/modules/sites/schemas';
 import {
@@ -18,6 +19,7 @@ import {
   reorderPages,
   rollbackSite,
   unpublishSite,
+  updateAppearance,
   updateSite,
 } from '@/modules/sites/service';
 
@@ -295,4 +297,36 @@ export async function unpublishSiteAction(formData: FormData): Promise<void> {
       ? sitePath(scope, siteId, '?unpublished=1')
       : sitePath(scope, siteId, `?error=${encodeURIComponent(result.error)}`),
   );
+}
+
+// ── Appearance ─────────────────────────────────────────────────────────────
+
+export async function updateAppearanceAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const scope = scopeOf(formData);
+  const siteId = String(formData.get('siteId') ?? '');
+
+  const run = defineTenantAction({
+    schema: updateAppearanceSchema,
+    permission: 'site.manage',
+    handler: async ({ ctx, input }) => updateAppearance(ctx, siteId, input),
+  });
+
+  const result = await run(
+    { organizationSlug: scope.orgSlug, branchSlug: scope.branchSlug },
+    {
+      direction: formData.get('direction'),
+      locale: formData.get('locale'),
+      primary: formData.get('primary'),
+      background: formData.get('background'),
+      foreground: formData.get('foreground'),
+      border: formData.get('border'),
+    },
+  );
+  if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
+
+  revalidatePath(sitePath(scope, siteId));
+  redirect(sitePath(scope, siteId, '?saved=1'));
 }

@@ -13,6 +13,7 @@ import {
   type ReorderSectionsInput,
   type SectionType,
   type SiteStatus,
+  type UpdateAppearanceInput,
   type UpdateSectionInput,
   type UpdateSiteInput,
 } from './schemas';
@@ -944,4 +945,61 @@ export async function unpublishSite(ctx: TenantContext, siteId: string): Promise
 
   const { error } = await supabase.rpc('site_unpublish', { p_site: siteId });
   if (error) throw toAppError(error, 'unpublishSite');
+}
+
+/**
+ * Appearance: theme colours, direction and locale.
+ *
+ * Writes `site_settings.settings` as a whole object, merging over what is
+ * there rather than replacing it, so `templateId` — set once at provisioning
+ * and not an appearance choice — survives an appearance save.
+ *
+ * The stored value is re-parsed with the tolerant read schema before being
+ * written back, so the row on disk is always something the renderer can read,
+ * whatever shape it was in before.
+ */
+export async function updateAppearance(
+  ctx: TenantContext,
+  siteId: string,
+  input: UpdateAppearanceInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  if (!(await resolveSiteScope(ctx, siteId))) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+
+  const { data: current, error: readError } = await supabase
+    .from('site_settings')
+    .select('settings')
+    .eq('site_id', siteId)
+    .maybeSingle();
+
+  if (readError) throw toAppError(readError, 'updateAppearance read');
+
+  const existing = siteSettingsSchema.parse(current?.settings ?? {});
+
+  const settings = siteSettingsSchema.parse({
+    ...existing,
+    locale: input.locale,
+    direction: input.direction,
+    theme: {
+      primary: input.primary,
+      background: input.background,
+      foreground: input.foreground,
+      border: input.border,
+    },
+  });
+
+  const { data, error } = await supabase
+    .from('site_settings')
+    .update({ settings })
+    .eq('site_id', siteId)
+    .select('site_id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'updateAppearance');
+  // site_provision() creates the settings row with the site, so a missing one
+  // means the site is out of reach rather than unconfigured.
+  if (!data) throw notFound();
 }

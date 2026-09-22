@@ -13,6 +13,7 @@ import {
   movePageAction,
   publishSiteAction,
   rollbackSiteAction,
+  updateAppearanceAction,
   unpublishSiteAction,
   updateSiteAction,
   type FormState,
@@ -409,5 +410,126 @@ export function RestoreButton({
         </form>
       </ConfirmDialog>
     </>
+  );
+}
+
+/**
+ * Appearance.
+ *
+ * Native colour inputs paired with a text field: the picker is convenient, the
+ * text box is what a keyboard user and a screen reader get, and both post the
+ * same name. Values are re-validated server-side against the same #rrggbb rule
+ * the renderer applies before a colour reaches a style attribute.
+ */
+function ColourField({
+  name,
+  label,
+  value,
+  error,
+}: {
+  name: string;
+  label: string;
+  value: string;
+  error?: string[];
+}) {
+  const [colour, setColour] = useState(value);
+  return (
+    <Field label={label} error={error}>
+      {(p) => (
+        <span className="flex items-center gap-2">
+          <Input
+            {...p}
+            name={name}
+            dir="ltr"
+            value={colour}
+            onChange={(e) => setColour(e.target.value)}
+            maxLength={7}
+            className="font-mono"
+          />
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(colour) ? colour : '#000000'}
+            onChange={(e) => setColour(e.target.value)}
+            // The text field above carries the label and the value that is
+            // submitted; this is a convenience, so it is hidden from the
+            // accessibility tree rather than announced as a second control.
+            aria-hidden="true"
+            tabIndex={-1}
+            className="h-11 w-11 shrink-0 cursor-pointer rounded border border-line bg-elevated"
+          />
+        </span>
+      )}
+    </Field>
+  );
+}
+
+export function AppearanceForm({
+  orgSlug,
+  branchSlug,
+  siteId,
+  config,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+  siteId: string;
+  config: {
+    direction: 'rtl' | 'ltr';
+    locale: string;
+    theme: { primary: string; background: string; foreground: string; border: string };
+  };
+}) {
+  const [state, action] = useFormState<FormState, FormData>(updateAppearanceAction, undefined);
+
+  return (
+    <form action={action} className="space-y-4">
+      <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+      <input type="hidden" name="siteId" value={siteId} />
+      {state?.error && <Alert tone="danger">{state.error}</Alert>}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="اتجاه الصفحة" error={state?.fieldErrors?.direction}>
+          {(p) => (
+            <Select {...p} name="direction" defaultValue={config.direction}>
+              <option value="rtl">من اليمين إلى اليسار</option>
+              <option value="ltr">من اليسار إلى اليمين</option>
+            </Select>
+          )}
+        </Field>
+        <Field label="اللغة" hint="رمز اللغة، مثل ar أو en." error={state?.fieldErrors?.locale}>
+          {(p) => (
+            <Input {...p} name="locale" dir="ltr" defaultValue={config.locale} maxLength={12} />
+          )}
+        </Field>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ColourField
+          name="primary"
+          label="اللون الأساسي"
+          value={config.theme.primary}
+          error={state?.fieldErrors?.primary}
+        />
+        <ColourField
+          name="background"
+          label="لون الخلفية"
+          value={config.theme.background}
+          error={state?.fieldErrors?.background}
+        />
+        <ColourField
+          name="foreground"
+          label="لون النص"
+          value={config.theme.foreground}
+          error={state?.fieldErrors?.foreground}
+        />
+        <ColourField
+          name="border"
+          label="لون الحدود"
+          value={config.theme.border}
+          error={state?.fieldErrors?.border}
+        />
+      </div>
+
+      <Submit label="حفظ المظهر" />
+    </form>
   );
 }

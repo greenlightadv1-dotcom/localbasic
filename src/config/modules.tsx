@@ -69,6 +69,9 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
+      // Writes the catalog, so it lives under the menu rather than under the
+      // Site Engine: a site's menu section reads these same tables live.
+      { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },
     ],
     // A restaurant issues receipts to guests, not invoices.
     coreLabels: { '/invoices': 'الإيصالات' },

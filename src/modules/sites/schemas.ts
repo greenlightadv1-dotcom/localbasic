@@ -69,6 +69,9 @@ export const SECTION_LABELS: Record<SectionType, string> = {
  */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
 
+/** Six hex digits, matching themeSchema in templates/types. */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
 export const createSiteSchema = z.object({
   name: z.string().trim().min(2, 'الاسم حرفان على الأقل').max(120, 'الاسم طويل جدًا'),
   slug: z
@@ -262,3 +265,26 @@ export const createSectionSchema = z
   .strict();
 
 export type CreateSectionInput = z.infer<typeof createSectionSchema>;
+
+/**
+ * Appearance: the writable half of `site_settings.settings`.
+ *
+ * Strict, and deliberately a subset of siteSettingsSchema. That schema is the
+ * tolerant READ shape — it carries `templateId`, which is set once at
+ * provisioning and is not an appearance choice, and every field has a
+ * `.catch()` so a row written by an older build still renders. This one is the
+ * WRITE shape, the same asymmetry the section schemas have: reading must never
+ * fail, writing must fail loudly.
+ */
+export const updateAppearanceSchema = z
+  .object({
+    direction: z.enum(['rtl', 'ltr']),
+    locale: z.string().trim().min(2).max(12),
+    primary: z.string().trim().regex(HEX_COLOR, 'لون غير صالح'),
+    background: z.string().trim().regex(HEX_COLOR, 'لون غير صالح'),
+    foreground: z.string().trim().regex(HEX_COLOR, 'لون غير صالح'),
+    border: z.string().trim().regex(HEX_COLOR, 'لون غير صالح'),
+  })
+  .strict();
+
+export type UpdateAppearanceInput = z.infer<typeof updateAppearanceSchema>;
