@@ -2753,6 +2753,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      site_revisions: {
+        Row: {
+          id: string;
+          site_id: string;
+          organization_id: string;
+          version: number;
+          snapshot: Json;
+          is_live: boolean;
+          published_at: string;
+          published_by: string | null;
+          note: string | null;
+        };
+        Insert: {
+          id?: string;
+          site_id: string;
+          organization_id: string;
+          version: number;
+          snapshot: Json;
+          is_live?: boolean;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Update: {
+          id?: string;
+          site_id?: string;
+          organization_id?: string;
+          version?: number;
+          snapshot?: Json;
+          is_live?: boolean;
+          published_at?: string;
+          published_by?: string | null;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
       site_sections: {
         Row: {
           id: string;
@@ -3186,7 +3222,10 @@ export type Database = {
       site_page_delete: { Args: Record<string, unknown>; Returns: Json };
       site_pages_reorder: { Args: Record<string, unknown>; Returns: Json };
       site_provision: { Args: Record<string, unknown>; Returns: Json };
+      site_publish: { Args: Record<string, unknown>; Returns: Json };
+      site_rollback: { Args: Record<string, unknown>; Returns: Json };
       site_sections_reorder: { Args: Record<string, unknown>; Returns: Json };
+      site_unpublish: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
       write_platform_audit: { Args: Record<string, unknown>; Returns: Json };

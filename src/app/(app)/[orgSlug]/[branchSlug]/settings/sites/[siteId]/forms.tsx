@@ -11,6 +11,9 @@ import {
   createPageAction,
   deletePageAction,
   movePageAction,
+  publishSiteAction,
+  rollbackSiteAction,
+  unpublishSiteAction,
   updateSiteAction,
   type FormState,
 } from './actions';
@@ -261,6 +264,148 @@ export function DeletePageButton({
           <Button type="submit" variant="danger" disabled={isOnlyPage}>
             حذف الصفحة
           </Button>
+        </form>
+      </ConfirmDialog>
+    </>
+  );
+}
+
+/**
+ * Publishing.
+ *
+ * The button says what it will do — freeze what is there now — rather than
+ * "save", because that is the distinction the whole revision system exists to
+ * make. The optional note is for whoever reads the history later.
+ */
+export function PublishForm({
+  orgSlug,
+  branchSlug,
+  siteId,
+  hasLive,
+  pendingChanges,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+  siteId: string;
+  hasLive: boolean;
+  pendingChanges: boolean;
+}) {
+  const [state, action] = useFormState<FormState, FormData>(publishSiteAction, undefined);
+
+  return (
+    <form action={action} className="space-y-3">
+      <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+      <input type="hidden" name="siteId" value={siteId} />
+      {state?.error && <Alert tone="danger">{state.error}</Alert>}
+
+      <p className="text-sm text-muted">
+        {hasLive
+          ? pendingChanges
+            ? 'المسودة تغيّرت منذ آخر نشر. النشر يثبّت الوضع الحالي كنسخة جديدة.'
+            : 'المنشور مطابق للمسودة الحالية.'
+          : 'لم يُنشر هذا الموقع بعد. النشر يثبّت المسودة الحالية كأول نسخة.'}
+      </p>
+
+      <Field label="ملاحظة (اختياري)" hint="تظهر في سجل النسخ، لتعرف لاحقًا ما الذي تغيّر.">
+        {(p) => <Input {...p} name="note" maxLength={500} />}
+      </Field>
+
+      <Submit label={hasLive ? 'نشر نسخة جديدة' : 'نشر الموقع'} />
+    </form>
+  );
+}
+
+/** Taking the site down. History survives; only the live flag is cleared. */
+export function UnpublishButton({
+  orgSlug,
+  branchSlug,
+  siteId,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+  siteId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="min-h-11"
+        onClick={() => setOpen(true)}
+      >
+        إيقاف النشر
+      </Button>
+      <ConfirmDialog
+        open={open}
+        title="إيقاف نشر الموقع؟"
+        description="لن يبقى للموقع نسخة منشورة. سجل النسخ يبقى كما هو، ويمكنك إعادة أي نسخة لاحقًا."
+        tone="primary"
+        onCancel={() => setOpen(false)}
+        onConfirm={() => setOpen(false)}
+      >
+        <form action={unpublishSiteAction} className="flex justify-end gap-2">
+          <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+          <input type="hidden" name="siteId" value={siteId} />
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            إلغاء
+          </Button>
+          <Button type="submit" variant="danger">
+            إيقاف النشر
+          </Button>
+        </form>
+      </ConfirmDialog>
+    </>
+  );
+}
+
+/**
+ * Restoring a previous revision.
+ *
+ * "Restore" rather than "rollback": the snapshot published that day goes back
+ * up exactly as it was, and nothing in the history is rewritten.
+ */
+export function RestoreButton({
+  orgSlug,
+  branchSlug,
+  siteId,
+  revisionId,
+  version,
+}: {
+  orgSlug: string;
+  branchSlug: string;
+  siteId: string;
+  revisionId: string;
+  version: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="min-h-11"
+        onClick={() => setOpen(true)}
+        aria-label={`إعادة نشر النسخة ${version}`}
+      >
+        إعادة النشر
+      </Button>
+      <ConfirmDialog
+        open={open}
+        title={`إعادة نشر النسخة ${version}؟`}
+        description="ستعود هذه النسخة كما نُشرت تمامًا. المسودة الحالية لا تتغيّر، ولا يُحذف أي شيء من السجل."
+        tone="primary"
+        onCancel={() => setOpen(false)}
+        onConfirm={() => setOpen(false)}
+      >
+        <form action={rollbackSiteAction} className="flex justify-end gap-2">
+          <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+          <input type="hidden" name="siteId" value={siteId} />
+          <input type="hidden" name="revisionId" value={revisionId} />
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            إلغاء
+          </Button>
+          <Button type="submit">إعادة النشر</Button>
         </form>
       </ConfirmDialog>
     </>

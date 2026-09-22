@@ -17,6 +17,11 @@ import {
   type UpdateSiteInput,
 } from './schemas';
 import { parseSectionContentForWrite } from './sections/content';
+import {
+  parseSnapshot,
+  type SiteRevision,
+  type SiteRevisionDetail,
+} from './publishing';
 import { resolveTemplate, DEFAULT_TEMPLATE_ID } from './templates';
 import { siteSettingsSchema } from './templates/types';
 import type { Site, SiteDetail, SitePage, SiteSection, SiteSettings } from './types';
@@ -786,4 +791,157 @@ export async function createSection(
   if (!data) throw new AppError('internal');
 
   return { sectionId: data.id as string };
+}
+
+// ===========================================================================
+// PUBLISHING (Phase 5)
+//
+// Each of these delegates to a SECURITY DEFINER function in 0060. That is not
+// a way around authorization: site_revisions grants INSERT to nobody, which is
+// what makes it append-only, so its only writer must run as the owner. Each
+// function resolves the organization FROM THE SITE ROW and re-checks
+// `site.manage` on it before writing anything.
+//
+// The requirePermission() calls below are the same belt-and-braces the rest of
+// this module uses: they turn a refusal into a readable error instead of a
+// bare policy violation, and they never replace the database's own check.
+// ===========================================================================
+
+/** Every revision of a site, newest first. Requires `site.read`. */
+export async function listRevisions(
+  ctx: TenantContext,
+  siteId: string,
+): Promise<SiteRevision[]> {
+  if (!can(ctx, 'site.read')) return [];
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('site_revisions')
+    .select('id, site_id, version, is_live, published_at, published_by, note')
+    .eq('site_id', siteId)
+    // Scoped as well as filtered: RLS already restricts to organizations the
+    // caller can read, and this makes a foreign site id resolve to nothing.
+    .eq('organization_id', ctx.organizationId)
+    .order('version', { ascending: false });
+
+  if (error) throw toAppError(error, 'listRevisions');
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    siteId: r.site_id as string,
+    version: r.version as number,
+    isLive: r.is_live as boolean,
+    publishedAt: r.published_at as string,
+    publishedBy: (r.published_by as string | null) ?? null,
+    note: (r.note as string | null) ?? null,
+  }));
+}
+
+/**
+ * The revision currently serving, with its snapshot parsed.
+ *
+ * Null when the site has never been published or has been taken down. This is
+ * the read a public route will make: it returns what is LIVE, never the draft,
+ * so an unfinished edit cannot reach a visitor.
+ */
+export async function getLiveRevision(
+  ctx: TenantContext,
+  siteId: string,
+): Promise<SiteRevisionDetail | null> {
+  if (!can(ctx, 'site.read')) return null;
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('site_revisions')
+    .select('id, site_id, version, is_live, published_at, published_by, note, snapshot')
+    .eq('site_id', siteId)
+    .eq('organization_id', ctx.organizationId)
+    .eq('is_live', true)
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'getLiveRevision');
+  if (!data) return null;
+
+  return {
+    id: data.id as string,
+    siteId: data.site_id as string,
+    version: data.version as number,
+    isLive: true,
+    publishedAt: data.published_at as string,
+    publishedBy: (data.published_by as string | null) ?? null,
+    note: (data.note as string | null) ?? null,
+    // Parsed rather than cast: a snapshot is jsonb, and a row written by an
+    // older build must degrade rather than throw.
+    snapshot: parseSnapshot(data.snapshot),
+  };
+}
+
+/** Freezes the current draft as a new revision and makes it live. */
+export async function publishSite(
+  ctx: TenantContext,
+  siteId: string,
+  note?: string | null,
+): Promise<{ version: number; revisionId: string }> {
+  requirePermission(ctx, 'site.manage');
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('site_publish', {
+    p_site: siteId,
+    p_note: note ?? null,
+  });
+
+  if (error) {
+    // 22023 is the function's own refusal — no site, or a snapshot the shape
+    // check rejected, which today means a site with no pages.
+    if ((error as { code?: string }).code === '22023') {
+      throw new AppError('validation', 'تعذّر النشر. تأكد أن الموقع يحتوي على صفحة واحدة على الأقل.');
+    }
+    throw toAppError(error, 'publishSite');
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { out_version: number; out_revision: string }
+    | undefined;
+  if (!row) throw new AppError('internal');
+
+  return { version: row.out_version, revisionId: row.out_revision };
+}
+
+/**
+ * Makes a previous revision live again.
+ *
+ * Nothing is copied and nothing is rewritten: the snapshot published that day
+ * is the snapshot that goes back up. A revision id belonging to another site
+ * is not found — the same answer a made-up id gets.
+ */
+export async function rollbackSite(
+  ctx: TenantContext,
+  siteId: string,
+  revisionId: string,
+): Promise<{ version: number }> {
+  requirePermission(ctx, 'site.manage');
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc('site_rollback', {
+    p_site: siteId,
+    p_revision: revisionId,
+  });
+
+  if (error) {
+    if ((error as { code?: string }).code === '22023') {
+      throw notFound();
+    }
+    throw toAppError(error, 'rollbackSite');
+  }
+
+  return { version: data as unknown as number };
+}
+
+/** Takes the site down. History is kept; only `is_live` is cleared. */
+export async function unpublishSite(ctx: TenantContext, siteId: string): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+  const supabase = createSupabaseServerClient();
+
+  const { error } = await supabase.rpc('site_unpublish', { p_site: siteId });
+  if (error) throw toAppError(error, 'unpublishSite');
 }

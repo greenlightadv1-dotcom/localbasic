@@ -13,8 +13,11 @@ import {
 import {
   createPage,
   deletePage,
+  publishSite,
   renamePage,
   reorderPages,
+  rollbackSite,
+  unpublishSite,
   updateSite,
 } from '@/modules/sites/service';
 
@@ -210,6 +213,86 @@ export async function deletePageAction(formData: FormData): Promise<void> {
   redirect(
     result.ok
       ? sitePath(scope, siteId, '?deleted=1')
+      : sitePath(scope, siteId, `?error=${encodeURIComponent(result.error)}`),
+  );
+}
+
+// ── Publishing ─────────────────────────────────────────────────────────────
+
+/**
+ * Publishing, rolling back and taking down.
+ *
+ * Same wrapper as every other mutation: the tenant comes from the URL scope
+ * and `site.manage` is checked before anything runs. The database functions
+ * behind these re-check it too, against the organization on the site row.
+ */
+export async function publishSiteAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const scope = scopeOf(formData);
+  const siteId = String(formData.get('siteId') ?? '');
+  const note = String(formData.get('note') ?? '');
+
+  const run = defineTenantAction({
+    schema: noInput,
+    permission: 'site.manage',
+    handler: async ({ ctx }) => publishSite(ctx, siteId, note.trim() || null),
+  });
+
+  const result = await run(
+    { organizationSlug: scope.orgSlug, branchSlug: scope.branchSlug },
+    {},
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(sitePath(scope, siteId));
+  redirect(sitePath(scope, siteId, `?published=${result.data.version}`));
+}
+
+export async function rollbackSiteAction(formData: FormData): Promise<void> {
+  const scope = scopeOf(formData);
+  const siteId = String(formData.get('siteId') ?? '');
+  const revisionId = String(formData.get('revisionId') ?? '');
+
+  const run = defineTenantAction({
+    schema: noInput,
+    permission: 'site.manage',
+    handler: async ({ ctx }) => rollbackSite(ctx, siteId, revisionId),
+  });
+
+  const result = await run(
+    { organizationSlug: scope.orgSlug, branchSlug: scope.branchSlug },
+    {},
+  );
+
+  revalidatePath(sitePath(scope, siteId));
+  redirect(
+    result.ok
+      ? sitePath(scope, siteId, `?restored=${result.data.version}`)
+      : sitePath(scope, siteId, `?error=${encodeURIComponent(result.error)}`),
+  );
+}
+
+export async function unpublishSiteAction(formData: FormData): Promise<void> {
+  const scope = scopeOf(formData);
+  const siteId = String(formData.get('siteId') ?? '');
+
+  const run = defineTenantAction({
+    schema: noInput,
+    permission: 'site.manage',
+    handler: async ({ ctx }) => unpublishSite(ctx, siteId),
+  });
+
+  const result = await run(
+    { organizationSlug: scope.orgSlug, branchSlug: scope.branchSlug },
+    {},
+  );
+
+  revalidatePath(sitePath(scope, siteId));
+  redirect(
+    result.ok
+      ? sitePath(scope, siteId, '?unpublished=1')
       : sitePath(scope, siteId, `?error=${encodeURIComponent(result.error)}`),
   );
 }
