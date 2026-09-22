@@ -3183,6 +3183,7 @@ export type Database = {
       retail_store_catalog: { Args: Record<string, unknown>; Returns: Json };
       retail_store_context: { Args: Record<string, unknown>; Returns: Json };
       site_provision: { Args: Record<string, unknown>; Returns: Json };
+      site_sections_reorder: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
       write_platform_audit: { Args: Record<string, unknown>; Returns: Json };

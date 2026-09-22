@@ -1,9 +1,18 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import type { Database, Json } from '@/types/database';
 import { AppError, conflict, notFound, toAppError } from '@/lib/errors';
 import { can, requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
-import { SECTION_TYPES, type CreateSiteInput, type SectionType } from './schemas';
+import {
+  SECTION_TYPES,
+  type CreateSiteInput,
+  type ReorderSectionsInput,
+  type SectionType,
+  type SiteStatus,
+  type UpdateSectionInput,
+  type UpdateSiteInput,
+} from './schemas';
+import { parseSectionContentForWrite } from './sections/content';
 import { resolveTemplate, DEFAULT_TEMPLATE_ID } from './templates';
 import { siteSettingsSchema } from './templates/types';
 import type { Site, SiteDetail, SitePage, SiteSection, SiteSettings } from './types';
@@ -273,3 +282,259 @@ export async function requireSiteDetail(
   if (!detail) throw notFound();
   return detail;
 }
+
+// ===========================================================================
+// WRITE LAYER (Phase 1a)
+//
+// Three rules hold for every function below.
+//
+//   1. The organization comes from the TenantContext, which resolveTenantContext()
+//      derived from the URL and the caller's actual membership. No write path
+//      accepts an organization id, so there is nothing for a forged one to
+//      land in.
+//   2. Ownership is re-established through the whole parent chain —
+//      section → page → site → organization — before the write, not assumed
+//      from the id the caller sent. RLS would refuse a foreign row anyway; this
+//      turns that refusal into a 404 instead of a silent zero-row update, which
+//      a caller cannot tell from success.
+//   3. Only the named fields are sent. `id`, `organization_id` and `created_by`
+//      never appear in an update payload, and 0056's trigger refuses them at
+//      the database if a later caller ever adds one.
+// ===========================================================================
+
+/**
+ * The site a page belongs to, or null when it is out of reach.
+ *
+ * Null covers "no such page" and "not your page" alike: distinguishing them
+ * would confirm that some other organization owns that id.
+ */
+async function resolvePageScope(
+  ctx: TenantContext,
+  pageId: string,
+): Promise<{ siteId: string } | null> {
+  const supabase = createSupabaseServerClient();
+
+  const { data: page, error: pageError } = await supabase
+    .from('site_pages')
+    .select('id, site_id')
+    .eq('id', pageId)
+    .maybeSingle();
+
+  if (pageError) throw toAppError(pageError, 'resolvePageScope page');
+  if (!page) return null;
+
+  // The organization filter is what makes this a scope check rather than a
+  // existence check: RLS already hid another organization's site, and this
+  // would catch it a second time if a policy were ever loosened.
+  const { data: site, error: siteError } = await supabase
+    .from('sites')
+    .select('id')
+    .eq('id', page.site_id as string)
+    .eq('organization_id', ctx.organizationId)
+    .maybeSingle();
+
+  if (siteError) throw toAppError(siteError, 'resolvePageScope site');
+  if (!site) return null;
+
+  return { siteId: page.site_id as string };
+}
+
+/**
+ * The page and site a section belongs to, and its stored type.
+ *
+ * The type is returned because the caller must not supply it: it decides which
+ * schema the new content is judged against, and letting a client pick that
+ * would let it pick its own validation.
+ */
+async function resolveSectionScope(
+  ctx: TenantContext,
+  sectionId: string,
+): Promise<{ pageId: string; siteId: string; sectionType: SectionType } | null> {
+  const supabase = createSupabaseServerClient();
+
+  const { data: section, error } = await supabase
+    .from('site_sections')
+    .select('id, page_id, section_type')
+    .eq('id', sectionId)
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'resolveSectionScope section');
+  if (!section) return null;
+
+  const page = await resolvePageScope(ctx, section.page_id as string);
+  if (!page) return null;
+
+  const sectionType = section.section_type as string;
+  // A stored type this build has no schema for. Unreachable while the check
+  // constraint and SECTION_TYPES agree; refusing rather than guessing is what
+  // makes it stay unreachable if they ever stop agreeing.
+  if (!SECTION_TYPES.includes(sectionType as SectionType)) return null;
+
+  return {
+    pageId: section.page_id as string,
+    siteId: page.siteId,
+    sectionType: sectionType as SectionType,
+  };
+}
+
+/**
+ * Renames a site, or moves it between draft and published.
+ *
+ * `status` is stored but means nothing yet — there is no public route and no
+ * published snapshot, so publishing is a later phase. It is writable here
+ * because the column already exists and an editor needs somewhere to put the
+ * flag; nothing reads it to decide visibility.
+ */
+export async function updateSite(
+  ctx: TenantContext,
+  siteId: string,
+  input: UpdateSiteInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+  const supabase = createSupabaseServerClient();
+
+  // Built field by field rather than spread from the input, so a property the
+  // caller added to the payload cannot reach the column list.
+  const patch: { name?: string; status?: SiteStatus } = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.status !== undefined) patch.status = input.status;
+
+  const { data, error } = await supabase
+    .from('sites')
+    .update(patch)
+    .eq('id', siteId)
+    .eq('organization_id', ctx.organizationId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'updateSite');
+  // Zero rows means RLS or the organization filter refused it. Indistinguishable
+  // from "no such site", and reported as such.
+  if (!data) throw notFound();
+}
+
+/**
+ * Edits one section's content or visibility.
+ *
+ * Content is validated against the schema for the section's STORED type, and
+ * strictly: an unknown field, an over-long string or an unsafe link target is
+ * refused rather than coerced. Reading the same row is forgiving by design —
+ * see parseSectionContent — and the asymmetry is deliberate.
+ */
+export async function updateSection(
+  ctx: TenantContext,
+  sectionId: string,
+  input: UpdateSectionInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolveSectionScope(ctx, sectionId);
+  if (!scope) throw notFound();
+
+  const patch: { content?: Json; is_visible?: boolean } = {};
+
+  if (input.content !== undefined) {
+    const parsed = parseSectionContentForWrite(scope.sectionType, input.content);
+    patch.content = parsed as Json;
+  }
+  if (input.isVisible !== undefined) patch.is_visible = input.isVisible;
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('site_sections')
+    .update(patch)
+    .eq('id', sectionId)
+    // Repeated even though the scope check just passed: the statement itself
+    // must be unable to touch a row on another page.
+    .eq('page_id', scope.pageId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'updateSection');
+  if (!data) throw notFound();
+}
+
+/**
+ * Sets the order of a page's sections.
+ *
+ * Delegates to site_sections_reorder(), which does the whole thing in one
+ * statement inside one transaction. Doing it as N updates from here would let
+ * a failure halfway through leave two sections at the same position and none
+ * at the first, with nothing to repair it.
+ *
+ * The array must be an exact permutation of the page's sections. A short list,
+ * a duplicate, or an id belonging to another page is refused by the function
+ * rather than partially applied.
+ */
+export async function reorderSections(
+  ctx: TenantContext,
+  pageId: string,
+  input: ReorderSectionsInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolvePageScope(ctx, pageId);
+  if (!scope) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('site_sections_reorder', {
+    p_page: pageId,
+    p_ids: input.sectionIds,
+  });
+
+  if (error) {
+    // 22023 is the function's own refusal — a list that is not a permutation
+    // of this page's sections. That is the caller's mistake, not a fault.
+    if ((error as { code?: string }).code === '22023') {
+      throw new AppError('validation', 'ترتيب الأقسام غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.');
+    }
+    throw toAppError(error, 'reorderSections');
+  }
+}
+
+/**
+ * Removes one section from a page.
+ *
+ * Safe to implement, unlike deleting a site: nothing references a section, a
+ * page with no sections renders as an empty page rather than breaking, and no
+ * section is structurally required — site_provision() creates none at all, and
+ * the template's six are seeded content rather than a schema.
+ *
+ * Sections carry no operational data. A `contact` section holds the phone
+ * number somebody typed into it, not the organization's; deleting it cannot
+ * reach branches, menus, orders or branding.
+ */
+export async function deleteSection(ctx: TenantContext, sectionId: string): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolveSectionScope(ctx, sectionId);
+  if (!scope) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('site_sections')
+    .delete()
+    .eq('id', sectionId)
+    .eq('page_id', scope.pageId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'deleteSection');
+  if (!data) throw notFound();
+}
+
+// deleteSite() is NOT implemented in this phase, and its absence is a decision
+// rather than an omission.
+//
+// `sites` has no deleted_at column, so the only deletion available is a hard
+// one. That cascades to every page, section and settings row, and there is no
+// published snapshot or version history to restore from — Phase 4 is where
+// those arrive. Every comparable entity in this schema soft-deletes:
+// organizations, branches, restaurant_products and platform_websites all carry
+// deleted_at, and platform_websites is the closest analogue of all.
+//
+// Adding deleted_at is a schema change with consequences beyond one function —
+// every read path, the slug uniqueness index and the RLS policies would all
+// have to learn about it — so it is a design decision to take deliberately,
+// not a side effect of wanting a delete button. Until then the RLS delete
+// policy stands unused, which costs nothing.

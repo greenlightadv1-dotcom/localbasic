@@ -63,3 +63,61 @@ export function suggestSiteSlug(name: string): string {
     .replace(/^-|-$/g, '');
   return SLUG_RE.test(base) ? base : '';
 }
+
+/**
+ * Editing a site.
+ *
+ * Deliberately two fields. `id`, `organization_id` and `created_by` are not
+ * absent by oversight — they are not writable at all, and 0056's trigger
+ * refuses them at the database even if a future caller tried. `slug` is left
+ * out too: it is an address, and changing one is a redirect problem rather
+ * than a field edit.
+ *
+ * Both fields are optional so a caller can change one without resending the
+ * other, but at least one must be present — an update that changes nothing is
+ * a bug in the caller, not a no-op worth writing a row for.
+ */
+export const updateSiteSchema = z
+  .object({
+    name: z.string().trim().min(2, 'الاسم حرفان على الأقل').max(120, 'الاسم طويل جدًا').optional(),
+    status: z.enum(SITE_STATUSES).optional(),
+  })
+  .refine((v) => v.name !== undefined || v.status !== undefined, {
+    message: 'لا يوجد تغيير',
+  });
+
+export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;
+
+/**
+ * Editing a section.
+ *
+ * `content` is `unknown` here on purpose. Its shape depends on the section's
+ * type, and the type is read from the stored row rather than accepted from
+ * the caller — so the content is validated in the service, once the row has
+ * said what it is. A schema here could only check it against a type the
+ * client chose, which is no check at all.
+ */
+export const updateSectionSchema = z
+  .object({
+    content: z.unknown().optional(),
+    isVisible: z.boolean().optional(),
+  })
+  .refine((v) => v.content !== undefined || v.isVisible !== undefined, {
+    message: 'لا يوجد تغيير',
+  });
+
+export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
+
+/**
+ * Reordering a page's sections.
+ *
+ * The full ordered list of the page's section ids. Not a pair of positions:
+ * a permutation is verifiable in one statement — every section, each exactly
+ * once — where "move section X to slot 3" is only verifiable against state the
+ * caller cannot see and the database would have to re-derive.
+ */
+export const reorderSectionsSchema = z.object({
+  sectionIds: z.array(z.string().uuid()).max(64),
+});
+
+export type ReorderSectionsInput = z.infer<typeof reorderSectionsSchema>;

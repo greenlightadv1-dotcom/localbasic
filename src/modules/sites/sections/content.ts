@@ -4,11 +4,12 @@ import type { SectionType } from '../schemas';
 /**
  * Per-section content schemas.
  *
- * `site_sections.content` is jsonb and the database validates only that it is
- * an object. Everything about its SHAPE is enforced here, at the boundary
- * between the row and the renderer — which is the only place that can enforce
- * it, since an editor, an import, or a hand-written SQL update can all put
- * anything in that column.
+ * `site_sections.content` is jsonb. Migration 0057 enforces the parts a
+ * direct database write must not get wrong — that it is an object, that its
+ * keys are known, and that a hero's ctaHref carries a safe scheme — and this
+ * file enforces the rest: lengths, nested shapes, enums and fallbacks, which
+ * are presentation tolerances rather than invariants and would only buy
+ * schema drift in SQL.
  *
  * Two rules hold throughout:
  *
@@ -127,4 +128,99 @@ export function parseSectionContent<K extends SectionType>(
   // example a string longer than its ceiling. Fall back to the all-defaults
   // parse, which cannot fail because every field has one.
   return schema.parse({}) as SectionContent[K];
+}
+
+/**
+ * Write schemas — strict where the read schemas are forgiving.
+ *
+ * The asymmetry is the point, and it is not an oversight that these are
+ * separate objects rather than a transform of the ones above.
+ *
+ *   READING a row must never fail. A section stored by an older build, a
+ *   hand-written SQL update or a future editor has to render as something, so
+ *   every field above carries a default and the hostile ones carry .catch().
+ *
+ *   WRITING a row must fail loudly. A caller sending an unknown field, a
+ *   string past its ceiling or a javascript: link has made a mistake, and
+ *   silently storing a coerced value would tell them it worked. `.strict()`
+ *   refuses the unknown field rather than dropping it, which is also what the
+ *   database's key allow-list does — the two agree by construction, and
+ *   drift.test.ts asserts they keep agreeing.
+ *
+ * Every field is optional: content `{}` is a valid, freshly created section,
+ * and an editor saving one field should not have to resend the other four.
+ */
+
+export const heroWriteSchema = z
+  .object({
+    title: text(120),
+    subtitle: text(300),
+    ctaLabel: text(40),
+    ctaHref: safeHref.nullable(),
+    align: z.enum(['center', 'start']),
+  })
+  .partial()
+  .strict();
+
+export const aboutWriteSchema = z
+  .object({ title: text(120), body: text(2000) })
+  .partial()
+  .strict();
+
+export const servicesWriteSchema = z
+  .object({
+    title: text(120),
+    items: z
+      .array(z.object({ name: text(80), description: text(300) }).partial().strict())
+      .max(24),
+  })
+  .partial()
+  .strict();
+
+export const testimonialsWriteSchema = z
+  .object({
+    title: text(120),
+    items: z
+      .array(z.object({ quote: text(500), author: text(80) }).partial().strict())
+      .max(24),
+  })
+  .partial()
+  .strict();
+
+export const contactWriteSchema = z
+  .object({
+    title: text(120),
+    phone: text(40),
+    email: text(160),
+    address: text(300),
+  })
+  .partial()
+  .strict();
+
+export const footerWriteSchema = z.object({ text: text(200) }).partial().strict();
+
+/** The write schema for each section type. Total over SectionType. */
+export const SECTION_WRITE_SCHEMAS = {
+  hero: heroWriteSchema,
+  about: aboutWriteSchema,
+  services: servicesWriteSchema,
+  testimonials: testimonialsWriteSchema,
+  contact: contactWriteSchema,
+  footer: footerWriteSchema,
+} satisfies Record<SectionType, z.ZodTypeAny>;
+
+/**
+ * Validates content on its way INTO the database.
+ *
+ * Returns the parsed object, or throws the Zod error. The section type comes
+ * from the stored row, never from the caller: letting a client name the type
+ * would let it pick which schema its content is judged against, which is the
+ * whole validation.
+ */
+export function parseSectionContentForWrite(
+  type: SectionType,
+  raw: unknown,
+): Record<string, unknown> {
+  const schema = SECTION_WRITE_SCHEMAS[type] as z.ZodTypeAny;
+  return schema.parse(raw) as Record<string, unknown>;
 }
