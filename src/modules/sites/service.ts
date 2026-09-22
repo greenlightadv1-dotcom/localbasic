@@ -6,6 +6,7 @@ import { can, requirePermission, type TenantContext } from '@/modules/core/tenan
 import {
   SECTION_TYPES,
   type CreatePageInput,
+  type CreateSectionInput,
   type CreateSiteInput,
   type RenamePageInput,
   type ReorderPagesInput,
@@ -725,4 +726,64 @@ export async function deletePage(
   }
 
   return { promotedPageId: (data as unknown as string | null) ?? null };
+}
+
+/**
+ * Adds an empty section to the end of a page.
+ *
+ * Empty rather than pre-filled: every section schema treats `{}` as a freshly
+ * created block that renders its placeholder, so there is nothing to invent
+ * here and nothing for the operator to delete before they start typing.
+ *
+ * The type is the only thing the caller chooses. The page, its site and its
+ * organization all come from the resolved scope, and `sort_order` is computed
+ * here rather than accepted.
+ *
+ * The position read and the insert are two statements, so two sections created
+ * at the same instant can land on the same `sort_order`. That is benign:
+ * site_sections has no unique constraint on it, every read orders by
+ * (sort_order, id), and reorderSections() renumbers the page. A single
+ * statement would need an RPC, and a migration for a collision that costs
+ * nothing is not a trade worth making.
+ */
+export async function createSection(
+  ctx: TenantContext,
+  pageId: string,
+  input: CreateSectionInput,
+): Promise<{ sectionId: string }> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolvePageScope(ctx, pageId);
+  if (!scope) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+
+  const { data: last, error: lastError } = await supabase
+    .from('site_sections')
+    .select('sort_order')
+    .eq('page_id', pageId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastError) throw toAppError(lastError, 'createSection position');
+
+  const sortOrder = Math.min(((last?.sort_order as number | undefined) ?? -1) + 1, 9999);
+
+  const { data, error } = await supabase
+    .from('site_sections')
+    .insert({
+      page_id: pageId,
+      section_type: input.sectionType,
+      content: {},
+      sort_order: sortOrder,
+      is_visible: true,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'createSection');
+  if (!data) throw new AppError('internal');
+
+  return { sectionId: data.id as string };
 }

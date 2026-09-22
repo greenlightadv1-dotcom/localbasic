@@ -351,3 +351,27 @@ export async function resolveSectionData(
 
   return map;
 }
+
+/**
+ * The organization's menu categories, for the editor's category picker.
+ *
+ * Names and ids only. The menu section stores the ids it was narrowed to and
+ * never the categories themselves, so this feeds a <select> and nothing more.
+ * Organization-scoped like every other read here.
+ */
+export async function listMenuCategories(
+  ctx: TenantContext,
+): Promise<{ id: string; name: string }[]> {
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('restaurant_categories')
+    .select('id, name')
+    .eq('organization_id', ctx.organizationId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) throw toAppError(error, 'listMenuCategories');
+  return (data ?? []).map((c) => ({ id: c.id as string, name: c.name as string }));
+}

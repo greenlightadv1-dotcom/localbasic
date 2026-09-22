@@ -221,3 +221,44 @@ export const reorderPagesSchema = z
   .strict();
 
 export type ReorderPagesInput = z.infer<typeof reorderPagesSchema>;
+
+/**
+ * What each section type is, in one line, for the "add section" list.
+ *
+ * Lives here beside SECTION_TYPES and SECTION_LABELS rather than in a
+ * component, so the editor's list of creatable sections is the registry
+ * itself. A UI-only array would be a second list to forget to update.
+ *
+ * NO TEMPLATE RESTRICTION EXISTS. `SiteTemplate.sections` is the seed content
+ * a new site starts with, not an allow-list of what it may later contain —
+ * every type the renderer implements is creatable on any site. Recorded here
+ * rather than invented: if templates ever do constrain sections, this is where
+ * the constraint would join the registry.
+ */
+export const SECTION_DESCRIPTIONS: Record<SectionType, string> = {
+  hero: 'العنوان الرئيسي للصفحة مع جملة تعريفية وزر اختياري.',
+  about: 'فقرة نصية تعرّف بالنشاط.',
+  services: 'قائمة بالخدمات، كل خدمة باسم ووصف قصير.',
+  testimonials: 'آراء العملاء، كل رأي باقتباس واسم صاحبه.',
+  contact: 'بيانات تواصل تكتبها بنفسك في هذا القسم.',
+  footer: 'سطر أسفل الصفحة، عادةً حقوق النشر.',
+  menu: 'قائمة المؤسسة كما هي في نظام الأصناف. تتحدّث تلقائيًا.',
+  business_info: 'اسم النشاط وبيانات التواصل من إعدادات الهوية. تتحدّث تلقائيًا.',
+  hours: 'مواعيد العمل الأسبوعية من إعدادات المطعم. تتحدّث تلقائيًا.',
+  branches: 'فروع المؤسسة بعناوينها وأرقامها. تتحدّث تلقائيًا.',
+};
+
+/**
+ * Adding a section.
+ *
+ * The type and nothing else. Where it lands, what it contains and which page
+ * it belongs to are the server's to decide — a new section starts empty, at
+ * the end of its page, and is then edited.
+ */
+export const createSectionSchema = z
+  .object({
+    sectionType: z.enum(SECTION_TYPES),
+  })
+  .strict();
+
+export type CreateSectionInput = z.infer<typeof createSectionSchema>;
