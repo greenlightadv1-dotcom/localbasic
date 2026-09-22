@@ -94,6 +94,84 @@ export const footerSchema = z.object({
   text: text(200).default(''),
 });
 
+
+// ===========================================================================
+// DATA-BOUND SECTIONS (Phase 3)
+//
+// These store CONFIGURATION, never data. A menu section says "show the
+// organization's menu, these categories, at most this many"; it does not hold
+// a dish, a price or a description. The authoritative tables hold those, the
+// server-side resolver reads them at render time, and nothing is copied into
+// site_sections.content on the way past.
+//
+// `title` is the only free text, and it is the operator's own heading above
+// the section — presentation, exactly like an about section's title. The
+// business name, phone, address and opening times are not storable here at
+// all: the SQL allow-list in 0059 refuses every key not named below, so a
+// direct PostgREST write cannot smuggle one in either.
+//
+// `source` is a literal rather than an enum with one member on purpose. A
+// second value would be a second resolution strategy, and the only plausible
+// one is "a snapshot taken at some point", which is the thing this design
+// exists to prevent.
+// ===========================================================================
+
+const liveSource = z.literal('live');
+
+/** A uuid, the shape every id in this schema takes. */
+const idString = z.string().uuid();
+
+export const menuSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+  // Narrows WHICH of the organization's categories to show. Ids only — and
+  // whose category an id names is not decided here: the resolver re-queries
+  // them inside the site's own organization, so an id belonging to another
+  // tenant matches nothing rather than reaching their menu.
+  categoryIds: z.array(idString).max(50).catch([]).default([]),
+  limit: z.number().int().min(1).max(200).nullable().catch(null).default(null),
+});
+
+export const businessInfoSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+});
+
+export const hoursSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+});
+
+export const branchesSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+});
+
+export const menuWriteSchema = z
+  .object({
+    title: text(120),
+    source: liveSource,
+    categoryIds: z.array(idString).max(50),
+    limit: z.number().int().min(1).max(200).nullable(),
+  })
+  .partial()
+  .strict();
+
+export const businessInfoWriteSchema = z
+  .object({ title: text(120), source: liveSource })
+  .partial()
+  .strict();
+
+export const hoursWriteSchema = z
+  .object({ title: text(120), source: liveSource })
+  .partial()
+  .strict();
+
+export const branchesWriteSchema = z
+  .object({ title: text(120), source: liveSource })
+  .partial()
+  .strict();
+
 /** The schema for each section type. Total over SectionType by construction. */
 export const SECTION_SCHEMAS = {
   hero: heroSchema,
@@ -102,6 +180,10 @@ export const SECTION_SCHEMAS = {
   testimonials: testimonialsSchema,
   contact: contactSchema,
   footer: footerSchema,
+  menu: menuSchema,
+  business_info: businessInfoSchema,
+  hours: hoursSchema,
+  branches: branchesSchema,
 } satisfies Record<SectionType, z.ZodTypeAny>;
 
 export type SectionContent = {
@@ -207,6 +289,10 @@ export const SECTION_WRITE_SCHEMAS = {
   testimonials: testimonialsWriteSchema,
   contact: contactWriteSchema,
   footer: footerWriteSchema,
+  menu: menuWriteSchema,
+  business_info: businessInfoWriteSchema,
+  hours: hoursWriteSchema,
+  branches: branchesWriteSchema,
 } satisfies Record<SectionType, z.ZodTypeAny>;
 
 /**

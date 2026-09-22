@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -20,14 +20,32 @@ import { SECTION_SCHEMAS, SECTION_WRITE_SCHEMAS } from './content';
  * rather than production.
  */
 
-const MIGRATION = join(
-  process.cwd(),
-  'supabase/migrations/0057_site_write_layer.sql',
-);
+const MIGRATIONS = join(process.cwd(), 'supabase/migrations');
+
+/**
+ * The migration that CURRENTLY defines app.check_site_section_content().
+ *
+ * 0057 introduced it and 0059 replaced it to add the data-bound types. Pinning
+ * the filename would have meant this guard quietly checking a superseded
+ * definition — so it takes the last migration that defines the function, which
+ * is the one the database actually ends up running.
+ */
+function allowListMigration(): string {
+  const defining = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .filter((f) =>
+      readFileSync(join(MIGRATIONS, f), 'utf8').includes(
+        'function app.check_site_section_content()',
+      ),
+    );
+  if (defining.length === 0) throw new Error('no migration defines the allow-lists');
+  return join(MIGRATIONS, defining[defining.length - 1]!);
+}
 
 /** The `when '<type>' then array[...]` allow-lists, as the migration writes them. */
 function sqlAllowLists(): Record<string, string[]> {
-  const sql = readFileSync(MIGRATION, 'utf8');
+  const sql = readFileSync(allowListMigration(), 'utf8');
   const out: Record<string, string[]> = {};
   const entry = /when\s+'([a-z_]+)'\s+then\s+array\[([^\]]*)\]/g;
 
@@ -69,19 +87,22 @@ describe('section field lists agree across all three layers', () => {
     }
   });
 
-  it('SECTION_TYPES matches the check constraint in 0055', () => {
-    // 0055 is the other end of the same agreement: a type the database accepts
-    // and this build has no schema for would reach the renderer as a blank.
-    const migration = readFileSync(
-      join(process.cwd(), 'supabase/migrations/0055_site_engine.sql'),
-      'utf8',
-    );
-    const constraint = /section_type text not null check \(section_type in \(([^)]*)\)/.exec(
-      migration,
-    );
-    expect(constraint).not.toBeNull();
-    const types = [...constraint![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
-    expect(types.sort()).toEqual([...SECTION_TYPES].sort());
+  it('SECTION_TYPES matches the live section_type check constraint', () => {
+    // The other end of the same agreement: a type the database accepts and
+    // this build has no schema for would reach the renderer as a blank.
+    //
+    // 0055 declared the constraint inline and 0059 replaced it to admit the
+    // data-bound types, so this takes the LAST migration that states the list
+    // rather than pinning either filename.
+    const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
+    let types: string[] | null = null;
+    for (const file of files) {
+      const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+      const match = /section_type in \(([^)]*)\)/.exec(sql);
+      if (match) types = [...match[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+    }
+    expect(types).not.toBeNull();
+    expect(types!.sort()).toEqual([...SECTION_TYPES].sort());
   });
 });
 

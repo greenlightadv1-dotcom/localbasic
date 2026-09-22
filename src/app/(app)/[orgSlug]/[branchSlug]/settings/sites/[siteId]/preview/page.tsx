@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { SiteRenderer } from '@/modules/sites/renderer';
 import { getSiteDetail } from '@/modules/sites/service';
 import { pageSelectionFromParam, selectPage } from '@/modules/sites/pages';
+import { resolveSectionData } from '@/modules/sites/resolve';
 import { siteSettingsSchema } from '@/modules/sites/templates/types';
 import { resolveTemplate } from '@/modules/sites/templates';
 
@@ -97,6 +98,11 @@ export default async function SitePreviewPage({
     );
   }
 
+  // Live business data for this page's data-bound sections, resolved on the
+  // server against the SAME authorized tenant context that loaded the site.
+  // Nothing in section content chooses the organization — see resolve.ts.
+  const resolved = await resolveSectionData(ctx, selected.sections);
+
   return (
     <div className="space-y-4">
       {/* Deliberately outside the rendered site: a preview must be obviously a
@@ -156,6 +162,7 @@ export default async function SitePreviewPage({
           sections={selected.sections}
           theme={theme}
           direction={config.direction}
+          resolved={resolved}
         />
       </div>
     </div>

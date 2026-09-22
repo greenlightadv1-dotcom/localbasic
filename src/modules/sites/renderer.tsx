@@ -1,6 +1,14 @@
 import { hexToRgbChannels } from '@/lib/color';
 import { parseSectionContent, type SectionContent } from './sections/content';
 import type { SitePage, SiteSection } from './types';
+import type {
+  ResolvedBranches,
+  ResolvedBusinessInfo,
+  ResolvedHours,
+  ResolvedMenu,
+  ResolvedSectionData,
+  ResolvedSectionMap,
+} from './resolved';
 import { themeSchema, type SiteTheme } from './templates/types';
 
 /**
@@ -195,6 +203,245 @@ function Footer({ content }: { content: SectionContent['footer'] }) {
   );
 }
 
+
+// ===========================================================================
+// DATA-BOUND SECTIONS
+//
+// These render ALREADY-RESOLVED data. Nothing below imports a Supabase client,
+// a tenant context, a query builder or a table name — the resolved types in
+// ./resolved have no imports at all, which is what makes that structural
+// rather than a matter of discipline. The server resolves; this draws.
+// ===========================================================================
+
+/** Money in the organization's own currency, in the page's locale. */
+function money(cents: number, currency: string): string {
+  const whole = cents % 100 === 0;
+  return `${(cents / 100).toLocaleString('ar-EG', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} ${currency}`;
+}
+
+/** Shown when a data-bound section has nothing resolved behind it. */
+function Unavailable({ title, message }: { title: string; message: string }) {
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-2xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        <p className="mt-3 text-sm text-[rgb(var(--site-fg)/0.6)]">{message}</p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The organization's menu.
+ *
+ * Headed "القائمة" and never "قائمة الفرع": a site is organization-scoped, no
+ * branch is selected, and the copy must not claim a precision the data does
+ * not have.
+ */
+function Menu({ content, data }: { content: SectionContent['menu']; data: ResolvedMenu }) {
+  const title = content.title || 'القائمة';
+  if (data.categories.length === 0) {
+    return <Unavailable title={title} message="لم تتم إضافة أصناف بعد." />;
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-3xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        {data.categories.map((category) => (
+          <div key={category.id ?? '__uncategorised__'} className="mt-8 first:mt-5">
+            <h3 className="text-base font-semibold text-[rgb(var(--site-primary))]">
+              {category.name}
+            </h3>
+            <ul className="mt-3 space-y-3">
+              {category.products.map((product) => (
+                <li
+                  key={product.id}
+                  className="rounded-xl border border-[rgb(var(--site-border))] p-4"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h4 className="font-semibold text-[rgb(var(--site-fg))]">{product.name}</h4>
+                    {/* The price is read from the variant at render time. It is
+                        not stored in this section and never has been. */}
+                    <span className="lb-numeric text-sm font-semibold text-[rgb(var(--site-primary))]">
+                      {product.variants.length > 1 ? 'يبدأ من ' : ''}
+                      {money(product.fromPriceCents, data.currency)}
+                    </span>
+                  </div>
+                  {product.description && (
+                    <p className="mt-1 text-sm leading-6 text-[rgb(var(--site-fg)/0.7)]">
+                      {product.description}
+                    </p>
+                  )}
+                  {product.variants.length > 1 && (
+                    <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[rgb(var(--site-fg)/0.6)]">
+                      {product.variants.map((variant) => (
+                        <li key={variant.id}>
+                          {variant.name}
+                          <span className="lb-numeric ms-1">
+                            {money(variant.priceCents, data.currency)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Organization-level business information.
+ *
+ * No address, and none is invented: the only addresses belong to branches, and
+ * the branches section is where they appear.
+ */
+function BusinessInfo({
+  content,
+  data,
+}: {
+  content: SectionContent['business_info'];
+  data: ResolvedBusinessInfo;
+}) {
+  const title = content.title || data.name;
+  const empty = !data.phone && !data.whatsapp && !data.email;
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-2xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        {empty ? (
+          <p className="mt-3 text-sm text-[rgb(var(--site-fg)/0.6)]">
+            لم تتم إضافة بيانات تواصل بعد.
+          </p>
+        ) : (
+          <dl className="mt-4 space-y-3 text-sm">
+            {data.phone && (
+              <div className="flex flex-wrap gap-2">
+                <dt className="font-semibold text-[rgb(var(--site-fg))]">الهاتف</dt>
+                <dd className="lb-numeric text-[rgb(var(--site-fg)/0.75)]" dir="ltr">
+                  {data.phone}
+                </dd>
+              </div>
+            )}
+            {data.whatsapp && (
+              <div className="flex flex-wrap gap-2">
+                <dt className="font-semibold text-[rgb(var(--site-fg))]">واتساب</dt>
+                <dd className="lb-numeric text-[rgb(var(--site-fg)/0.75)]" dir="ltr">
+                  {data.whatsapp}
+                </dd>
+              </div>
+            )}
+            {data.email && (
+              <div className="flex flex-wrap gap-2">
+                <dt className="font-semibold text-[rgb(var(--site-fg))]">البريد</dt>
+                <dd className="text-[rgb(var(--site-fg)/0.75)]" dir="ltr">
+                  {data.email}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Weekday labels, in the order the stored array uses. */
+const HOURS_DAYS = [
+  'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد',
+] as const;
+
+/**
+ * The weekly schedule, exactly as stored.
+ *
+ * No "open now" badge: the repository has no canonical calculation for it, and
+ * a second opinion about when a business is open is worse than none.
+ */
+function Hours({ content, data }: { content: SectionContent['hours']; data: ResolvedHours }) {
+  const title = content.title || 'مواعيد العمل';
+  if (data.days.length === 0) {
+    return <Unavailable title={title} message="لم تتم إضافة مواعيد عمل بعد." />;
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-2xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        <dl className="mt-4 space-y-2 text-sm">
+          {data.days.map((day) => (
+            <div
+              key={day.index}
+              className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[rgb(var(--site-border))] pb-2 last:border-0"
+            >
+              <dt className="font-semibold text-[rgb(var(--site-fg))]">
+                {HOURS_DAYS[day.index] ?? String(day.index + 1)}
+              </dt>
+              {day.closed || !day.opens || !day.closes ? (
+                <dd className="text-[rgb(var(--site-fg)/0.6)]">مغلق</dd>
+              ) : (
+                <dd className="lb-numeric text-[rgb(var(--site-fg)/0.75)]" dir="ltr">
+                  {day.opens} – {day.closes}
+                </dd>
+              )}
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+/** The organization's active branches, each with its own address. */
+function Branches({
+  content,
+  data,
+}: {
+  content: SectionContent['branches'];
+  data: ResolvedBranches;
+}) {
+  const title = content.title || 'فروعنا';
+  if (data.branches.length === 0) {
+    return <Unavailable title={title} message="لم تتم إضافة فروع بعد." />;
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-3xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+          {data.branches.map((branch) => (
+            <li
+              key={branch.id}
+              className="rounded-xl border border-[rgb(var(--site-border))] p-4"
+            >
+              <h3 className="font-semibold text-[rgb(var(--site-fg))]">{branch.name}</h3>
+              {branch.address && (
+                <p className="mt-1 text-sm leading-6 text-[rgb(var(--site-fg)/0.7)]">
+                  {branch.address}
+                </p>
+              )}
+              {branch.phone && (
+                <p className="lb-numeric mt-1 text-sm text-[rgb(var(--site-fg)/0.7)]" dir="ltr">
+                  {branch.phone}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Dispatch.
  *
@@ -204,7 +451,19 @@ function Footer({ content }: { content: SectionContent['footer'] }) {
  * SECTION_TYPES without a case here fails the build instead of rendering
  * nothing in production.
  */
-export function SectionRenderer({ section }: { section: SiteSection }) {
+export function SectionRenderer({
+  section,
+  data,
+}: {
+  section: SiteSection;
+  /**
+   * What the resolver produced for THIS section, if anything. Absent is a
+   * legitimate state — a page rendered without resolution, or a type the
+   * resolver has no case for — and shows the section's unavailable notice
+   * rather than throwing.
+   */
+  data?: ResolvedSectionData;
+}) {
   // Parsed here, once. Below this line nothing reads a raw field, and no
   // component has to ask whether a value is the type it claims to be.
   switch (section.sectionType) {
@@ -222,6 +481,54 @@ export function SectionRenderer({ section }: { section: SiteSection }) {
       return <Contact content={parseSectionContent('contact', section.content)} />;
     case 'footer':
       return <Footer content={parseSectionContent('footer', section.content)} />;
+
+    // Data-bound. The `data.type` check is what narrows the union — a
+    // mismatched payload is treated as absent rather than cast into place.
+    case 'menu': {
+      const content = parseSectionContent('menu', section.content);
+      return data?.type === 'menu' ? (
+        <Menu content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'القائمة'}
+          message="تعذّر تحميل القائمة الآن."
+        />
+      );
+    }
+    case 'business_info': {
+      const content = parseSectionContent('business_info', section.content);
+      return data?.type === 'business_info' ? (
+        <BusinessInfo content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'بيانات النشاط'}
+          message="تعذّر تحميل بيانات النشاط الآن."
+        />
+      );
+    }
+    case 'hours': {
+      const content = parseSectionContent('hours', section.content);
+      return data?.type === 'hours' ? (
+        <Hours content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'مواعيد العمل'}
+          message="تعذّر تحميل المواعيد الآن."
+        />
+      );
+    }
+    case 'branches': {
+      const content = parseSectionContent('branches', section.content);
+      return data?.type === 'branches' ? (
+        <Branches content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'فروعنا'}
+          message="تعذّر تحميل الفروع الآن."
+        />
+      );
+    }
+
     default: {
       const unhandled: never = section.sectionType;
       throw new Error(`unhandled section type: ${String(unhandled)}`);
@@ -263,11 +570,18 @@ export function SiteRenderer({
   sections,
   theme,
   direction = 'rtl',
+  resolved,
 }: {
   page: SitePage;
   sections: SiteSection[];
   theme?: unknown;
   direction?: 'rtl' | 'ltr';
+  /**
+   * Data the server resolved for this page's data-bound sections, keyed by
+   * section id. A plain object of plain values — the renderer receives the
+   * answers, never the means of asking.
+   */
+  resolved?: ResolvedSectionMap;
 }) {
   const safeTheme = themeSchema.parse(
     theme && typeof theme === 'object' ? theme : {},
@@ -296,7 +610,11 @@ export function SiteRenderer({
       className="bg-[rgb(var(--site-bg))] text-[rgb(var(--site-fg))]"
     >
       {visible.map((section) => (
-        <SectionRenderer key={section.id} section={section} />
+        <SectionRenderer
+          key={section.id}
+          section={section}
+          data={resolved?.[section.id]}
+        />
       ))}
     </div>
   );

@@ -9,13 +9,40 @@ import { z } from 'zod';
  * here too, so TypeScript catches a mismatch before PostgreSQL has to.
  */
 export const SECTION_TYPES = [
+  // Presentational: the content lives in the row.
   'hero',
   'about',
   'services',
   'testimonials',
   'contact',
   'footer',
+  // Data-bound: the row holds declarative configuration and the data is
+  // resolved from its authoritative table at render time. Nothing here stores
+  // a price, an address, a phone number or an opening time.
+  'menu',
+  'business_info',
+  'hours',
+  'branches',
 ] as const;
+
+/**
+ * The section types whose content is configuration rather than copy.
+ *
+ * A section in this set means nothing on its own: it must be handed resolved
+ * data by the server-side resolver before it can render.
+ */
+export const DATA_BOUND_SECTION_TYPES = [
+  'menu',
+  'business_info',
+  'hours',
+  'branches',
+] as const;
+
+export type DataBoundSectionType = (typeof DATA_BOUND_SECTION_TYPES)[number];
+
+export function isDataBoundSection(type: SectionType): type is DataBoundSectionType {
+  return (DATA_BOUND_SECTION_TYPES as readonly string[]).includes(type);
+}
 
 export type SectionType = (typeof SECTION_TYPES)[number];
 
@@ -30,6 +57,10 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   testimonials: 'آراء العملاء',
   contact: 'تواصل معنا',
   footer: 'التذييل',
+  menu: 'القائمة',
+  business_info: 'بيانات النشاط',
+  hours: 'مواعيد العمل',
+  branches: 'الفروع',
 };
 
 /**

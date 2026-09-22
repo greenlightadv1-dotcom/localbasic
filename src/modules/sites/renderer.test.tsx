@@ -5,6 +5,7 @@ import { SECTION_TYPES, type SectionType } from './schemas';
 import { businessTemplate } from './templates';
 import { themeSchema } from './templates/types';
 import type { SitePage, SiteSection } from './types';
+import type { ResolvedSectionData } from './resolved';
 
 /**
  * Nothing validates the jsonb between the database and the page except the
@@ -354,5 +355,184 @@ describe('multi-page rendering', () => {
     // Existing behaviour, unchanged: the section degrades to its placeholder.
     expect(out).toContain('من نحن');
     expect(out).toContain('لم تتم إضافة نص بعد.');
+  });
+});
+
+/**
+ * Data-bound sections (Phase 3).
+ *
+ * The renderer receives ALREADY-RESOLVED values. These tests hand it plain
+ * objects — there is no database in reach of this file, which is the boundary
+ * working rather than being asserted.
+ */
+describe('data-bound sections', () => {
+  const P = page({ id: 'p1' });
+  const menuSection = section('menu', { title: 'قائمتنا' }, { id: 'm1', pageId: 'p1' });
+
+  const MENU: ResolvedSectionData = {
+    type: 'menu',
+    currency: 'EGP',
+    categories: [
+      {
+        id: 'c1',
+        name: 'المشروبات',
+        products: [
+          {
+            id: 'p-latte',
+            name: 'لاتيه',
+            description: 'حليب وإسبريسو',
+            imageUrl: null,
+            fromPriceCents: 6500,
+            variants: [
+              { id: 'v1', name: 'وسط', priceCents: 6500 },
+              { id: 'v2', name: 'كبير', priceCents: 8000 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('renders a resolved menu with its live prices', () => {
+    const out = html(
+      <SiteRenderer page={P} sections={[menuSection]} resolved={{ m1: MENU }} />,
+    );
+    expect(out).toContain('قائمتنا');
+    expect(out).toContain('المشروبات');
+    expect(out).toContain('لاتيه');
+    // Arabic-Indic digits: the site's locale is ar-EG, so 6500 minor units
+    // render as ٦٥ and not as 65.
+    expect(out).toContain('٦٥');
+    expect(out).toContain('٨٠');
+    expect(out).toContain('EGP');
+    expect(out).toContain('يبدأ من');
+  });
+
+  it('does not claim the menu belongs to a branch', () => {
+    const out = html(
+      <SiteRenderer page={P} sections={[menuSection]} resolved={{ m1: MENU }} />,
+    );
+    // A site is organization-scoped and no branch was selected, so the copy
+    // must not imply one.
+    expect(out).not.toContain('الفرع');
+  });
+
+  it('shows an unavailable notice when nothing was resolved', () => {
+    // A page rendered without the resolver, or a resolution that failed. Never
+    // a throw, and never stale data.
+    const out = html(<SiteRenderer page={P} sections={[menuSection]} />);
+    expect(out).toContain('قائمتنا');
+    expect(out).toContain('تعذّر تحميل القائمة');
+  });
+
+  it('treats a mismatched resolved payload as absent', () => {
+    const wrong: ResolvedSectionData = { type: 'hours', days: [] };
+    const out = html(
+      <SiteRenderer page={P} sections={[menuSection]} resolved={{ m1: wrong }} />,
+    );
+    expect(out).toContain('تعذّر تحميل القائمة');
+  });
+
+  it('renders an empty resolved menu as empty, not as an error', () => {
+    const out = html(
+      <SiteRenderer
+        page={P}
+        sections={[menuSection]}
+        resolved={{ m1: { type: 'menu', currency: 'EGP', categories: [] } }}
+      />,
+    );
+    expect(out).toContain('لم تتم إضافة أصناف بعد');
+  });
+
+  it('renders resolved business info, and never an address', () => {
+    const s = section('business_info', {}, { id: 'bi', pageId: 'p1' });
+    const out = html(
+      <SiteRenderer
+        page={P}
+        sections={[s]}
+        resolved={{
+          bi: {
+            type: 'business_info',
+            name: 'Lavechi Café',
+            phone: '0100',
+            whatsapp: '0111',
+            email: 'hi@lavechi.test',
+            logoUrl: null,
+          },
+        }}
+      />,
+    );
+    expect(out).toContain('Lavechi Café');
+    expect(out).toContain('0100');
+    expect(out).toContain('واتساب');
+    // Organization-level info has no address; the branches section owns those.
+    expect(out).not.toContain('العنوان');
+    // Phone and email read left-to-right inside an RTL document.
+    expect(out).toContain('dir="ltr"');
+  });
+
+  it('renders the seven-day schedule with no "open now" badge', () => {
+    const s = section('hours', {}, { id: 'h1', pageId: 'p1' });
+    const days = Array.from({ length: 7 }, (_, index) => ({
+      index,
+      closed: index === 6,
+      opens: index === 6 ? null : '09:00',
+      closes: index === 6 ? null : '23:00',
+    }));
+    const out = html(
+      <SiteRenderer page={P} sections={[s]} resolved={{ h1: { type: 'hours', days } }} />,
+    );
+    expect(out).toContain('مواعيد العمل');
+    expect(out).toContain('الإثنين');
+    expect(out).toContain('الأحد');
+    expect(out).toContain('09:00');
+    expect(out).toContain('مغلق');
+    // No competing "currently open" claim.
+    expect(out).not.toContain('مفتوح الآن');
+  });
+
+  it('renders branches with their own addresses', () => {
+    const s = section('branches', {}, { id: 'br', pageId: 'p1' });
+    const out = html(
+      <SiteRenderer
+        page={P}
+        sections={[s]}
+        resolved={{
+          br: {
+            type: 'branches',
+            branches: [
+              { id: 'b1', name: 'الفرع الرئيسي', slug: 'main', address: 'شارع ٩', phone: '0100' },
+              { id: 'b2', name: 'فرع المعادي', slug: 'maadi', address: 'المعادي', phone: null },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(out).toContain('فروعنا');
+    expect(out).toContain('شارع ٩');
+    expect(out).toContain('المعادي');
+  });
+
+  it('keeps one h1 and page isolation with data-bound sections present', () => {
+    const hero = section('hero', { title: 'HERO' }, { id: 'h0', pageId: 'p1' });
+    const foreign = section('menu', {}, { id: 'other', pageId: 'page-elsewhere' });
+    const out = html(
+      <SiteRenderer
+        page={P}
+        sections={[hero, menuSection, foreign]}
+        resolved={{ m1: MENU, other: MENU }}
+      />,
+    );
+    expect(out.match(/<h1/g)?.length).toBe(1);
+    // The foreign section is filtered by page, resolved data or not.
+    expect(out.match(/قائمتنا/g)?.length).toBe(1);
+  });
+
+  it('keeps hidden data-bound sections hidden', () => {
+    const hidden = { ...menuSection, isVisible: false };
+    const out = html(
+      <SiteRenderer page={P} sections={[hidden]} resolved={{ m1: MENU }} />,
+    );
+    expect(out).not.toContain('لاتيه');
   });
 });

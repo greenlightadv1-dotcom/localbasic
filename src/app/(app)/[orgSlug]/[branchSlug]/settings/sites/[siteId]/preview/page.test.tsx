@@ -16,7 +16,8 @@ import type { SiteDetail } from '@/modules/sites/types';
 const h = vi.hoisted(() => {
   const state = { detail: null as SiteDetail | null };
   const writes: string[] = [];
-  return { state, writes };
+  const resolverCalls: string[][] = [];
+  return { state, writes, resolverCalls };
 });
 
 vi.mock('@/modules/core/tenancy/context', () => ({
@@ -39,6 +40,20 @@ vi.mock('@/modules/sites/service', () => ({
   renamePage: async () => h.writes.push('renamePage'),
   reorderPages: async () => h.writes.push('reorderPages'),
   deletePage: async () => h.writes.push('deletePage'),
+}));
+
+/**
+ * The resolver is mocked here, and that is the boundary this file is about:
+ * the route SELECTS a page and hands the resolver that page's sections. What
+ * the resolver then reads is resolve.test.ts's subject, and it holds the only
+ * database access in the chain — importing it for real would pull the Supabase
+ * server client, and its env validation, into a test about page selection.
+ */
+vi.mock('@/modules/sites/resolve', () => ({
+  resolveSectionData: async (_ctx: unknown, sections: { id: string }[]) => {
+    h.resolverCalls.push(sections.map((s) => s.id));
+    return {};
+  },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -85,6 +100,7 @@ async function render(page?: string | string[]) {
 beforeEach(() => {
   h.state.detail = DETAIL;
   h.writes.length = 0;
+  h.resolverCalls.length = 0;
 });
 
 describe('site preview page selection', () => {
@@ -154,6 +170,18 @@ describe('site preview page selection', () => {
     await render('page-b');
     await render('missing');
     expect(h.writes).toEqual([]);
+  });
+
+  it('resolves live data for the SELECTED page only', async () => {
+    await render('page-b');
+    // Page B's section, and none of the homepage's: the resolver never sees a
+    // section the caller is not rendering.
+    expect(h.resolverCalls).toEqual([['b1']]);
+  });
+
+  it('does not resolve anything when the named page is not found', async () => {
+    await render('missing');
+    expect(h.resolverCalls).toEqual([]);
   });
 
   it('404s when the site is out of reach, before any page selection', async () => {

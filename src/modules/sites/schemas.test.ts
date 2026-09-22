@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SECTION_TYPES,
+  isDataBoundSection,
   SECTION_LABELS,
   createSiteSchema,
   suggestSiteSlug,
@@ -88,15 +89,36 @@ describe('suggestSiteSlug', () => {
 });
 
 describe('section types', () => {
-  it('carries exactly the six types this phase supports', () => {
+  it('carries exactly the types this build supports, in order', () => {
+    // Still an exact list, not a loosened one: a type added here without a
+    // renderer case, a schema and a SQL allow-list entry fails this and the
+    // drift guard both.
     expect([...SECTION_TYPES]).toEqual([
+      // Presentational.
       'hero',
       'about',
       'services',
       'testimonials',
       'contact',
       'footer',
+      // Data-bound (Phase 3).
+      'menu',
+      'business_info',
+      'hours',
+      'branches',
     ]);
+  });
+
+  it('classifies exactly the data-bound types, and no presentational one', () => {
+    expect(SECTION_TYPES.filter(isDataBoundSection)).toEqual([
+      'menu',
+      'business_info',
+      'hours',
+      'branches',
+    ]);
+    for (const t of ['hero', 'about', 'services', 'testimonials', 'contact', 'footer'] as const) {
+      expect(isDataBoundSection(t)).toBe(false);
+    }
   });
 
   it('labels every type, so the details screen cannot render undefined', () => {
