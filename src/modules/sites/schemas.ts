@@ -121,3 +121,72 @@ export const reorderSectionsSchema = z.object({
 });
 
 export type ReorderSectionsInput = z.infer<typeof reorderSectionsSchema>;
+
+/**
+ * The page slug rule, matching the check constraint on site_pages.slug.
+ * One character, or 2–64 with no leading or trailing hyphen.
+ */
+const PAGE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$/;
+
+/**
+ * Creating a page.
+ *
+ * `.strict()` throughout this group, so a payload carrying `siteId`,
+ * `organizationId`, `isHomepage`, `id` or a timestamp is REFUSED rather than
+ * quietly stripped. Stripping would be safe — the service builds its own
+ * arguments — but a caller sending those fields has misunderstood something,
+ * and a silent success teaches them the misunderstanding was right.
+ *
+ * The site is not in here at all: it is a positional argument to the service,
+ * resolved against the TenantContext before anything is written.
+ *
+ * `isHomepage` is absent by design. A site has a homepage from the moment it
+ * is provisioned, so creating a page never means creating the homepage, and
+ * site_page_create() writes the flag as false without consulting the caller.
+ */
+export const createPageSchema = z
+  .object({
+    title: z.string().trim().min(1, 'العنوان مطلوب').max(200, 'العنوان طويل جدًا'),
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(PAGE_SLUG_RE, 'حروف إنجليزية صغيرة وأرقام وشرطات فقط'),
+  })
+  .strict();
+
+export type CreatePageInput = z.infer<typeof createPageSchema>;
+
+/**
+ * Renaming a page.
+ *
+ * The column is `title`, not `name`. Only it is editable here.
+ *
+ * `slug` is excluded for the reason site slugs are excluded from
+ * updateSiteSchema: a slug is an address, and changing one is a redirect
+ * problem rather than a field edit. `isHomepage` is excluded because changing
+ * which page a site opens on is a different operation — one that has to clear
+ * the old flag and set the new one in the same transaction — not a side effect
+ * of renaming.
+ */
+export const renamePageSchema = z
+  .object({
+    title: z.string().trim().min(1, 'العنوان مطلوب').max(200, 'العنوان طويل جدًا'),
+  })
+  .strict();
+
+export type RenamePageInput = z.infer<typeof renamePageSchema>;
+
+/**
+ * Reordering a site's pages.
+ *
+ * The complete ordered list of the site's page ids, exactly as
+ * reorderSectionsSchema does for a page's sections.
+ */
+export const reorderPagesSchema = z
+  .object({
+    pageIds: z.array(z.string().uuid()).max(64),
+  })
+  .strict();
+
+export type ReorderPagesInput = z.infer<typeof reorderPagesSchema>;

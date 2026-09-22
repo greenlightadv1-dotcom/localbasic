@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
     /** Row returned per table, keyed by table name. */
     rows: {} as Record<string, Row>,
     rpcError: null as { code?: string; message: string } | null,
+    rpcData: null as unknown,
   };
   const calls: {
     table: string;
@@ -47,7 +48,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServerClient: () => ({
     rpc: async (fn: string, args: Record<string, unknown>) => {
       h.rpcCalls.push({ fn, args });
-      return { data: null, error: h.state.rpcError };
+      return { data: h.state.rpcData, error: h.state.rpcError };
     },
     from: (table: string) => {
       const call = { table, op: 'select', filters: {} as Record<string, unknown> };
@@ -76,7 +77,17 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-import { updateSite, updateSection, reorderSections, deleteSection } from './service';
+import {
+  updateSite,
+  updateSection,
+  reorderSections,
+  deleteSection,
+  createPage,
+  renamePage,
+  reorderPages,
+  deletePage,
+} from './service';
+import { createPageSchema, renamePageSchema, reorderPagesSchema } from './schemas';
 
 const CTX = { organizationId: 'org-a', organizationSlug: 'alpha', branchSlug: 'main' } as never;
 
@@ -96,6 +107,7 @@ beforeEach(() => {
   h.state.organizationId = 'org-a';
   h.state.rows = {};
   h.state.rpcError = null;
+  h.state.rpcData = null;
 });
 
 describe('authorization', () => {
@@ -289,5 +301,144 @@ describe('content validation', () => {
     await expect(updateSection(CTX, 'sec-1', { isVisible: true })).rejects.toBeInstanceOf(
       AppError,
     );
+  });
+});
+
+
+// ===========================================================================
+// PAGE OPERATIONS (Phase 1b)
+// ===========================================================================
+
+/** A page that legitimately belongs to org A, resolvable end to end. */
+function reachablePage() {
+  h.state.rows = {
+    site_pages: { id: 'page-1', site_id: 'site-1' },
+    sites: { id: 'site-1' },
+  };
+}
+
+describe('page schemas reject privileged fields', () => {
+  it('createPageSchema refuses siteId, organizationId and isHomepage', () => {
+    expect(() => createPageSchema.parse({ title: 'x', slug: 'x' })).not.toThrow();
+    for (const extra of [
+      { site_id: 'other' },
+      { siteId: 'other' },
+      { organization_id: 'org-b' },
+      { organizationId: 'org-b' },
+      { is_homepage: true },
+      { isHomepage: true },
+      { id: 'chosen' },
+      { created_at: '2020-01-01' },
+      { sort_order: 0 },
+    ]) {
+      // .strict(), so these are REFUSED rather than quietly stripped: a caller
+      // sending them has misunderstood, and a silent success teaches them the
+      // misunderstanding was right.
+      expect(() => createPageSchema.parse({ title: 'x', slug: 'x', ...extra })).toThrow();
+    }
+  });
+
+  it('renamePageSchema accepts only a title', () => {
+    expect(() => renamePageSchema.parse({ title: 'x' })).not.toThrow();
+    expect(() => renamePageSchema.parse({ title: 'x', slug: 'y' })).toThrow();
+    expect(() => renamePageSchema.parse({ title: 'x', is_homepage: true })).toThrow();
+    expect(() => renamePageSchema.parse({ title: 'x', site_id: 'other' })).toThrow();
+  });
+
+  it('reorderPagesSchema accepts only a list of ids', () => {
+    expect(() => reorderPagesSchema.parse({ pageIds: [] })).not.toThrow();
+    expect(() => reorderPagesSchema.parse({ pageIds: [], siteId: 'other' })).toThrow();
+  });
+});
+
+describe('page operations', () => {
+  it.each([
+    ['createPage', () => createPage(CTX, 'site-1', { title: 'x', slug: 'x' })],
+    ['renamePage', () => renamePage(CTX, 'page-1', { title: 'x' })],
+    ['reorderPages', () => reorderPages(CTX, 'site-1', { pageIds: [] })],
+    ['deletePage', () => deletePage(CTX, 'page-1')],
+  ])('%s refuses a caller without site.manage', async (_name, run) => {
+    h.state.permissions = new Set(['site.read']);
+    await expect(run()).rejects.toBeInstanceOf(AppError);
+    expect(h.calls).toHaveLength(0);
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it('createPage refuses a site in another organization before calling the RPC', async () => {
+    h.state.rows = { sites: null };
+    await expect(
+      createPage(CTX, 'other-org-site', { title: 'x', slug: 'x' }),
+    ).rejects.toBeInstanceOf(AppError);
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it('createPage scopes the site lookup to the context organization', async () => {
+    h.state.rows = { sites: { id: 'site-1' } };
+    h.state.rpcData = 'page-new';
+    await createPage(CTX, 'site-1', { title: 'عنّا', slug: 'about' });
+
+    expect(h.calls[0]!.filters).toEqual({ id: 'site-1', organization_id: 'org-a' });
+    // No is_homepage, no sort_order, no organization: the function decides both,
+    // and there is no parameter through which a caller could claim the homepage.
+    expect(h.rpcCalls).toEqual([
+      { fn: 'site_page_create', args: { p_site: 'site-1', p_title: 'عنّا', p_slug: 'about' } },
+    ]);
+  });
+
+  it('renamePage writes only the title, only on its own site', async () => {
+    reachablePage();
+    await renamePage(CTX, 'page-1', { title: 'جديد' });
+
+    const write = h.calls.filter((c) => c.table === 'site_pages').at(-1)!;
+    expect(write.op).toBe('update');
+    expect(write.payload).toEqual({ title: 'جديد' });
+    expect(write.filters).toEqual({ id: 'page-1', site_id: 'site-1' });
+  });
+
+  it('renamePage refuses a page whose site is in another organization', async () => {
+    h.state.rows = { site_pages: { id: 'page-1', site_id: 'site-1' }, sites: null };
+    await expect(renamePage(CTX, 'page-1', { title: 'x' })).rejects.toBeInstanceOf(AppError);
+    expect(h.calls.filter((c) => c.op === 'update')).toHaveLength(0);
+  });
+
+  it('reorderPages passes the site and ids to the RPC unchanged', async () => {
+    h.state.rows = { sites: { id: 'site-1' } };
+    await reorderPages(CTX, 'site-1', { pageIds: ['p1', 'p2'] });
+    expect(h.rpcCalls).toEqual([
+      { fn: 'site_pages_reorder', args: { p_site: 'site-1', p_ids: ['p1', 'p2'] } },
+    ]);
+  });
+
+  it('reorderPages turns a non-permutation into a validation error', async () => {
+    h.state.rows = { sites: { id: 'site-1' } };
+    h.state.rpcError = { code: '22023', message: 'the order must list every page' };
+    await expect(
+      reorderPages(CTX, 'site-1', { pageIds: ['p1'] }),
+    ).rejects.toMatchObject({ code: 'validation' });
+  });
+
+  it('deletePage reports the promoted homepage', async () => {
+    reachablePage();
+    h.state.rpcData = 'page-2';
+    await expect(deletePage(CTX, 'page-1')).resolves.toEqual({ promotedPageId: 'page-2' });
+    expect(h.rpcCalls).toEqual([{ fn: 'site_page_delete', args: { p_page: 'page-1' } }]);
+  });
+
+  it('deletePage reports no promotion when an ordinary page is removed', async () => {
+    reachablePage();
+    h.state.rpcData = null;
+    await expect(deletePage(CTX, 'page-1')).resolves.toEqual({ promotedPageId: null });
+  });
+
+  it('deletePage turns "last page" into a validation error, not a fault', async () => {
+    reachablePage();
+    h.state.rpcError = { code: '23514', message: 'a site must keep at least one page' };
+    await expect(deletePage(CTX, 'page-1')).rejects.toMatchObject({ code: 'validation' });
+  });
+
+  it('deletePage refuses a page in another organization before calling the RPC', async () => {
+    h.state.rows = { site_pages: { id: 'page-1', site_id: 'site-1' }, sites: null };
+    await expect(deletePage(CTX, 'page-1')).rejects.toBeInstanceOf(AppError);
+    expect(h.rpcCalls).toHaveLength(0);
   });
 });

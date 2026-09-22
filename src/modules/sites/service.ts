@@ -5,7 +5,10 @@ import { AppError, conflict, notFound, toAppError } from '@/lib/errors';
 import { can, requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 import {
   SECTION_TYPES,
+  type CreatePageInput,
   type CreateSiteInput,
+  type RenamePageInput,
+  type ReorderPagesInput,
   type ReorderSectionsInput,
   type SectionType,
   type SiteStatus,
@@ -538,3 +541,188 @@ export async function deleteSection(ctx: TenantContext, sectionId: string): Prom
 // have to learn about it — so it is a design decision to take deliberately,
 // not a side effect of wanting a delete button. Until then the RLS delete
 // policy stands unused, which costs nothing.
+
+// ===========================================================================
+// PAGE OPERATIONS (Phase 1b)
+//
+// The same three rules as the section write layer: the organization comes from
+// the TenantContext, ownership is re-established through the parent chain
+// before the write, and only named fields are sent.
+//
+// Three of the four go through an RPC rather than a PostgREST write, and not
+// for convenience:
+//
+//   * creating a page has to read the site's highest sort_order and insert in
+//     the same statement, or two pages created at once land on the same slot;
+//   * reordering is a multi-row write that must be all or nothing;
+//   * deleting a page may have to promote a replacement homepage, and between
+//     the delete and the promotion the site has none — a state only one
+//     transaction can contain.
+//
+// Renaming is a single-row update of a single column, so it stays a plain
+// PostgREST write.
+//
+// Every RPC is SECURITY INVOKER: RLS still decides. The one SECURITY DEFINER
+// function in 0058 is the deferred constraint trigger, which asserts the
+// homepage invariant and authorizes nothing.
+// ===========================================================================
+
+/** A site that exists in this organization, or null when it is out of reach. */
+async function resolveSiteScope(ctx: TenantContext, siteId: string): Promise<boolean> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('sites')
+    .select('id')
+    .eq('id', siteId)
+    .eq('organization_id', ctx.organizationId)
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'resolveSiteScope');
+  return Boolean(data);
+}
+
+/**
+ * Adds a page to a site.
+ *
+ * Never the homepage: site_page_create() writes that flag as false and takes
+ * no parameter for it. Its position is the end of the site's current order,
+ * computed inside the insert.
+ */
+export async function createPage(
+  ctx: TenantContext,
+  siteId: string,
+  input: CreatePageInput,
+): Promise<{ pageId: string }> {
+  requirePermission(ctx, 'site.manage');
+
+  if (!(await resolveSiteScope(ctx, siteId))) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('site_page_create', {
+    p_site: siteId,
+    p_title: input.title,
+    p_slug: input.slug,
+  });
+
+  if (error) {
+    // 23505 = unique_violation, which on this table means the site already has
+    // a page on that slug. Slugs are unique per site, so another site holding
+    // it is not a conflict and cannot produce this.
+    if ((error as { code?: string }).code === '23505') {
+      throw conflict('يوجد صفحة بهذا المعرّف في هذا الموقع. اختر معرّفًا آخر.');
+    }
+    throw toAppError(error, 'createPage');
+  }
+
+  const pageId = data as unknown as string | null;
+  if (!pageId) throw new AppError('internal');
+  return { pageId };
+}
+
+/**
+ * Changes a page's title.
+ *
+ * `site_id` is not in the payload and could not be honoured if it were: 0058's
+ * identity trigger refuses to move a page between sites, so re-parenting is
+ * impossible through this path and through any other.
+ */
+export async function renamePage(
+  ctx: TenantContext,
+  pageId: string,
+  input: RenamePageInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolvePageScope(ctx, pageId);
+  if (!scope) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('site_pages')
+    .update({ title: input.title })
+    .eq('id', pageId)
+    // Repeated even though the scope check just passed, so the statement
+    // itself cannot reach a page of another site.
+    .eq('site_id', scope.siteId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw toAppError(error, 'renamePage');
+  if (!data) throw notFound();
+}
+
+/**
+ * Sets the order of a site's pages.
+ *
+ * The array must be an exact permutation of the site's pages. A short list, a
+ * duplicate, or an id belonging to another site is refused rather than
+ * partially applied — and a refusal leaves the previous order exactly as it
+ * was, because the whole thing is one statement in one transaction.
+ *
+ * Which page is the homepage is not affected. Position in the menu and "the
+ * page this site opens on" are separate facts.
+ */
+export async function reorderPages(
+  ctx: TenantContext,
+  siteId: string,
+  input: ReorderPagesInput,
+): Promise<void> {
+  requirePermission(ctx, 'site.manage');
+
+  if (!(await resolveSiteScope(ctx, siteId))) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('site_pages_reorder', {
+    p_site: siteId,
+    p_ids: input.pageIds,
+  });
+
+  if (error) {
+    if ((error as { code?: string }).code === '22023') {
+      throw new AppError('validation', 'ترتيب الصفحات غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.');
+    }
+    throw toAppError(error, 'reorderPages');
+  }
+}
+
+/**
+ * Removes a page, and everything on it.
+ *
+ * Its sections go with it through the existing ON DELETE CASCADE, so nothing
+ * here deletes them and nothing can leave one orphaned. The site's settings
+ * row hangs off the SITE and is untouched.
+ *
+ * Deleting the homepage promotes a deterministic replacement — the next page
+ * in (sort_order, id), or the previous one when the homepage is last — in the
+ * same transaction. Deleting the only page is refused: a site with no pages
+ * has nothing to render and nothing to promote, and creating a page to satisfy
+ * the invariant would be inventing content nobody asked for.
+ *
+ * Returns the id of the page that became the homepage, or null when the
+ * deleted page was not the homepage.
+ */
+export async function deletePage(
+  ctx: TenantContext,
+  pageId: string,
+): Promise<{ promotedPageId: string | null }> {
+  requirePermission(ctx, 'site.manage');
+
+  const scope = await resolvePageScope(ctx, pageId);
+  if (!scope) throw notFound();
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('site_page_delete', { p_page: pageId });
+
+  if (error) {
+    const code = (error as { code?: string }).code;
+    // 23514 = check_violation, which this function raises for "a site must
+    // keep at least one page". That is a rule the caller ran into, not a fault.
+    if (code === '23514') {
+      throw new AppError('validation', 'لا يمكن حذف الصفحة الوحيدة في الموقع.');
+    }
+    if (code === '22023') throw notFound();
+    throw toAppError(error, 'deletePage');
+  }
+
+  return { promotedPageId: (data as unknown as string | null) ?? null };
+}
