@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getSiteDetail } from '@/modules/sites/service';
 import { SECTION_LABELS } from '@/modules/sites/schemas';
+import { selectPage } from '@/modules/sites/pages';
 
 export const metadata = { title: 'تفاصيل الموقع' };
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,10 @@ export default async function SiteDetailPage({
   if (!detail) notFound();
 
   const { site, pages, sections, settings } = detail;
-  const homepage = pages.find((p) => p.isHomepage) ?? pages[0] ?? null;
+  // The same selection the preview uses, so "which page does a site open on"
+  // is answered in one place rather than re-derived per screen.
+  const home = selectPage(detail, { kind: 'homepage' });
+  const homepage = home.ok ? home.page : null;
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}/settings/sites`;
 
   return (
@@ -98,7 +102,7 @@ export default async function SiteDetailPage({
         </CardHeader>
         <CardBody>
           {(() => {
-            const own = homepage ? sections.filter((s) => s.pageId === homepage.id) : [];
+            const own = home.ok ? home.sections : [];
             if (own.length === 0) {
               return (
                 <p className="text-sm text-muted">

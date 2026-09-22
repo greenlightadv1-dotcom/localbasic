@@ -1,6 +1,6 @@
 import { hexToRgbChannels } from '@/lib/color';
 import { parseSectionContent, type SectionContent } from './sections/content';
-import type { SiteSection } from './types';
+import type { SitePage, SiteSection } from './types';
 import { themeSchema, type SiteTheme } from './templates/types';
 
 /**
@@ -242,14 +242,29 @@ export function themeStyle(theme: SiteTheme): React.CSSProperties {
 /**
  * One page, rendered.
  *
+ * PAGE-ORIENTED, deliberately. The renderer is handed the page it is to draw
+ * and the sections it was given, and it draws that page. It does not choose a
+ * page, look at any other page, read a URL, query anything, or decide whether
+ * a page the caller asked for exists — selectPage() in ./pages does that, and
+ * the route calls it. This component's only job is presentation.
+ *
+ * `sections` is narrowed to `page` here as well as by the caller. That is not
+ * a second opinion about which sections belong to the page — it is the same
+ * question answered from the page's own id, and it makes "the renderer showed
+ * another page's content" unrepresentable rather than merely unlikely. There
+ * is one renderer for every page; the homepage is simply the page the caller
+ * selected.
+ *
  * `theme` is parsed rather than trusted, so a settings row with a colour
  * someone typed by hand cannot put an arbitrary string into a style attribute.
  */
 export function SiteRenderer({
+  page,
   sections,
   theme,
   direction = 'rtl',
 }: {
+  page: SitePage;
   sections: SiteSection[];
   theme?: unknown;
   direction?: 'rtl' | 'ltr';
@@ -257,7 +272,7 @@ export function SiteRenderer({
   const safeTheme = themeSchema.parse(
     theme && typeof theme === 'object' ? theme : {},
   );
-  const visible = sections.filter((s) => s.isVisible);
+  const visible = sections.filter((s) => s.pageId === page.id && s.isVisible);
 
   if (visible.length === 0) {
     return (
