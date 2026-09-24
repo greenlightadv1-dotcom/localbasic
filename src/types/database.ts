@@ -3226,6 +3226,7 @@ export type Database = {
       retail_store_catalog: { Args: Record<string, unknown>; Returns: Json };
       retail_store_context: { Args: Record<string, unknown>; Returns: Json };
       site_page_create: { Args: Record<string, unknown>; Returns: Json };
+      site_public_page: { Args: Record<string, unknown>; Returns: Json };
       site_page_delete: { Args: Record<string, unknown>; Returns: Json };
       site_pages_reorder: { Args: Record<string, unknown>; Returns: Json };
       site_provision: { Args: Record<string, unknown>; Returns: Json };
