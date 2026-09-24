@@ -18,6 +18,7 @@ import {
   MoveButtons,
   PublishForm,
   RestoreButton,
+  Scope,
   UnpublishButton,
 } from './forms';
 
@@ -142,8 +143,7 @@ export default async function SiteDetailPage({
           </CardHeader>
           <CardBody>
             <AppearanceForm
-              orgSlug={scope.orgSlug}
-              branchSlug={scope.branchSlug}
+              hidden={<Scope orgSlug={scope.orgSlug} branchSlug={scope.branchSlug} />}
               siteId={site.id}
               config={appearance}
             />
@@ -157,8 +157,7 @@ export default async function SiteDetailPage({
             <CardTitle>النشر</CardTitle>
             {manage && live && (
               <UnpublishButton
-                orgSlug={scope.orgSlug}
-                branchSlug={scope.branchSlug}
+                hidden={<Scope orgSlug={scope.orgSlug} branchSlug={scope.branchSlug} />}
                 siteId={site.id}
               />
             )}
@@ -192,8 +191,7 @@ export default async function SiteDetailPage({
 
           {manage ? (
             <PublishForm
-              orgSlug={scope.orgSlug}
-              branchSlug={scope.branchSlug}
+              hidden={<Scope orgSlug={scope.orgSlug} branchSlug={scope.branchSlug} />}
               siteId={site.id}
               hasLive={Boolean(live)}
               pendingChanges={pendingChanges}
@@ -232,8 +230,7 @@ export default async function SiteDetailPage({
                   </div>
                   {manage && !revision.isLive && (
                     <RestoreButton
-                      orgSlug={scope.orgSlug}
-                      branchSlug={scope.branchSlug}
+                      hidden={<Scope orgSlug={scope.orgSlug} branchSlug={scope.branchSlug} />}
                       siteId={site.id}
                       revisionId={revision.id}
                       version={revision.version}

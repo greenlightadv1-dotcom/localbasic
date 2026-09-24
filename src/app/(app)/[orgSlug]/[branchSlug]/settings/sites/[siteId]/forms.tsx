@@ -279,23 +279,25 @@ export function DeletePageButton({
  * make. The optional note is for whoever reads the history later.
  */
 export function PublishForm({
-  orgSlug,
-  branchSlug,
+  publishAction = publishSiteAction,
+  hidden,
   siteId,
   hasLive,
   pendingChanges,
 }: {
-  orgSlug: string;
-  branchSlug: string;
+  /** Defaults to the tenant action; Platform Admin passes its own. */
+  publishAction?: (prev: FormState, formData: FormData) => Promise<FormState>;
+  /** Scope fields the action needs beyond siteId — <Scope/> for tenant, a customer code for Platform Admin. Required, so no call site can silently drop it. */
+  hidden: React.ReactNode;
   siteId: string;
   hasLive: boolean;
   pendingChanges: boolean;
 }) {
-  const [state, action] = useFormState<FormState, FormData>(publishSiteAction, undefined);
+  const [state, action] = useFormState<FormState, FormData>(publishAction, undefined);
 
   return (
     <form action={action} className="space-y-3">
-      <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+      {hidden}
       <input type="hidden" name="siteId" value={siteId} />
       {state?.error && <Alert tone="danger">{state.error}</Alert>}
 
@@ -318,12 +320,12 @@ export function PublishForm({
 
 /** Taking the site down. History survives; only the live flag is cleared. */
 export function UnpublishButton({
-  orgSlug,
-  branchSlug,
+  unpublishAction = unpublishSiteAction,
+  hidden,
   siteId,
 }: {
-  orgSlug: string;
-  branchSlug: string;
+  unpublishAction?: (formData: FormData) => Promise<void>;
+  hidden: React.ReactNode;
   siteId: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -345,8 +347,8 @@ export function UnpublishButton({
         onCancel={() => setOpen(false)}
         onConfirm={() => setOpen(false)}
       >
-        <form action={unpublishSiteAction} className="flex justify-end gap-2">
-          <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+        <form action={unpublishAction} className="flex justify-end gap-2">
+          {hidden}
           <input type="hidden" name="siteId" value={siteId} />
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             إلغاء
@@ -367,14 +369,14 @@ export function UnpublishButton({
  * up exactly as it was, and nothing in the history is rewritten.
  */
 export function RestoreButton({
-  orgSlug,
-  branchSlug,
+  rollbackAction = rollbackSiteAction,
+  hidden,
   siteId,
   revisionId,
   version,
 }: {
-  orgSlug: string;
-  branchSlug: string;
+  rollbackAction?: (formData: FormData) => Promise<void>;
+  hidden: React.ReactNode;
   siteId: string;
   revisionId: string;
   version: number;
@@ -399,8 +401,8 @@ export function RestoreButton({
         onCancel={() => setOpen(false)}
         onConfirm={() => setOpen(false)}
       >
-        <form action={rollbackSiteAction} className="flex justify-end gap-2">
-          <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+        <form action={rollbackAction} className="flex justify-end gap-2">
+          {hidden}
           <input type="hidden" name="siteId" value={siteId} />
           <input type="hidden" name="revisionId" value={revisionId} />
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -464,13 +466,14 @@ function ColourField({
 }
 
 export function AppearanceForm({
-  orgSlug,
-  branchSlug,
+  appearanceAction = updateAppearanceAction,
+  hidden,
   siteId,
   config,
 }: {
-  orgSlug: string;
-  branchSlug: string;
+  /** Defaults to the tenant action; Platform Admin passes its own. */
+  appearanceAction?: (prev: FormState, formData: FormData) => Promise<FormState>;
+  hidden: React.ReactNode;
   siteId: string;
   config: {
     direction: 'rtl' | 'ltr';
@@ -478,11 +481,11 @@ export function AppearanceForm({
     theme: { primary: string; background: string; foreground: string; border: string };
   };
 }) {
-  const [state, action] = useFormState<FormState, FormData>(updateAppearanceAction, undefined);
+  const [state, action] = useFormState<FormState, FormData>(appearanceAction, undefined);
 
   return (
     <form action={action} className="space-y-4">
-      <Scope orgSlug={orgSlug} branchSlug={branchSlug} />
+      {hidden}
       <input type="hidden" name="siteId" value={siteId} />
       {state?.error && <Alert tone="danger">{state.error}</Alert>}
 

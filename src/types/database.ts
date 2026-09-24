@@ -3161,6 +3161,13 @@ export type Database = {
       platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       platform_search_customers: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_detail: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_list: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_publish: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_revisions_list: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_rollback: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_theme_update: { Args: Record<string, unknown>; Returns: Json };
+      platform_site_unpublish: { Args: Record<string, unknown>; Returns: Json };
       platform_website_business_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_website_publish: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };

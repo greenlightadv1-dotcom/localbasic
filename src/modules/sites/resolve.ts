@@ -48,6 +48,18 @@ import type {
  * organization-scoped and is not part of that system.
  */
 
+/**
+ * Everything this module actually reads off a caller's context.
+ *
+ * A full TenantContext still satisfies this — it is a strict subset — so
+ * every tenant call site is unaffected. It exists so a caller that is NOT a
+ * tenant member, such as a Platform Admin operating a customer's site, can
+ * resolve data-bound sections too: they build one of these from the
+ * organization row they already resolved (id, name, currency), never from a
+ * TenantContext they have no membership to construct.
+ */
+export type SiteResolveContext = Pick<TenantContext, 'organizationId' | 'organizationName' | 'currency'>;
+
 /** A section that needs resolving, paired with its parsed configuration. */
 type Job = { section: SiteSection; type: SectionType };
 
@@ -63,7 +75,7 @@ type Job = { section: SiteSection; type: SectionType };
  * ordering surfaces still answer it.
  */
 async function resolveMenu(
-  ctx: TenantContext,
+  ctx: SiteResolveContext,
   categoryIds: string[],
   limit: number | null,
 ): Promise<ResolvedMenuCategory[]> {
@@ -191,7 +203,7 @@ async function resolveMenu(
  * No address, deliberately — see ResolvedBusinessInfo. The name, currency and
  * locale already ride the TenantContext, so the only query is the branding row.
  */
-async function resolveBusinessInfo(ctx: TenantContext): Promise<ResolvedSectionData> {
+async function resolveBusinessInfo(ctx: SiteResolveContext): Promise<ResolvedSectionData> {
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -226,7 +238,7 @@ async function resolveBusinessInfo(ctx: TenantContext): Promise<ResolvedSectionD
  * preserve. There is no "currently open" flag because the repository has no
  * canonical calculation for one.
  */
-async function resolveHours(ctx: TenantContext): Promise<ResolvedSectionData> {
+async function resolveHours(ctx: SiteResolveContext): Promise<ResolvedSectionData> {
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -269,7 +281,7 @@ async function resolveHours(ctx: TenantContext): Promise<ResolvedSectionData> {
  * order. Each branch's address is its own; nothing here promotes one to stand
  * for the organization.
  */
-async function resolveBranches(ctx: TenantContext): Promise<ResolvedSectionData> {
+async function resolveBranches(ctx: SiteResolveContext): Promise<ResolvedSectionData> {
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -304,7 +316,7 @@ async function resolveBranches(ctx: TenantContext): Promise<ResolvedSectionData>
  * common case and costs no query at all.
  */
 export async function resolveSectionData(
-  ctx: TenantContext,
+  ctx: SiteResolveContext,
   sections: SiteSection[],
 ): Promise<ResolvedSectionMap> {
   const jobs: Job[] = sections
@@ -360,7 +372,7 @@ export async function resolveSectionData(
  * Organization-scoped like every other read here.
  */
 export async function listMenuCategories(
-  ctx: TenantContext,
+  ctx: SiteResolveContext,
 ): Promise<{ id: string; name: string }[]> {
   const supabase = createSupabaseServerClient();
 

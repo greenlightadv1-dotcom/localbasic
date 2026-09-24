@@ -10,6 +10,7 @@ import {
   type TenantContext,
 } from '@/modules/core/tenancy/context';
 import type { Permission } from '@/modules/core/rbac/permissions';
+import { requirePlatformAdmin, type PlatformContext } from '@/modules/platform/admin/context';
 
 /**
  * The result every Server Action returns. Actions never throw across the
@@ -116,6 +117,59 @@ export function defineUserAction<TSchema extends z.ZodTypeAny, TResult>(config: 
       return { ok: true, data };
     } catch (error) {
       const appError = toAppError(error, 'user action');
+      return {
+        ok: false,
+        error: appError.message,
+        code: appError.code,
+        ...(appError.fieldErrors ? { fieldErrors: appError.fieldErrors } : {}),
+      };
+    }
+  };
+}
+
+/**
+ * Wraps a Platform Admin action — one that operates a CUSTOMER'S data from
+ * the /admin surface, never the caller's own.
+ *
+ * Deliberately not defineTenantAction with a special permission: a Platform
+ * Admin is not a tenant member of anything, so there is no organization slug
+ * in the URL to resolve a TenantContext from, and no tenant permission a
+ * SECURITY DEFINER function could ever grant them. requirePlatformAdmin()
+ * here is for the UI's benefit — a clean 404-shaped ActionResult instead of a
+ * raw SQL error — never the only thing standing between a caller and the
+ * data: every function this calls into re-checks app.require_platform_admin()
+ * itself, the same relationship defineTenantAction has with RLS.
+ *
+ * The customer/site the handler acts on travels as ordinary form fields, the
+ * same as a tenant action's target ids — it is WHICH row to act on, and the
+ * database resolves it, never trusts it as a claim of authorization.
+ */
+export function definePlatformAction<TSchema extends z.ZodTypeAny, TResult>(config: {
+  schema: TSchema;
+  rateLimit?: RateLimitRule;
+  handler: (args: {
+    admin: PlatformContext;
+    input: z.infer<TSchema>;
+  }) => Promise<TResult>;
+}) {
+  return async function action(rawInput: unknown): Promise<ActionResult<TResult>> {
+    try {
+      const admin = await requirePlatformAdmin();
+      const rule = config.rateLimit ?? RATE_LIMITS.mutation;
+      const { ok } = checkRateLimit(`platform-action:${admin.user.id}`, rule);
+      if (!ok) throw new AppError('rate_limited');
+
+      const parsed = config.schema.safeParse(rawInput);
+      if (!parsed.success) {
+        throw new AppError('validation', undefined, {
+          fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+        });
+      }
+
+      const data = await config.handler({ admin, input: parsed.data });
+      return { ok: true, data };
+    } catch (error) {
+      const appError = toAppError(error, 'platform action');
       return {
         ok: false,
         error: appError.message,
