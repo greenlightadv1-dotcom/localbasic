@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
 import { listInvitations } from '@/modules/core/members/invitations';
-import { InviteForm, RevokeInvitation } from './invite-forms';
+import { CreateMemberDirectForm, InviteForm, RevokeInvitation } from './invite-forms';
 
 export const metadata = { title: 'الموظفون' };
 export const dynamic = 'force-dynamic';
@@ -94,12 +94,35 @@ export default async function MembersPage({
     {canManage ? (
       <Card>
         <CardHeader>
-          <CardTitle>دعوة موظف</CardTitle>
+          <CardTitle>إنشاء حساب موظف مباشرةً</CardTitle>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          <p className="text-xs text-muted">
+            يعمل الحساب فورًا بالبريد وكلمة المرور اللي تدخلها — بدون دعوة
+            ولا بريد إلكتروني. استخدمه لموظف واقف معاك جاهز لبدء الشيفت.
+          </p>
+          <CreateMemberDirectForm
+            orgSlug={ctx.organizationSlug}
+            branchSlug={ctx.branchSlug}
+            roles={(roleRows ?? []).map((r) => ({
+              id: r.id,
+              label: ROLE_NAMES[r.key] ?? r.name_ar,
+            }))}
+          />
+        </CardBody>
+      </Card>
+    ) : null}
+
+    {canManage ? (
+      <Card>
+        <CardHeader>
+          <CardTitle>دعوة موظف بالبريد</CardTitle>
         </CardHeader>
         <CardBody className="space-y-3">
           <p className="text-xs text-muted">
             تصل الدعوة على البريد، وتنتهي صلاحيتها خلال سبعة أيام. الرابط يُستخدم
-            مرة واحدة فقط، ولا يعمل إلا لصاحب البريد نفسه.
+            مرة واحدة فقط، ولا يعمل إلا لصاحب البريد نفسه. استخدمها لموظف مش
+            حاضر دلوقتي، أو يفضّل يختار كلمة المرور بنفسه.
           </p>
           <InviteForm
             orgSlug={ctx.organizationSlug}

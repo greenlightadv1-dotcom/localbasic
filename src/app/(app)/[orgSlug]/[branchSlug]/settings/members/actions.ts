@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { defineTenantAction } from '@/lib/action';
 import { createInvitation, revokeInvitation } from '@/modules/core/members/invitations';
+import { createMemberDirect } from '@/modules/core/members/direct';
 
 /**
  * Invitations.
@@ -29,6 +30,23 @@ export const inviteMemberAction = defineTenantAction({
       branchIds: input.branchIds,
       allBranches: input.allBranches,
     });
+    revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members`);
+    return result;
+  },
+});
+
+export const createMemberDirectAction = defineTenantAction({
+  schema: z.object({
+    email: z.string().trim().email('أدخل بريدًا صحيحًا').max(200),
+    password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل').max(72),
+    fullName: z.string().trim().min(2, 'الاسم مطلوب').max(120),
+    roleIds: z.array(z.string().uuid()).max(20).default([]),
+    allBranches: z.coerce.boolean().default(false),
+    branchIds: z.array(z.string().uuid()).max(50).default([]),
+  }),
+  permission: 'member.manage',
+  handler: async ({ ctx, input }) => {
+    const result = await createMemberDirect(ctx, input);
     revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members`);
     return result;
   },
