@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { defineTenantAction } from '@/lib/action';
 import { createInvitation, revokeInvitation } from '@/modules/core/members/invitations';
 import { createMemberDirect } from '@/modules/core/members/direct';
+import { removeMember } from '@/modules/core/members/remove';
 
 /**
  * Invitations.
@@ -57,6 +58,16 @@ export const revokeInvitationAction = defineTenantAction({
   permission: 'member.manage',
   handler: async ({ ctx, input }) => {
     await revokeInvitation(ctx, input.id);
+    revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members`);
+    return { ok: true };
+  },
+});
+
+export const removeMemberAction = defineTenantAction({
+  schema: z.object({ memberId: z.string().uuid() }),
+  permission: 'member.manage',
+  handler: async ({ ctx, input }) => {
+    await removeMember(ctx, input.memberId);
     revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members`);
     return { ok: true };
   },

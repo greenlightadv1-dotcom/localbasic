@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
 import { listInvitations } from '@/modules/core/members/invitations';
-import { CreateMemberDirectForm, InviteForm, RevokeInvitation } from './invite-forms';
+import { CreateMemberDirectForm, InviteForm, RemoveMember, RevokeInvitation } from './invite-forms';
 
 export const metadata = { title: 'الموظفون' };
 export const dynamic = 'force-dynamic';
@@ -32,10 +32,13 @@ export default async function MembersPage({
 
   const supabase = createSupabaseServerClient();
 
-  const { data: members } = await supabase
-    .from('organization_members')
-    .select('id, user_id, status, all_branches, joined_at')
-    .eq('organization_id', ctx.organizationId);
+  const [{ data: members }, { data: org }] = await Promise.all([
+    supabase
+      .from('organization_members')
+      .select('id, user_id, status, all_branches, joined_at')
+      .eq('organization_id', ctx.organizationId),
+    supabase.from('organizations').select('owner_user_id').eq('id', ctx.organizationId).single(),
+  ]);
 
   const memberIds = (members ?? []).map((m) => m.id);
   const userIds = (members ?? []).map((m) => m.user_id);
@@ -71,6 +74,7 @@ export default async function MembersPage({
     const own = (grants ?? []).filter((g) => g.member_id === member.id);
     return {
       id: member.id,
+      userId: member.user_id,
       name: nameById.get(member.user_id)?.name ?? '—',
       phone: nameById.get(member.user_id)?.phone ?? null,
       status: member.status,
@@ -81,6 +85,8 @@ export default async function MembersPage({
       }),
     };
   });
+
+  const ownerUserId = org?.owner_user_id ?? null;
 
   const INVITE_STATUS: Record<string, { label: string; tone: 'info' | 'success' | 'neutral' | 'danger' }> = {
     pending: { label: 'بانتظار القبول', tone: 'info' },
@@ -198,6 +204,7 @@ export default async function MembersPage({
                   <th scope="col" className="p-3 text-start font-medium">الدور</th>
                   <th scope="col" className="p-3 text-start font-medium">الفروع</th>
                   <th scope="col" className="p-3 text-start font-medium">الحالة</th>
+                  {canManage ? <th scope="col" className="p-3 text-start font-medium"> </th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -226,6 +233,17 @@ export default async function MembersPage({
                         {member.status === 'active' ? 'نشط' : member.status}
                       </Badge>
                     </td>
+                    {canManage ? (
+                      <td className="p-3">
+                        {member.userId !== ownerUserId ? (
+                          <RemoveMember
+                            orgSlug={ctx.organizationSlug}
+                            branchSlug={ctx.branchSlug}
+                            memberId={member.id}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

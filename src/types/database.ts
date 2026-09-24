@@ -3141,6 +3141,7 @@ export type Database = {
       invitation_revoke: { Args: Record<string, unknown>; Returns: Json };
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       member_provision_direct: { Args: Record<string, unknown>; Returns: Json };
+      member_remove: { Args: Record<string, unknown>; Returns: Json };
       notification_claim_batch: { Args: Record<string, unknown>; Returns: Json };
       notification_mark_failed: { Args: Record<string, unknown>; Returns: Json };
       notification_mark_sent: { Args: Record<string, unknown>; Returns: Json };

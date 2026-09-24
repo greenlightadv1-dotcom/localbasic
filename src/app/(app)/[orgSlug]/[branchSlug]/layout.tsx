@@ -3,6 +3,7 @@ import { AppError } from '@/lib/errors';
 import { resolveTenantContext } from '@/modules/core/tenancy/context';
 import { AppShell } from '@/components/patterns/app-shell';
 import { getBranding } from '@/modules/core/branding/service';
+import { MembershipWatch } from '@/modules/core/members/membership-watch';
 
 /**
  * The authenticated workspace shell.
@@ -30,6 +31,7 @@ export default async function BranchLayout({
 
   return (
     <AppShell ctx={ctx} branding={branding}>
+      <MembershipWatch userId={ctx.userId} />
       {children}
     </AppShell>
   );

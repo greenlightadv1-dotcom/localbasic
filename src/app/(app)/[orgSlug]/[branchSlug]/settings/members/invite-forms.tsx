@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
-import { createMemberDirectAction, inviteMemberAction, revokeInvitationAction } from './actions';
+import { createMemberDirectAction, inviteMemberAction, removeMemberAction, revokeInvitationAction } from './actions';
 
 type Scope = { orgSlug: string; branchSlug: string };
 
@@ -211,6 +211,59 @@ export function RevokeInvitation({ orgSlug, branchSlug, id }: Scope & { id: stri
       }
     >
       سحب الدعوة
+    </Button>
+  );
+}
+
+/**
+ * Removing a staff member. A destructive, irreversible action — a member
+ * loses access, not "pending" access — so it asks once before it does
+ * anything: the first click arms it, the second (within the same render)
+ * carries it out. Refreshing or navigating away disarms it for free, since
+ * `armed` is component state.
+ */
+export function RemoveMember({ orgSlug, branchSlug, memberId }: Scope & { memberId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [armed, setArmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (armed) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {error ? <span className="text-xs text-danger">{error}</span> : null}
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          disabled={isPending}
+          data-testid={`confirm-remove-${memberId}`}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await removeMemberAction({ organizationSlug: orgSlug, branchSlug }, { memberId });
+              if (!result.ok) { setError(result.error); return; }
+              router.refresh();
+            })
+          }
+        >
+          {isPending ? '…' : 'تأكيد الحذف'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => { setArmed(false); setError(null); }}>
+          تراجع
+        </Button>
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      data-testid={`remove-${memberId}`}
+      onClick={() => setArmed(true)}
+    >
+      حذف
     </Button>
   );
 }
