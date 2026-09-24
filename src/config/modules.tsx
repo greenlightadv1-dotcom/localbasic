@@ -72,6 +72,10 @@ export const MODULES: Record<string, ModuleDefinition> = {
       // Writes the catalog, so it lives under the menu rather than under the
       // Site Engine: a site's menu section reads these same tables live.
       { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },
+      // Display-only merchandising cards for the customer-facing site's
+      // "bundles" section; the same reason /menu/import lives under menu
+      // rather than the Site Engine.
+      { href: '/menu/bundles', label: 'العروض والباقات', icon: 'Gift', permission: 'restaurant.menu.manage' },
     ],
     // A restaurant issues receipts to guests, not invoices.
     coreLabels: { '/invoices': 'الإيصالات' },

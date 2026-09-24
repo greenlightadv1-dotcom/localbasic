@@ -44,6 +44,7 @@ vi.mock('@/lib/supabase/server', () => ({
           call.ins[col] = vals;
           return b;
         },
+        limit: () => b,
         maybeSingle: async () => ({ data: h.state.single[table] ?? null, error: null }),
         then: (resolve: (r: unknown) => unknown) =>
           resolve({ data: h.state.rows[table] ?? [], error: null }),
@@ -107,6 +108,10 @@ beforeEach(() => {
     branches: [
       { id: 'b1', name: 'الفرع الرئيسي', slug: 'main', address: 'شارع ٩', phone: '0100', created_at: '2024-01-01' },
       { id: 'b2', name: 'فرع المعادي', slug: 'maadi', address: 'المعادي', phone: null, created_at: '2024-02-01' },
+    ],
+    restaurant_bundles: [
+      { id: 'bd1', name: 'وجبة العيلة', description: 'فرخة كاملة وأرز وسلطة', image_url: null, price_cents: 45000, sort_order: 0 },
+      { id: 'bd2', name: 'كومبو الغدا', description: null, image_url: 'https://x/combo.jpg', price_cents: 12000, sort_order: 1 },
     ],
   };
   h.state.single = {
@@ -367,6 +372,62 @@ describe('branches resolution', () => {
   it('applies the authoritative active/not-deleted predicate, org-scoped', async () => {
     await resolveSectionData(CTX, [section('branches')]);
     expect(touched('branches')[0]!.filters).toEqual({
+      organization_id: 'org-a',
+      is_active: true,
+      deleted_at: null,
+    });
+  });
+});
+
+describe('best sellers resolution', () => {
+  it('resolves a flat list, not grouped by category', async () => {
+    const map = await resolveSectionData(CTX, [section('best_sellers')]);
+    const data = map['s-best_sellers'];
+    if (data?.type !== 'best_sellers') throw new Error('expected best_sellers');
+
+    expect(data.products.map((p) => p.id)).toEqual(['p1', 'p2']);
+    // Cheapest-first pricing comes from the same variant-folding logic as
+    // the menu: p1 has two variants, so fromPriceCents is the lower one.
+    expect(data.products[0]!.fromPriceCents).toBe(6500);
+  });
+
+  it('filters on is_best_seller, org-scoped, active, not deleted', async () => {
+    await resolveSectionData(CTX, [section('best_sellers')]);
+    expect(touched('restaurant_products')[0]!.filters).toEqual({
+      organization_id: 'org-a',
+      is_active: true,
+      is_best_seller: true,
+      deleted_at: null,
+    });
+  });
+
+  it('touches no Site Engine table and no branch-availability table', async () => {
+    await resolveSectionData(CTX, [section('best_sellers')]);
+    const tables = new Set(h.calls.map((c) => c.table));
+    for (const t of tables) {
+      expect(t.startsWith('site_')).toBe(false);
+      expect(t).not.toBe('restaurant_branch_availability');
+    }
+  });
+});
+
+describe('bundles resolution', () => {
+  it('resolves display copy and one price per bundle', async () => {
+    const map = await resolveSectionData(CTX, [section('bundles')]);
+    const data = map['s-bundles'];
+    if (data?.type !== 'bundles') throw new Error('expected bundles');
+
+    expect(data.bundles).toEqual([
+      { id: 'bd1', name: 'وجبة العيلة', description: 'فرخة كاملة وأرز وسلطة', imageUrl: null, priceCents: 45000 },
+      { id: 'bd2', name: 'كومبو الغدا', description: null, imageUrl: 'https://x/combo.jpg', priceCents: 12000 },
+    ]);
+  });
+
+  it('reads only restaurant_bundles, org-scoped and active', async () => {
+    await resolveSectionData(CTX, [section('bundles')]);
+    const tables = new Set(h.calls.map((c) => c.table));
+    expect(tables).toEqual(new Set(['restaurant_bundles']));
+    expect(touched('restaurant_bundles')[0]!.filters).toEqual({
       organization_id: 'org-a',
       is_active: true,
       deleted_at: null,

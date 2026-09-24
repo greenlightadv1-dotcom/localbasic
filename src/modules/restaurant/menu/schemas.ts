@@ -54,6 +54,11 @@ export const toggleProductSchema = z.object({
   isActive: z.coerce.boolean(),
 });
 
+export const toggleBestSellerSchema = z.object({
+  productId: z.string().uuid(),
+  isBestSeller: z.coerce.boolean(),
+});
+
 export const setAvailabilitySchema = z.object({
   variantId: z.string().uuid(),
   isAvailable: z.coerce.boolean(),

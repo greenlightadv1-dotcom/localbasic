@@ -111,11 +111,35 @@ export type ResolvedBranches = {
   branches: ResolvedBranch[];
 };
 
+/** The organization's flagged "best sellers" — a flat highlight list. */
+export type ResolvedBestSellers = {
+  type: 'best_sellers';
+  products: ResolvedMenuProduct[];
+  currency: string;
+};
+
+/** One bundle/package: display copy and a single all-in price. */
+export type ResolvedBundle = {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  priceCents: number;
+};
+
+export type ResolvedBundles = {
+  type: 'bundles';
+  bundles: ResolvedBundle[];
+  currency: string;
+};
+
 export type ResolvedSectionData =
   | ResolvedMenu
   | ResolvedBusinessInfo
   | ResolvedHours
-  | ResolvedBranches;
+  | ResolvedBranches
+  | ResolvedBestSellers
+  | ResolvedBundles;
 
 /**
  * Resolved data, keyed by the section id it belongs to.

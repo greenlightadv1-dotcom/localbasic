@@ -9,12 +9,14 @@ import {
   categorySchema,
   menuProductSchema,
   toggleProductSchema,
+  toggleBestSellerSchema,
   setAvailabilitySchema,
 } from '@/modules/restaurant/menu/schemas';
 import {
   createCategory,
   createMenuProduct,
   setProductActive,
+  setProductBestSeller,
   setBranchAvailability,
 } from '@/modules/restaurant/menu/service';
 import {
@@ -77,6 +79,16 @@ export const toggleMenuProductAction = defineTenantAction({
   handler: async ({ ctx, input }) => {
     await setProductActive(ctx, input.productId, input.isActive);
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
+    return { ok: true };
+  },
+});
+
+export const toggleBestSellerAction = defineTenantAction({
+  schema: toggleBestSellerSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await setProductBestSeller(ctx, input.productId, input.isBestSeller);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu');
     return { ok: true };
   },
 });

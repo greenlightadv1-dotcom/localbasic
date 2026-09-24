@@ -1,6 +1,12 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getBranches, getMenu, getWebsite } from '@/modules/restaurant/website/service';
+import {
+  getBestSellers,
+  getBranches,
+  getBundles,
+  getMenu,
+  getWebsite,
+} from '@/modules/restaurant/website/service';
 import type { SitePage, SiteSection } from './types';
 import type { SectionType } from './schemas';
 import type { ResolvedSectionMap } from './resolved';
@@ -87,7 +93,9 @@ export async function getPublicSitePage(
   };
 }
 
-const DATA_BOUND: SectionType[] = ['menu', 'business_info', 'hours', 'branches'];
+const DATA_BOUND: SectionType[] = [
+  'menu', 'business_info', 'hours', 'branches', 'best_sellers', 'bundles',
+];
 
 /**
  * SIMPLIFICATION, stated rather than hidden: a Site Engine menu section is
@@ -160,6 +168,38 @@ export async function resolvePublicSectionData(
               fromPriceCents: p.fromPriceCents,
               variants: p.variants,
             })),
+          })),
+        };
+        break;
+      }
+      case 'best_sellers': {
+        const categories = await getBestSellers(orgSlug);
+        const products = categories[0]?.products ?? [];
+        map[s.id] = {
+          type: 'best_sellers',
+          currency: website?.currency ?? 'EGP',
+          products: products.map((p) => ({
+            id: p.productId,
+            name: p.name,
+            description: p.description,
+            imageUrl: p.imageUrl,
+            fromPriceCents: p.fromPriceCents,
+            variants: p.variants,
+          })),
+        };
+        break;
+      }
+      case 'bundles': {
+        const bundles = await getBundles(orgSlug);
+        map[s.id] = {
+          type: 'bundles',
+          currency: website?.currency ?? 'EGP',
+          bundles: bundles.map((b) => ({
+            id: b.id,
+            name: b.name,
+            description: b.description,
+            imageUrl: b.imageUrl,
+            priceCents: b.priceCents,
           })),
         };
         break;

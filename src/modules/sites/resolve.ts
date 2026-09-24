@@ -7,6 +7,7 @@ import { parseSectionContent } from './sections/content';
 import type { SiteSection } from './types';
 import type {
   ResolvedBranch,
+  ResolvedBundle,
   ResolvedHoursDay,
   ResolvedMenuCategory,
   ResolvedMenuProduct,
@@ -307,6 +308,111 @@ async function resolveBranches(ctx: SiteResolveContext): Promise<ResolvedSection
 }
 
 /**
+ * The organization's flagged "best sellers".
+ *
+ * Same tables and the same active/not-deleted filters resolveMenu() uses,
+ * narrowed to is_best_seller = true and flattened — a curated highlight
+ * list, not a second menu grouped by category.
+ */
+async function resolveBestSellers(
+  ctx: SiteResolveContext,
+  limit: number | null,
+): Promise<ResolvedSectionData> {
+  const supabase = createSupabaseServerClient();
+
+  const { data: products, error: prodError } = await supabase
+    .from('restaurant_products')
+    .select('id, name, description, image_url, sort_order')
+    .eq('organization_id', ctx.organizationId)
+    .eq('is_active', true)
+    .eq('is_best_seller', true)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(limit ?? 50);
+
+  if (prodError) throw toAppError(prodError, 'resolveBestSellers products');
+  const rows = products ?? [];
+  if (rows.length === 0) return { type: 'best_sellers', products: [], currency: ctx.currency };
+
+  const { data: variants, error: varError } = await supabase
+    .from('restaurant_variants')
+    .select('id, product_id, name, price_cents, sort_order')
+    .eq('organization_id', ctx.organizationId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .in('product_id', rows.map((p) => p.id as string))
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (varError) throw toAppError(varError, 'resolveBestSellers variants');
+
+  const byProduct = new Map<string, ResolvedMenuProduct>();
+  for (const p of rows) {
+    byProduct.set(p.id as string, {
+      id: p.id as string,
+      name: p.name as string,
+      description: (p.description as string | null) ?? null,
+      imageUrl: (p.image_url as string | null) ?? null,
+      fromPriceCents: 0,
+      variants: [],
+    });
+  }
+  for (const v of variants ?? []) {
+    const product = byProduct.get(v.product_id as string);
+    if (!product) continue;
+    const priceCents = Number(v.price_cents);
+    product.variants.push({ id: v.id as string, name: v.name as string, priceCents });
+    product.fromPriceCents =
+      product.variants.length === 1 ? priceCents : Math.min(product.fromPriceCents, priceCents);
+  }
+
+  // A flagged product with no sellable variant is not a menu item yet, the
+  // same rule resolveMenu() applies.
+  const out = rows
+    .map((p) => byProduct.get(p.id as string)!)
+    .filter((p) => p.variants.length > 0);
+
+  return { type: 'best_sellers', products: out, currency: ctx.currency };
+}
+
+/**
+ * The organization's bundles/packages.
+ *
+ * Display-only: restaurant_bundles carries copy and one all-in price, not a
+ * relationship to sellable products. Ordering a bundle as a single POS line
+ * is a separate, larger feature this does not attempt.
+ */
+async function resolveBundles(
+  ctx: SiteResolveContext,
+  limit: number | null,
+): Promise<ResolvedSectionData> {
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('restaurant_bundles')
+    .select('id, name, description, image_url, price_cents, sort_order')
+    .eq('organization_id', ctx.organizationId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(limit ?? 50);
+
+  if (error) throw toAppError(error, 'resolveBundles');
+
+  const bundles: ResolvedBundle[] = (data ?? []).map((b) => ({
+    id: b.id as string,
+    name: b.name as string,
+    description: (b.description as string | null) ?? null,
+    imageUrl: (b.image_url as string | null) ?? null,
+    priceCents: Number(b.price_cents),
+  }));
+
+  return { type: 'bundles', bundles, currency: ctx.currency };
+}
+
+/**
  * Resolves every data-bound section on a page.
  *
  * Takes the sections of ONE page — the ones selectPage() already narrowed — so
@@ -353,6 +459,16 @@ export async function resolveSectionData(
       case 'branches':
         map[job.section.id] = await resolveBranches(ctx);
         break;
+      case 'best_sellers': {
+        const config = parseSectionContent('best_sellers', job.section.content);
+        map[job.section.id] = await resolveBestSellers(ctx, config.limit);
+        break;
+      }
+      case 'bundles': {
+        const config = parseSectionContent('bundles', job.section.content);
+        map[job.section.id] = await resolveBundles(ctx, config.limit);
+        break;
+      }
       default:
         // isDataBoundSection() filtered the rest out. A new data-bound type
         // added to that list without a case here lands nothing in the map, and

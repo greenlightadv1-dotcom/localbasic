@@ -194,3 +194,81 @@ export async function getMenu(orgSlug: string, branchSlug: string): Promise<Menu
 
   return [...categories.values()];
 }
+
+/**
+ * The organization's flagged "best sellers" — a flat list, not grouped by
+ * category. Organization-wide, unlike getMenu(): restaurant_website_best_sellers()
+ * has no branch parameter at all, because a "best seller" flag is not a
+ * branch-availability question.
+ */
+export async function getBestSellers(orgSlug: string): Promise<MenuCategory[]> {
+  const org = slugParam.safeParse(orgSlug);
+  if (!org.success) return [];
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('restaurant_website_best_sellers', {
+    p_org_slug: org.data,
+  });
+  if (error) return [];
+
+  type Row = {
+    product_id: string; product_name: string; product_description: string | null;
+    image_url: string | null;
+    variant_id: string; variant_name: string; price_cents: number;
+  };
+
+  const products = new Map<string, MenuProduct>();
+  for (const r of (data ?? []) as Row[]) {
+    let product = products.get(r.product_id);
+    if (!product) {
+      product = {
+        productId: r.product_id,
+        name: r.product_name,
+        description: r.product_description,
+        imageUrl: r.image_url,
+        fromPriceCents: r.price_cents,
+        variants: [],
+      };
+      products.set(r.product_id, product);
+    }
+    product.variants.push({ id: r.variant_id, name: r.variant_name, priceCents: r.price_cents });
+    product.fromPriceCents = Math.min(product.fromPriceCents, r.price_cents);
+  }
+
+  // One flat "category" so this shares MenuCategory's shape with getMenu();
+  // callers that want a flat product list read .products off the one entry.
+  return [{ id: null, name: 'الأكثر مبيعًا', products: [...products.values()] }];
+}
+
+export type Bundle = {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  priceCents: number;
+};
+
+/** The organization's bundles/packages — display copy and one all-in price each. */
+export async function getBundles(orgSlug: string): Promise<Bundle[]> {
+  const org = slugParam.safeParse(orgSlug);
+  if (!org.success) return [];
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('restaurant_website_bundles', {
+    p_org_slug: org.data,
+  });
+  if (error) return [];
+
+  type Row = {
+    bundle_id: string; name: string; description: string | null;
+    image_url: string | null; price_cents: number;
+  };
+
+  return ((data ?? []) as Row[]).map((b) => ({
+    id: b.bundle_id,
+    name: b.name,
+    description: b.description,
+    imageUrl: b.image_url,
+    priceCents: b.price_cents,
+  }));
+}

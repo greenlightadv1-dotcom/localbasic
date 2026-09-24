@@ -83,6 +83,23 @@ export default async function PublicSitePage({ params }: Params) {
         </nav>
       )}
 
+      {/*
+       * Favorites, save-and-reorder, and the customer account system that
+       * backs them already exist (0040, src/modules/restaurant/account) and
+       * are fully built — under the LocalBasic address, /r/<org>/account.
+       * The Site Engine has no customer-auth surface of its own, and
+       * building a second one would duplicate a system that already works.
+       * This links to it rather than re-implementing it.
+       */}
+      <div className="border-b border-[rgb(var(--site-border,229_231_235))] px-5 py-2 text-end">
+        <Link
+          href={`/r/${params.orgSlug}/account/favorites`}
+          className="text-sm opacity-70 hover:opacity-100"
+        >
+          {config.direction === 'rtl' ? 'حسابي والمفضلة ←' : '→ My account & favorites'}
+        </Link>
+      </div>
+
       <SiteRenderer
         page={site.page}
         sections={site.sections}

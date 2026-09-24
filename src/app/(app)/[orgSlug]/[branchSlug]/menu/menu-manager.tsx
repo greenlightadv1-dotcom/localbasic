@@ -16,6 +16,7 @@ import {
   createMenuCategoryAction,
   createMenuProductAction,
   toggleMenuProductAction,
+  toggleBestSellerAction,
   setAvailabilityAction,
 } from '../restaurant-actions';
 
@@ -100,6 +101,15 @@ export function MenuManager({
   function toggleItem(productId: string, isActive: boolean) {
     startTransition(async () => {
       const result = await toggleMenuProductAction(scope, { productId, isActive });
+      if (!result.ok) toast.error(result.error);
+      else router.refresh();
+    });
+  }
+
+  /** Highlights a dish on the customer-facing site's "الأكثر مبيعًا" section. */
+  function toggleBestSeller(productId: string, isBestSeller: boolean) {
+    startTransition(async () => {
+      const result = await toggleBestSellerAction(scope, { productId, isBestSeller });
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });
@@ -468,6 +478,7 @@ export function MenuManager({
                   <th scope="col" className="p-3 text-start font-medium">التصنيف</th>
                   <th scope="col" className="p-3 text-start font-medium">الأسعار</th>
                   <th scope="col" className="p-3 text-start font-medium">التوافر في الفرع</th>
+                  {canManage && <th scope="col" className="p-3 text-start font-medium">الأكثر مبيعًا</th>}
                   {canManage && <th scope="col" className="p-3 text-start font-medium">الحالة</th>}
                 </tr>
               </thead>
@@ -511,6 +522,22 @@ export function MenuManager({
                         ))}
                       </ul>
                     </td>
+                    {canManage && (
+                      <td className="p-3">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={isPending}
+                          onClick={() => toggleBestSeller(item.id, !item.isBestSeller)}
+                        >
+                          {item.isBestSeller ? (
+                            <Badge tone="info">مُميّز ★</Badge>
+                          ) : (
+                            <Badge tone="neutral">—</Badge>
+                          )}
+                        </Button>
+                      </td>
+                    )}
                     {canManage && (
                       <td className="p-3">
                         <Button

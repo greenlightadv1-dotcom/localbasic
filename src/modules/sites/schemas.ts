@@ -16,6 +16,7 @@ export const SECTION_TYPES = [
   'testimonials',
   'contact',
   'footer',
+  'banner',
   // Data-bound: the row holds declarative configuration and the data is
   // resolved from its authoritative table at render time. Nothing here stores
   // a price, an address, a phone number or an opening time.
@@ -23,6 +24,8 @@ export const SECTION_TYPES = [
   'business_info',
   'hours',
   'branches',
+  'best_sellers',
+  'bundles',
 ] as const;
 
 /**
@@ -36,6 +39,8 @@ export const DATA_BOUND_SECTION_TYPES = [
   'business_info',
   'hours',
   'branches',
+  'best_sellers',
+  'bundles',
 ] as const;
 
 export type DataBoundSectionType = (typeof DATA_BOUND_SECTION_TYPES)[number];
@@ -61,6 +66,9 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   business_info: 'بيانات النشاط',
   hours: 'مواعيد العمل',
   branches: 'الفروع',
+  banner: 'بانر إعلاني',
+  best_sellers: 'الأكثر مبيعًا',
+  bundles: 'العروض والباقات',
 };
 
 /**
@@ -249,6 +257,9 @@ export const SECTION_DESCRIPTIONS: Record<SectionType, string> = {
   business_info: 'اسم النشاط وبيانات التواصل من إعدادات الهوية. تتحدّث تلقائيًا.',
   hours: 'مواعيد العمل الأسبوعية من إعدادات المطعم. تتحدّث تلقائيًا.',
   branches: 'فروع المؤسسة بعناوينها وأرقامها. تتحدّث تلقائيًا.',
+  banner: 'بانر إعلاني بصورة كبيرة، لعرض عرض أو إعلان في أعلى الصفحة.',
+  best_sellers: 'الأصناف المُعلّمة "الأكثر مبيعًا" في نظام الأصناف. تتحدّث تلقائيًا.',
+  bundles: 'الباقات والعروض المُجمّعة كما أنشأتها في نظام الأصناف. تتحدّث تلقائيًا.',
 };
 
 /**

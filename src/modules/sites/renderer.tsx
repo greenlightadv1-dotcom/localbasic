@@ -2,7 +2,9 @@ import { hexToRgbChannels } from '@/lib/color';
 import { parseSectionContent, type SectionContent } from './sections/content';
 import type { SitePage, SiteSection } from './types';
 import type {
+  ResolvedBestSellers,
   ResolvedBranches,
+  ResolvedBundles,
   ResolvedBusinessInfo,
   ResolvedHours,
   ResolvedMenu,
@@ -200,6 +202,61 @@ function Footer({ content }: { content: SectionContent['footer'] }) {
     <footer className="border-t border-[rgb(var(--site-border))] px-5 py-8 text-center text-xs text-[rgb(var(--site-fg)/0.6)]">
       {content.text || 'جميع الحقوق محفوظة.'}
     </footer>
+  );
+}
+
+/**
+ * A promotional banner: full-width image, optional headline and link.
+ *
+ * Always renders something — an empty banner (nothing set at all, a freshly
+ * added section) shows its own placeholder heading, the same convention
+ * every other section in this file follows, rather than disappearing
+ * silently from a page an operator is actively editing.
+ */
+function Banner({ content }: { content: SectionContent['banner'] }) {
+  const empty = !content.title && !content.subtitle && !content.imageUrl;
+
+  return (
+    <section className="relative overflow-hidden bg-[rgb(var(--site-fg)/0.04)]">
+      {content.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- an
+        // organization-supplied external URL, not a build-time asset.
+        <img
+          src={content.imageUrl}
+          alt=""
+          className="h-48 w-full object-cover sm:h-64"
+        />
+      )}
+      <div className={`px-5 py-6 sm:px-8 ${content.imageUrl ? 'text-center' : SECTION}`}>
+        <h2 className="text-balance text-xl font-bold text-[rgb(var(--site-fg))] sm:text-2xl">
+          {content.title || 'عرض جديد'}
+        </h2>
+        {empty ? (
+          <p className="mt-2 text-sm text-[rgb(var(--site-fg)/0.6)]">لم تتم إضافة محتوى للبانر بعد.</p>
+        ) : (
+          <>
+            {content.subtitle && (
+              <p className="mt-2 text-pretty text-sm text-[rgb(var(--site-fg)/0.75)] sm:text-base">
+                {content.subtitle}
+              </p>
+            )}
+            {content.ctaLabel &&
+              (content.ctaHref ? (
+                <a
+                  href={content.ctaHref}
+                  className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[rgb(var(--site-primary))] px-5 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--site-primary))]"
+                >
+                  {content.ctaLabel}
+                </a>
+              ) : (
+                <p className="mt-4 text-sm font-semibold text-[rgb(var(--site-primary))]">
+                  {content.ctaLabel}
+                </p>
+              ))}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -442,6 +499,92 @@ function Branches({
   );
 }
 
+/** The organization's flagged best sellers — a highlight strip, not a second menu. */
+function BestSellers({
+  content,
+  data,
+}: {
+  content: SectionContent['best_sellers'];
+  data: ResolvedBestSellers;
+}) {
+  const title = content.title || 'الأكثر مبيعًا';
+  if (data.products.length === 0) {
+    return <Unavailable title={title} message="لم يتم تحديد أصناف كأكثر مبيعًا بعد." />;
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-3xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+          {data.products.map((product) => (
+            <li
+              key={product.id}
+              className="rounded-xl border border-[rgb(var(--site-primary)/0.4)] p-4"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-semibold text-[rgb(var(--site-fg))]">{product.name}</h3>
+                <span className="lb-numeric text-sm font-semibold text-[rgb(var(--site-primary))]">
+                  {product.variants.length > 1 ? 'يبدأ من ' : ''}
+                  {money(product.fromPriceCents, data.currency)}
+                </span>
+              </div>
+              {product.description && (
+                <p className="mt-1 text-sm leading-6 text-[rgb(var(--site-fg)/0.7)]">
+                  {product.description}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/** The organization's bundles/packages — display copy and one all-in price each. */
+function Bundles({ content, data }: { content: SectionContent['bundles']; data: ResolvedBundles }) {
+  const title = content.title || 'العروض والباقات';
+  if (data.bundles.length === 0) {
+    return <Unavailable title={title} message="لم تتم إضافة عروض أو باقات بعد." />;
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className="mx-auto max-w-3xl">
+        <h2 className="text-lg font-bold text-[rgb(var(--site-fg))] sm:text-xl">{title}</h2>
+        <ul className="mt-5 grid gap-4 sm:grid-cols-2">
+          {data.bundles.map((bundle) => (
+            <li
+              key={bundle.id}
+              className="overflow-hidden rounded-xl border border-[rgb(var(--site-border))]"
+            >
+              {bundle.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- an
+                // organization-supplied external URL, not a build-time asset.
+                <img src={bundle.imageUrl} alt="" className="h-36 w-full object-cover" />
+              )}
+              <div className="p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-semibold text-[rgb(var(--site-fg))]">{bundle.name}</h3>
+                  <span className="lb-numeric text-sm font-semibold text-[rgb(var(--site-primary))]">
+                    {money(bundle.priceCents, data.currency)}
+                  </span>
+                </div>
+                {bundle.description && (
+                  <p className="mt-1 text-sm leading-6 text-[rgb(var(--site-fg)/0.7)]">
+                    {bundle.description}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Dispatch.
  *
@@ -481,6 +624,8 @@ export function SectionRenderer({
       return <Contact content={parseSectionContent('contact', section.content)} />;
     case 'footer':
       return <Footer content={parseSectionContent('footer', section.content)} />;
+    case 'banner':
+      return <Banner content={parseSectionContent('banner', section.content)} />;
 
     // Data-bound. The `data.type` check is what narrows the union — a
     // mismatched payload is treated as absent rather than cast into place.
@@ -525,6 +670,28 @@ export function SectionRenderer({
         <Unavailable
           title={content.title || 'فروعنا'}
           message="تعذّر تحميل الفروع الآن."
+        />
+      );
+    }
+    case 'best_sellers': {
+      const content = parseSectionContent('best_sellers', section.content);
+      return data?.type === 'best_sellers' ? (
+        <BestSellers content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'الأكثر مبيعًا'}
+          message="تعذّر تحميل الأصناف الآن."
+        />
+      );
+    }
+    case 'bundles': {
+      const content = parseSectionContent('bundles', section.content);
+      return data?.type === 'bundles' ? (
+        <Bundles content={content} data={data} />
+      ) : (
+        <Unavailable
+          title={content.title || 'العروض والباقات'}
+          message="تعذّر تحميل العروض الآن."
         />
       );
     }

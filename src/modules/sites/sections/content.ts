@@ -40,6 +40,23 @@ const safeHref = z
 /** Text with a hard ceiling, so one pasted document cannot break a layout. */
 const text = (max: number) => z.string().trim().max(max);
 
+/**
+ * An image source that cannot become script.
+ *
+ * `<img src="javascript:...">` does not execute in any modern browser, but
+ * this is restricted anyway rather than trusted to that fact: an absolute
+ * `https://` URL (a CDN, an image host, or this project's own Supabase
+ * Storage bucket once uploads land) or a same-origin `/` path. No `data:`,
+ * no `http://`, no `javascript:`.
+ */
+const safeImageUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((v) => /^https:\/\//.test(v) || (/^\/[^/\\]/.test(v) && !v.startsWith('//')), {
+    message: 'unsupported image source',
+  });
+
 export const heroSchema = z.object({
   title: text(120).default(''),
   subtitle: text(300).default(''),
@@ -92,6 +109,24 @@ export const contactSchema = z.object({
 
 export const footerSchema = z.object({
   text: text(200).default(''),
+});
+
+/**
+ * A promotional banner: a large image with an optional headline and a link.
+ *
+ * Presentational, not data-bound — a banner is copy an operator writes for a
+ * specific campaign, not something resolved from a table. `imageUrl` is a URL
+ * today, the same shape `restaurant_products.image_url` and
+ * `branding_settings.logo_url` already take; this project has no file-upload
+ * pipeline yet (see the site-features gap note), so this is a direct
+ * attachment's address once that pipeline exists, not a step back from it.
+ */
+export const bannerSchema = z.object({
+  title: text(120).default(''),
+  subtitle: text(300).default(''),
+  imageUrl: safeImageUrl.nullable().catch(null).default(null),
+  ctaLabel: text(40).default(''),
+  ctaHref: safeHref.nullable().catch(null).default(null),
 });
 
 
@@ -147,6 +182,30 @@ export const branchesSchema = z.object({
   source: liveSource.catch('live').default('live'),
 });
 
+/**
+ * The organization's flagged "best sellers" — the same products
+ * restaurant_products already carries, filtered to is_best_seller = true.
+ * Flat, not grouped by category: it is a curated highlight list, not a
+ * second menu.
+ */
+export const bestSellersSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+  limit: z.number().int().min(1).max(50).nullable().catch(null).default(null),
+});
+
+/**
+ * The organization's bundles/packages — display-only merchandising cards
+ * (name, description of contents, image, one price), from
+ * restaurant_bundles. Not a sellable POS catalog item: ordering a bundle as
+ * a single line is a separate, larger feature this does not attempt.
+ */
+export const bundlesSchema = z.object({
+  title: text(120).default(''),
+  source: liveSource.catch('live').default('live'),
+  limit: z.number().int().min(1).max(50).nullable().catch(null).default(null),
+});
+
 export const menuWriteSchema = z
   .object({
     title: text(120),
@@ -180,10 +239,13 @@ export const SECTION_SCHEMAS = {
   testimonials: testimonialsSchema,
   contact: contactSchema,
   footer: footerSchema,
+  banner: bannerSchema,
   menu: menuSchema,
   business_info: businessInfoSchema,
   hours: hoursSchema,
   branches: branchesSchema,
+  best_sellers: bestSellersSchema,
+  bundles: bundlesSchema,
 } satisfies Record<SectionType, z.ZodTypeAny>;
 
 export type SectionContent = {
@@ -281,6 +343,35 @@ export const contactWriteSchema = z
 
 export const footerWriteSchema = z.object({ text: text(200) }).partial().strict();
 
+export const bannerWriteSchema = z
+  .object({
+    title: text(120),
+    subtitle: text(300),
+    imageUrl: safeImageUrl.nullable(),
+    ctaLabel: text(40),
+    ctaHref: safeHref.nullable(),
+  })
+  .partial()
+  .strict();
+
+export const bestSellersWriteSchema = z
+  .object({
+    title: text(120),
+    source: liveSource,
+    limit: z.number().int().min(1).max(50).nullable(),
+  })
+  .partial()
+  .strict();
+
+export const bundlesWriteSchema = z
+  .object({
+    title: text(120),
+    source: liveSource,
+    limit: z.number().int().min(1).max(50).nullable(),
+  })
+  .partial()
+  .strict();
+
 /** The write schema for each section type. Total over SectionType. */
 export const SECTION_WRITE_SCHEMAS = {
   hero: heroWriteSchema,
@@ -289,10 +380,13 @@ export const SECTION_WRITE_SCHEMAS = {
   testimonials: testimonialsWriteSchema,
   contact: contactWriteSchema,
   footer: footerWriteSchema,
+  banner: bannerWriteSchema,
   menu: menuWriteSchema,
   business_info: businessInfoWriteSchema,
   hours: hoursWriteSchema,
   branches: branchesWriteSchema,
+  best_sellers: bestSellersWriteSchema,
+  bundles: bundlesWriteSchema,
 } satisfies Record<SectionType, z.ZodTypeAny>;
 
 /**

@@ -101,11 +101,14 @@ describe('section types', () => {
       'testimonials',
       'contact',
       'footer',
-      // Data-bound (Phase 3).
+      'banner',
+      // Data-bound (Phase 3, then best sellers / bundles).
       'menu',
       'business_info',
       'hours',
       'branches',
+      'best_sellers',
+      'bundles',
     ]);
   });
 
@@ -115,8 +118,12 @@ describe('section types', () => {
       'business_info',
       'hours',
       'branches',
+      'best_sellers',
+      'bundles',
     ]);
-    for (const t of ['hero', 'about', 'services', 'testimonials', 'contact', 'footer'] as const) {
+    for (const t of [
+      'hero', 'about', 'services', 'testimonials', 'contact', 'footer', 'banner',
+    ] as const) {
       expect(isDataBoundSection(t)).toBe(false);
     }
   });

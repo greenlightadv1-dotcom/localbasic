@@ -1611,6 +1611,7 @@ export type Database = {
           prep_minutes: number;
           sort_order: number;
           is_active: boolean;
+          is_best_seller: boolean;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -1627,6 +1628,7 @@ export type Database = {
           prep_minutes?: number;
           sort_order?: number;
           is_active?: boolean;
+          is_best_seller?: boolean;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -1641,6 +1643,52 @@ export type Database = {
           image_url?: string | null;
           tax_rate_bp?: number;
           prep_minutes?: number;
+          sort_order?: number;
+          is_active?: boolean;
+          is_best_seller?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      restaurant_bundles: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          description: string | null;
+          image_url: string | null;
+          price_cents: number;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          description?: string | null;
+          image_url?: string | null;
+          price_cents: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          name?: string;
+          description?: string | null;
+          image_url?: string | null;
+          price_cents?: number;
           sort_order?: number;
           is_active?: boolean;
           created_at?: string;
@@ -3200,7 +3248,9 @@ export type Database = {
       restaurant_public_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_best_sellers: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_branches: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_website_bundles: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_layout: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_menu: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_publish: { Args: Record<string, unknown>; Returns: Json };

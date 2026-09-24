@@ -296,6 +296,8 @@ describe('the section registry the editor is built from', () => {
       'business_info',
       'hours',
       'branches',
+      'best_sellers',
+      'bundles',
     ]);
   });
 

@@ -20,6 +20,7 @@ export type MenuItem = {
   taxRateBp: number;
   prepMinutes: number;
   isActive: boolean;
+  isBestSeller: boolean;
   variants: MenuVariant[];
   modifierGroupCount: number;
 };
@@ -35,7 +36,9 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
   const [{ data: products, error }, { data: categories }] = await Promise.all([
     supabase
       .from('restaurant_products')
-      .select('id, name, description, category_id, tax_rate_bp, prep_minutes, is_active, sort_order')
+      .select(
+        'id, name, description, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order',
+      )
       .eq('organization_id', ctx.organizationId)
       .is('deleted_at', null)
       .order('sort_order')
@@ -87,6 +90,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     taxRateBp: product.tax_rate_bp,
     prepMinutes: product.prep_minutes,
     isActive: product.is_active,
+    isBestSeller: product.is_best_seller,
     variants: (variants ?? [])
       .filter((v) => v.product_id === product.id)
       .map((v) => ({
@@ -206,6 +210,21 @@ export async function setProductActive(ctx: TenantContext, productId: string, is
     .eq('organization_id', ctx.organizationId)
     .eq('id', productId);
   if (error) throw toAppError(error, 'setProductActive');
+}
+
+/** Toggles the "best seller" highlight — a merchandising flag, not availability. */
+export async function setProductBestSeller(
+  ctx: TenantContext,
+  productId: string,
+  isBestSeller: boolean,
+) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_products')
+    .update({ is_best_seller: isBestSeller })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', productId);
+  if (error) throw toAppError(error, 'setProductBestSeller');
 }
 
 /**
