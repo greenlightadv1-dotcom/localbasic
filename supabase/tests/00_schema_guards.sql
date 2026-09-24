@@ -59,7 +59,12 @@ begin
       'platform_website_versions',
       -- platform-operator tables: deliberately not tenant-scoped. They are
       -- reachable only by a Platform Admin, never through tenant RLS.
-      'platform_admins', 'promo_codes', 'platform_services'
+      'platform_admins', 'promo_codes', 'platform_services',
+      -- Site Engine (0055) child tables, keyed through their parent site —
+      -- the same exemption platform_website_versions holds. `sites` itself
+      -- carries organization_id and is deliberately NOT listed here, so this
+      -- guard enforces it.
+      'site_pages', 'site_sections', 'site_settings'
     )
     and not exists (
       select 1 from information_schema.columns col

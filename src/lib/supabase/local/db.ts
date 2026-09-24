@@ -9,6 +9,27 @@ import { Pool, types, type PoolClient } from 'pg';
 types.setTypeParser(types.builtins.INT8, (value) => Number(value));
 types.setTypeParser(types.builtins.NUMERIC, (value) => Number(value));
 
+// For the same reason, dates and timestamps must arrive as strings. Supabase's
+// API returns them as ISO-8601 text; node-postgres parses them into JavaScript
+// Date objects. The difference is not cosmetic: rendering a Date into a
+// `dateTime` attribute stringifies it with `String(date)`, whose output is
+// locale-dependent, so the server and the browser produce different text and
+// React reports a hydration mismatch. Every caller already types these columns
+// as `string`, so this aligns the adapter with the contract the code expects.
+const parseTimestamptz = types.getTypeParser(types.builtins.TIMESTAMPTZ);
+types.setTypeParser(types.builtins.TIMESTAMPTZ, (value) => {
+  // `infinity` and `-infinity` parse to numbers, not Dates; pass those through.
+  const parsed = parseTimestamptz(value) as unknown;
+  return parsed instanceof Date && !Number.isNaN(parsed.getTime())
+    ? parsed.toISOString()
+    : value;
+});
+// A timestamp without a time zone has no offset to resolve, so converting it
+// to UTC would invent one. PostgREST emits the raw value with a `T` separator.
+types.setTypeParser(types.builtins.TIMESTAMP, (value) => value.replace(' ', 'T'));
+// A date is already in PostgREST's exact form (YYYY-MM-DD).
+types.setTypeParser(types.builtins.DATE, (value) => value);
+
 /**
  * LOCAL DEVELOPMENT ONLY.
  *

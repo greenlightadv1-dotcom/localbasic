@@ -2,6 +2,10 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 
+// Re-exported so existing callers keep working. The implementation moved to
+// lib/color.ts because this module is server-only and the helper is not.
+export { hexToRgbChannels } from '@/lib/color';
+
 export type Branding = {
   displayName: string;
   logoUrl: string | null;
@@ -59,12 +63,4 @@ export async function getBranding(ctx: TenantContext): Promise<Branding> {
     email: branding?.email ?? null,
     whiteLabel: planAllowsWhiteLabel && branding?.white_label === true,
   };
-}
-
-/** #RRGGBB → "R G B", the channel form the CSS variables expect. */
-export function hexToRgbChannels(hex: string): string {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!match) return '30 47 200';
-  const value = parseInt(match[1]!, 16);
-  return `${(value >> 16) & 255} ${(value >> 8) & 255} ${value & 255}`;
 }

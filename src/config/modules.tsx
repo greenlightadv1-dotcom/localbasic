@@ -49,6 +49,11 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
   { href: '/settings/store', label: 'المتجر الإلكتروني', icon: 'Store', permission: 'settings.manage' },
   { href: '/settings/website', label: 'الموقع الإلكتروني', icon: 'Globe', permission: 'settings.manage' },
+  // The Site Engine. Distinct from /settings/website above, which is the
+  // restaurant's single live-data site; this one is many sites per
+  // organization with their own pages. Gated on site.read, so it stays hidden
+  // from anyone the feature has not been granted to.
+  { href: '/settings/sites', label: 'المواقع', icon: 'LayoutTemplate', permission: 'site.read' },
   { href: '/settings/audit', label: 'سجل النشاط', icon: 'ScrollText', permission: 'audit.read' },
 ];
 
@@ -64,6 +69,9 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
+      // Writes the catalog, so it lives under the menu rather than under the
+      // Site Engine: a site's menu section reads these same tables live.
+      { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },
     ],
     // A restaurant issues receipts to guests, not invoices.
     coreLabels: { '/invoices': 'الإيصالات' },
