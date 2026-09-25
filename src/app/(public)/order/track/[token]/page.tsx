@@ -3,22 +3,13 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOrderByToken } from '@/modules/restaurant/online/service';
 import { EditWindow } from './track';
+import { OrderProgress } from './order-progress';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'متابعة الطلب',
   robots: { index: false, follow: false },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  new: 'بانتظار تأكيد المطعم',
-  confirmed: 'تم تأكيد الطلب',
-  preparing: 'جارٍ التحضير',
-  ready: 'الطلب جاهز',
-  served: 'تم التسليم',
-  completed: 'مكتمل',
-  cancelled: 'ملغي',
 };
 
 function money(cents: number, currency: string) {
@@ -39,10 +30,11 @@ export default async function TrackPage({ params }: { params: { token: string } 
   return (
     <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
       <p className="text-sm text-muted">طلب رقم</p>
-      <h1 className="mb-1 text-2xl font-extrabold text-fg" dir="ltr">{order.number}</h1>
-      <p className="mb-6 font-semibold text-primary">
-        {STATUS_LABELS[order.status] ?? order.status}
-      </p>
+      <h1 className="mb-4 text-2xl font-extrabold text-fg" dir="ltr">{order.number}</h1>
+
+      <div className="mb-6">
+        <OrderProgress token={params.token} initialStatus={order.status} />
+      </div>
 
       {order.status === 'new' ? (
         <div className="mb-6">
