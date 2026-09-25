@@ -54,6 +54,9 @@ export type StorefrontInfo = {
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
   deliveryFeeCents: number;
+  primaryColor: string;
+  secondaryColor: string;
+  logoUrl: string | null;
 };
 
 /**
@@ -77,6 +80,7 @@ export async function getStorefront(input: unknown): Promise<StorefrontInfo | nu
   type Row = {
     organization_name: string; branch_name: string; currency: string;
     pickup_enabled: boolean; delivery_enabled: boolean; delivery_fee_cents: number;
+    primary_color: string; secondary_color: string; logo_url: string | null;
   };
   const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
   if (!row) return null;
@@ -88,6 +92,9 @@ export async function getStorefront(input: unknown): Promise<StorefrontInfo | nu
     pickupEnabled: row.pickup_enabled,
     deliveryEnabled: row.delivery_enabled,
     deliveryFeeCents: Number(row.delivery_fee_cents),
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+    logoUrl: row.logo_url,
   };
 }
 

@@ -19,7 +19,7 @@ function Submit() {
     <button
       type="submit"
       disabled={pending}
-      className="h-12 w-full rounded bg-primary text-base font-semibold text-primary-fg hover:bg-primary/90 disabled:opacity-50"
+      className="h-12 w-full rounded bg-[rgb(var(--brand-primary))] text-base font-semibold text-white hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
     >
       {pending ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
     </button>
@@ -145,12 +145,76 @@ export function Storefront({
     () => new Map(items.map((i) => [i.variantId, i])), [items],
   );
 
+  // Categories, in first-seen order — the same order the menu screen and the
+  // Site Engine's own menu section already show them in, since both read
+  // sort_order off the same restaurant_categories table this list is
+  // derived from. `null` is the "الكل" tab: no filter, everything shown.
+  const categories = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const item of items) {
+      const key = item.categoryId ?? '__uncategorised__';
+      if (!seen.has(key)) seen.set(key, item.categoryName ?? 'أصناف أخرى');
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [items]);
+
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  const visibleItems = useMemo(
+    () =>
+      activeCategory === null
+        ? items
+        : items.filter((i) => (i.categoryId ?? '__uncategorised__') === activeCategory),
+    [items, activeCategory],
+  );
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
       <section>
         <h2 className="mb-4 text-lg font-bold text-fg">المنيو</h2>
-        <ul className="space-y-3">
-          {items.map((item) => {
+
+        {categories.length > 1 && (
+          <div
+            role="tablist"
+            aria-label="تصنيفات المنيو"
+            className="mb-4 flex gap-2 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeCategory === null}
+              onClick={() => setActiveCategory(null)}
+              className={cn(
+                'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                activeCategory === null
+                  ? 'bg-[rgb(var(--brand-primary))] text-white'
+                  : 'border border-line text-muted hover:text-fg',
+              )}
+            >
+              الكل
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === c.id}
+                onClick={() => setActiveCategory(c.id)}
+                className={cn(
+                  'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                  activeCategory === c.id
+                    ? 'bg-[rgb(var(--brand-primary))] text-white'
+                    : 'border border-line text-muted hover:text-fg',
+                )}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <ul key={activeCategory ?? 'all'} className="animate-fade-in space-y-3">
+          {visibleItems.map((item) => {
             const groups = groupsByProduct.get(item.productId) ?? [];
             return (
               <li key={item.variantId} className="rounded-lg border border-line bg-elevated p-4">
@@ -223,7 +287,9 @@ export function Storefront({
                 onClick={() => changeFulfillment(f)}
                 className={cn(
                   'flex-1 rounded px-3 py-2 text-sm font-semibold',
-                  fulfillment === f ? 'bg-primary text-primary-fg' : 'border border-line text-muted',
+                  fulfillment === f
+                    ? 'bg-[rgb(var(--brand-primary))] text-white'
+                    : 'border border-line text-muted',
                 )}
               >
                 {FULFILLMENT_LABELS[f]}
@@ -384,7 +450,7 @@ function AddControl({
                 className={cn(
                   'rounded border px-2.5 py-1 text-xs',
                   chosen.includes(m.id)
-                    ? 'border-primary bg-primary-soft text-primary'
+                    ? 'border-[rgb(var(--brand-primary))] bg-[rgb(var(--brand-primary)/0.12)] text-[rgb(var(--brand-primary))]'
                     : 'border-line text-muted',
                 )}
               >
@@ -398,7 +464,7 @@ function AddControl({
       <button
         type="button"
         onClick={() => { onAdd(item, chosen); setChosen([]); }}
-        className="mt-1 rounded bg-primary px-4 py-1.5 text-sm font-semibold text-primary-fg hover:bg-primary/90"
+        className="mt-1 rounded bg-[rgb(var(--brand-primary))] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[rgb(var(--brand-primary)/0.9)]"
       >
         أضف للسلة
       </button>
