@@ -67,6 +67,36 @@ export const menuProductSchema = z.object({
 
 export type MenuProductInput = z.infer<typeof menuProductSchema>;
 
+/**
+ * Editing an existing item: the same core fields as creating one, minus
+ * modifier groups (edited from their own screen already) and with variants
+ * keyed by id — an existing variant's price/name can change, but adding or
+ * removing a size is out of scope for this form, which is a general "fix the
+ * name/price/category" edit, not a variant-management rebuild.
+ */
+export const updateMenuProductSchema = z.object({
+  productId: z.string().uuid(),
+  name: z.string().trim().min(1, 'اسم الصنف مطلوب').max(200),
+  categoryId: z.string().uuid().nullable().optional(),
+  description: z.string().trim().max(1000).optional(),
+  taxRatePercent: z.coerce.number().min(0).max(100).default(0),
+  prepMinutes: z.coerce.number().int().min(0).max(600).default(0),
+  variants: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(120).default('default'),
+        priceCents: priceInput,
+      }),
+    )
+    .min(1, 'يجب أن يبقى حجم واحد على الأقل')
+    .max(10),
+});
+
+export type UpdateMenuProductInput = z.infer<typeof updateMenuProductSchema>;
+
+export const deleteProductSchema = z.object({ productId: z.string().uuid() });
+
 export const toggleProductSchema = z.object({
   productId: z.string().uuid(),
   isActive: z.coerce.boolean(),

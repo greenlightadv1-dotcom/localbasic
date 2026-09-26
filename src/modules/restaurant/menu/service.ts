@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { toAppError, notFound } from '@/lib/errors';
 import type { TenantContext } from '@/modules/core/tenancy/context';
-import type { MenuProductInput } from './schemas';
+import type { MenuProductInput, UpdateMenuProductInput } from './schemas';
 
 export type MenuVariant = {
   id: string;
@@ -275,6 +275,60 @@ export async function createMenuProduct(ctx: TenantContext, input: MenuProductIn
   }
 
   return { id: product.id };
+}
+
+/**
+ * Edits an existing item's core fields and its existing variants' names/
+ * prices. Ownership is checked implicitly: the update's own `.eq('id', ...)`
+ * plus the tenant-scoped RLS policy is what actually refuses a productId
+ * from another organization, the same as every other mutation in this file.
+ */
+export async function updateMenuProduct(
+  ctx: TenantContext,
+  input: UpdateMenuProductInput,
+): Promise<void> {
+  const supabase = createSupabaseServerClient();
+
+  const { error } = await supabase
+    .from('restaurant_products')
+    .update({
+      name: input.name,
+      category_id: input.categoryId ?? null,
+      description: input.description ?? null,
+      tax_rate_bp: Math.round(input.taxRatePercent * 100),
+      prep_minutes: input.prepMinutes,
+    })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', input.productId);
+  if (error) throw toAppError(error, 'updateMenuProduct');
+
+  for (const v of input.variants) {
+    const { error: variantError } = await supabase
+      .from('restaurant_variants')
+      .update({ name: v.name || 'default', price_cents: v.priceCents })
+      .eq('organization_id', ctx.organizationId)
+      .eq('product_id', input.productId)
+      .eq('id', v.id);
+    if (variantError) throw toAppError(variantError, 'updateMenuProduct variant');
+  }
+}
+
+/**
+ * Soft delete: restaurant_products keeps deleted_at for exactly this, and
+ * RLS (0020) revokes DELETE on this table from every tenant role outright —
+ * a hard delete was never reachable, and never will be, because past order
+ * lines snapshot product_name/unit_price_cents rather than referencing the
+ * product row, so a real delete would silently corrupt nothing on its own
+ * but every screen that still lists this product by id would.
+ */
+export async function deleteMenuProduct(ctx: TenantContext, productId: string): Promise<void> {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_products')
+    .update({ is_active: false, deleted_at: new Date().toISOString() })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', productId);
+  if (error) throw toAppError(error, 'deleteMenuProduct');
 }
 
 export async function setProductActive(ctx: TenantContext, productId: string, isActive: boolean) {

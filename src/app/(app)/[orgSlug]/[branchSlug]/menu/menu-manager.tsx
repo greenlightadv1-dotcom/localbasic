@@ -2,12 +2,13 @@
 
 import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, ImageIcon, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, ImageIcon, Plus, Trash2, Pencil } from 'lucide-react';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
+import { ConfirmDialog } from '@/components/ui/confirm';
 import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
 import { ImageUpload } from '@/components/patterns/image-upload';
@@ -23,6 +24,8 @@ import {
   setAvailabilityAction,
   setProductStationAction,
   setCategoryStationAction,
+  updateMenuProductAction,
+  deleteMenuProductAction,
 } from '../restaurant-actions';
 
 const STATION_KIND_LABELS: Record<string, string> = { kitchen: 'مطبخ', bar: 'بار' };
@@ -64,6 +67,8 @@ export function MenuManager({
   const [groups, setGroups] = useState<GroupDraft[]>([]);
   const [newItemImage, setNewItemImage] = useState<string | null>(null);
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<MenuItem | null>(null);
   const scope = { organizationSlug, branchSlug };
 
   function addCategory(formData: FormData) {
@@ -137,6 +142,38 @@ export function MenuManager({
       const result = await toggleBestSellerAction(scope, { productId, isBestSeller });
       if (!result.ok) toast.error(result.error);
       else router.refresh();
+    });
+  }
+
+  function saveEdit(item: MenuItem, formData: FormData) {
+    startTransition(async () => {
+      const result = await updateMenuProductAction(scope, {
+        productId: item.id,
+        name: formData.get('name'),
+        categoryId: formData.get('categoryId') || null,
+        description: formData.get('description') || undefined,
+        taxRatePercent: formData.get('taxRatePercent') || 0,
+        prepMinutes: formData.get('prepMinutes') || 0,
+        variants: item.variants.map((v) => ({
+          id: v.id,
+          name: formData.get(`variant-name-${v.id}`) || 'default',
+          priceCents: formData.get(`variant-price-${v.id}`) || '0',
+        })),
+      });
+      if (!result.ok) { toast.error(result.error); return; }
+      toast.success('تم حفظ التعديلات');
+      setEditingId(null);
+      router.refresh();
+    });
+  }
+
+  function removeItem(productId: string) {
+    startTransition(async () => {
+      const result = await deleteMenuProductAction(scope, { productId });
+      if (!result.ok) { toast.error(result.error); return; }
+      toast.success('تم حذف الصنف');
+      setDeleting(null);
+      router.refresh();
     });
   }
 
@@ -558,6 +595,7 @@ export function MenuManager({
                   <th scope="col" className="p-3 text-start font-medium">التوافر في الفرع</th>
                   {canManage && <th scope="col" className="p-3 text-start font-medium">الأكثر مبيعًا</th>}
                   {canManage && <th scope="col" className="p-3 text-start font-medium">الحالة</th>}
+                  {canManage && <th scope="col" className="p-3 text-start font-medium">إجراءات</th>}
                 </tr>
               </thead>
               <tbody>
@@ -650,10 +688,135 @@ export function MenuManager({
                         </Button>
                       </td>
                     )}
+                    {canManage && (
+                      <td className="p-3">
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => setEditingId((id) => (id === item.id ? null : item.id))}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                            تعديل
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-danger"
+                            disabled={isPending}
+                            onClick={() => setDeleting(item)}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            حذف
+                          </Button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
+                  {editingId === item.id && (
+                    <tr className="border-b border-line bg-surface last:border-0">
+                      <td colSpan={canManage ? 7 : 4} className="p-3">
+                        <form
+                          action={(formData) => saveEdit(item, formData)}
+                          className="space-y-3"
+                        >
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="اسم الصنف" required>
+                              {(p) => <Input {...p} name="name" required maxLength={200} defaultValue={item.name} />}
+                            </Field>
+                            <Field label="التصنيف">
+                              {(p) => (
+                                <Select {...p} name="categoryId" defaultValue={item.categoryId ?? ''}>
+                                  <option value="">بدون تصنيف</option>
+                                  {categories.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
+                            </Field>
+                            <Field label="نسبة الضريبة %">
+                              {(p) => (
+                                <Input
+                                  {...p}
+                                  name="taxRatePercent"
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="0.01"
+                                  defaultValue={item.taxRateBp / 100}
+                                  dir="ltr"
+                                />
+                              )}
+                            </Field>
+                            <Field label="زمن التحضير (دقائق)">
+                              {(p) => (
+                                <Input
+                                  {...p}
+                                  name="prepMinutes"
+                                  type="number"
+                                  min={0}
+                                  max={600}
+                                  defaultValue={item.prepMinutes}
+                                  dir="ltr"
+                                />
+                              )}
+                            </Field>
+                            <div className="sm:col-span-2">
+                              <Field label="الوصف">
+                                {(p) => <Textarea {...p} name="description" maxLength={1000} defaultValue={item.description ?? ''} />}
+                              </Field>
+                            </div>
+                          </div>
+
+                          <fieldset className="rounded border border-line p-3">
+                            <legend className="px-1 text-sm font-medium">الأحجام والأسعار</legend>
+                            <div className="space-y-2">
+                              {item.variants.map((v) => (
+                                <div key={v.id} className="flex flex-wrap items-end gap-2">
+                                  <div className="flex-1">
+                                    <label htmlFor={`variant-name-${v.id}`} className="mb-1 block text-xs">
+                                      الاسم
+                                    </label>
+                                    <Input
+                                      id={`variant-name-${v.id}`}
+                                      name={`variant-name-${v.id}`}
+                                      defaultValue={v.name}
+                                    />
+                                  </div>
+                                  <div className="w-32">
+                                    <label htmlFor={`variant-price-${v.id}`} className="mb-1 block text-xs">
+                                      السعر ({currency})
+                                    </label>
+                                    <Input
+                                      id={`variant-price-${v.id}`}
+                                      name={`variant-price-${v.id}`}
+                                      defaultValue={(v.priceCents / 100).toFixed(2)}
+                                      dir="ltr"
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </fieldset>
+
+                          <div className="flex gap-2">
+                            <Button type="submit" disabled={isPending}>
+                              حفظ التعديلات
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={() => setEditingId(null)}>
+                              إلغاء
+                            </Button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
                   {expandedImageId === item.id && (
                     <tr className="border-b border-line bg-surface last:border-0">
-                      <td colSpan={canManage ? 6 : 4} className="space-y-3 p-3">
+                      <td colSpan={canManage ? 7 : 4} className="space-y-3 p-3">
                         <ImageUpload
                           organizationId={organizationId}
                           purpose="product"
@@ -700,6 +863,19 @@ export function MenuManager({
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`حذف الصنف ${deleting?.name ?? ''}`}
+        description="لن يظهر هذا الصنف بعد الآن في المنيو ولا عند الكاشير. الطلبات السابقة عليه تبقى في السجل كما هي."
+        confirmLabel="حذف نهائيًا"
+        busy={isPending}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (!deleting) return;
+          removeItem(deleting.id);
+        }}
+      />
     </div>
   );
 }

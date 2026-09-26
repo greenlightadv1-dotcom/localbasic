@@ -8,6 +8,8 @@ import { toAppError } from '@/lib/errors';
 import {
   categorySchema,
   menuProductSchema,
+  updateMenuProductSchema,
+  deleteProductSchema,
   toggleProductSchema,
   toggleBestSellerSchema,
   setAvailabilitySchema,
@@ -18,6 +20,8 @@ import {
 import {
   createCategory,
   createMenuProduct,
+  updateMenuProduct,
+  deleteMenuProduct,
   setProductActive,
   setProductBestSeller,
   setProductImage,
@@ -88,6 +92,26 @@ export const createMenuProductAction = defineTenantAction({
     const result = await createMenuProduct(ctx, input);
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
     return result;
+  },
+});
+
+export const updateMenuProductAction = defineTenantAction({
+  schema: updateMenuProductSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await updateMenuProduct(ctx, input);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
+    return { ok: true };
+  },
+});
+
+export const deleteMenuProductAction = defineTenantAction({
+  schema: deleteProductSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await deleteMenuProduct(ctx, input.productId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
+    return { ok: true };
   },
 });
 
