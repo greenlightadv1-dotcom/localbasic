@@ -233,6 +233,19 @@ export async function commitImport(
   const byName = new Map<string, string>();
   for (const c of categories ?? []) byName.set(String(c.name).trim().toLowerCase(), c.id as string);
 
+  // A new category's routing comes from the first row that named both that
+  // category and a station kind. Rows disagreeing about an EXISTING category
+  // never change it here — only a brand-new category takes a kind from the
+  // sheet at all.
+  const stationKindByCategory = new Map<string, 'kitchen' | 'bar'>();
+  for (const row of toCreate) {
+    const v = row.values!;
+    const key = v.category?.trim().toLowerCase();
+    if (key && v.stationKind && !stationKindByCategory.has(key)) {
+      stationKindByCategory.set(key, v.stationKind);
+    }
+  }
+
   let categoriesCreated = 0;
   if (options.createCategories && preview.newCategories.length) {
     const wanted = preview.newCategories.filter((n) => !byName.has(n.trim().toLowerCase()));
@@ -244,6 +257,7 @@ export async function commitImport(
             organization_id: ctx.organizationId,
             name,
             sort_order: (categories?.length ?? 0) + i,
+            default_station_kind: stationKindByCategory.get(name.trim().toLowerCase()) ?? 'kitchen',
             created_by: ctx.userId,
           })),
         )
@@ -267,6 +281,7 @@ export async function commitImport(
           image_url: v.imageUrl,
           sort_order: v.sortOrder ?? 0,
           prep_minutes: v.prepMinutes ?? 0,
+          is_best_seller: v.bestSeller,
           created_by: ctx.userId,
         };
       }),

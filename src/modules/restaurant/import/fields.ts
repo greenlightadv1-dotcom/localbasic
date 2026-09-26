@@ -32,6 +32,8 @@ export const IMPORT_FIELDS = [
   'image_url',
   'sort_order',
   'prep_minutes',
+  'station',
+  'best_seller',
 ] as const;
 
 export type ImportField = (typeof IMPORT_FIELDS)[number];
@@ -46,6 +48,8 @@ export const FIELD_LABELS: Record<ImportField, string> = {
   image_url: 'رابط الصورة',
   sort_order: 'الترتيب',
   prep_minutes: 'زمن التحضير (دقائق)',
+  station: 'مطبخ / بار',
+  best_seller: 'الأكثر مبيعًا',
 };
 
 /**
@@ -70,6 +74,10 @@ const ALIASES: Record<ImportField, string[]> = {
                'الترتيب', 'ترتيب', 'الموضع'],
   prep_minutes: ['prep', 'prep time', 'preparation', 'preparation time', 'minutes',
                  'زمن التحضير', 'مدة التحضير', 'التحضير', 'دقائق'],
+  station: ['station', 'kitchen/bar', 'kitchen or bar', 'route', 'routing',
+            'مطبخ او بار', 'مطبخ/بار', 'المحطة', 'التوجيه'],
+  best_seller: ['best seller', 'bestseller', 'best_seller', 'featured', 'popular',
+                'الأكثر مبيعا', 'الأكثر مبيعًا', 'مميز', 'مميّز'],
 };
 
 /** Case- and punctuation-insensitive, and tolerant of Arabic diacritics. */
@@ -176,7 +184,14 @@ export type ImportRowValues = {
   imageUrl: string | null;
   sortOrder: number | null;
   prepMinutes: number | null;
+  /** null = leave the category's own default alone (see commitImport). */
+  stationKind: 'kitchen' | 'bar' | null;
+  bestSeller: boolean;
 };
+
+const TRUE_WORDS = new Set(['1', 'true', 'yes', 'y', 'نعم', 'صح', 'أيوه', 'ايوه']);
+const KITCHEN_WORDS = new Set(['kitchen', 'مطبخ']);
+const BAR_WORDS = new Set(['bar', 'بار']);
 
 export type RowIssue = { field: ImportField | 'row'; message: string };
 
@@ -234,6 +249,16 @@ export function validateRow(
     issues.push({ field: 'category', message: 'اسم التصنيف طويل جدًا' });
   }
 
+  const stationRaw = normalise(cells.station.trim());
+  let stationKind: 'kitchen' | 'bar' | null = null;
+  if (stationRaw !== '') {
+    if (KITCHEN_WORDS.has(stationRaw)) stationKind = 'kitchen';
+    else if (BAR_WORDS.has(stationRaw)) stationKind = 'bar';
+    else issues.push({ field: 'station', message: 'القيمة يجب أن تكون "مطبخ" أو "بار"' });
+  }
+
+  const bestSeller = TRUE_WORDS.has(normalise(cells.best_seller.trim()));
+
   if (issues.length) return { ok: false, issues };
 
   return {
@@ -246,6 +271,8 @@ export function validateRow(
       imageUrl: imageRaw === '' ? null : imageRaw,
       sortOrder,
       prepMinutes,
+      stationKind,
+      bestSeller,
     },
   };
 }

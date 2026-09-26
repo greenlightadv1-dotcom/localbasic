@@ -112,6 +112,17 @@ export function ImportWizard({
           <CardTitle>١. المصدر</CardTitle>
         </CardHeader>
         <CardBody className="space-y-5">
+          <p className="text-sm text-muted">
+            غير متأكد من شكل الملف؟{' '}
+            <a
+              href="/templates/menu-import-template.csv"
+              download
+              className="font-semibold text-primary hover:underline"
+            >
+              نزّل نموذج CSV جاهز
+            </a>{' '}
+            بكل الأعمدة المدعومة (الاسم، السعر، التصنيف، مطبخ/بار، الأكثر مبيعًا…).
+          </p>
           {parseState && !parseState.ok && <Alert tone="danger">{parseState.error}</Alert>}
 
           <form action={parse} className="space-y-3">
