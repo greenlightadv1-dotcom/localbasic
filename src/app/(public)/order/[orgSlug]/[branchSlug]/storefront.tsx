@@ -71,6 +71,10 @@ export function Storefront({
   const [fulfillment, setFulfillment] = useState<Fulfillment>(offered[0] ?? 'pickup');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  // Mobile only: the cart/checkout panel is an overlay opened from the sticky
+  // bottom bar, rather than something to scroll all the way down to. Unused
+  // above `lg:`, where the panel is always visible in its own column.
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
   const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
 
@@ -168,8 +172,10 @@ export function Storefront({
     [items, activeCategory],
   );
 
+  const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+    <div className="grid gap-8 pb-24 lg:grid-cols-[1.4fr_1fr] lg:pb-0">
       <section>
         <h2 className="mb-4 text-lg font-bold text-fg">المنيو</h2>
 
@@ -185,7 +191,7 @@ export function Storefront({
               aria-selected={activeCategory === null}
               onClick={() => setActiveCategory(null)}
               className={cn(
-                'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                'flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors',
                 activeCategory === null
                   ? 'bg-[rgb(var(--brand-primary))] text-white'
                   : 'border border-line text-muted hover:text-fg',
@@ -201,7 +207,7 @@ export function Storefront({
                 aria-selected={activeCategory === c.id}
                 onClick={() => setActiveCategory(c.id)}
                 className={cn(
-                  'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                  'flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors',
                   activeCategory === c.id
                     ? 'bg-[rgb(var(--brand-primary))] text-white'
                     : 'border border-line text-muted hover:text-fg',
@@ -242,8 +248,25 @@ export function Storefront({
         </ul>
       </section>
 
-      <section className="lg:sticky lg:top-4 lg:self-start">
-        <h2 className="mb-4 text-lg font-bold text-fg">سلتك</h2>
+      <section
+        className={cn(
+          'lg:sticky lg:top-4 lg:block lg:self-start',
+          mobileCartOpen
+            ? 'fixed inset-0 z-30 overflow-y-auto bg-bg p-4'
+            : 'hidden',
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between lg:mb-4">
+          <h2 className="text-lg font-bold text-fg">سلتك</h2>
+          <button
+            type="button"
+            onClick={() => setMobileCartOpen(false)}
+            aria-label="إغلاق السلة"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-muted lg:hidden"
+          >
+            ✕
+          </button>
+        </div>
 
         <div className="rounded-lg border border-line bg-elevated p-4">
           {lines.length === 0 ? (
@@ -409,6 +432,27 @@ export function Storefront({
           </p>
         </form>
       </section>
+
+      {/* Mobile only: a sticky bottom bar standing in for the cart panel,
+          which is off-screen below the menu on a phone. Opens the same
+          panel as an overlay rather than making checkout something to
+          scroll all the way down to find. */}
+      {!mobileCartOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileCartOpen(true)}
+          className="fixed inset-x-0 bottom-0 z-20 flex min-h-14 items-center justify-between gap-3 bg-[rgb(var(--brand-primary))] px-5 py-3 text-white shadow-[0_-4px_12px_rgb(0_0_0/0.15)] lg:hidden"
+        >
+          <span className="text-sm font-semibold">
+            {itemCount > 0 ? `عرض السلة (${itemCount})` : 'عرض السلة'}
+          </span>
+          {quote && (
+            <span className="lb-numeric text-base font-bold">
+              {money(quote.totalCents, quote.currency)}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
