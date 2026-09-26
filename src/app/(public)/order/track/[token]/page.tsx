@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOrderByToken } from '@/modules/restaurant/online/service';
 import { lavechiCssVars, LAVECHI_CARD_SHADOW } from '@/modules/restaurant/website/lavechi-theme';
-import { LavechiShell } from '../../../r/[orgSlug]/parts';
 import { EditWindow } from './track';
 import { OrderProgress } from './order-progress';
 
@@ -30,11 +29,10 @@ export default async function TrackPage({ params }: { params: { token: string } 
   if (!order) notFound();
 
   return (
-    <LavechiShell>
-      <div
-        className="mx-auto min-h-dvh max-w-lg bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] px-4 py-10 text-[#F4F1E4] sm:px-6"
-        style={lavechiCssVars() as React.CSSProperties}
-      >
+    <div
+      className="mx-auto min-h-dvh max-w-lg bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] px-4 py-10 text-[#F4F1E4] sm:px-6"
+      style={lavechiCssVars() as React.CSSProperties}
+    >
       <p className="text-sm text-muted">طلب رقم</p>
       <h1 className="mb-4 font-reem text-2xl font-normal tracking-wide text-fg" dir="ltr">{order.number}</h1>
 
@@ -95,7 +93,6 @@ export default async function TrackPage({ params }: { params: { token: string } 
           إنشاء حساب
         </Link>
       </div>
-      </div>
-    </LavechiShell>
+    </div>
   );
 }

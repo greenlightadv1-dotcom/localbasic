@@ -4,10 +4,6 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
 import { addFavorite, removeFavorite } from '@/modules/restaurant/account/service';
-import { otpSendInput, otpVerifyInput } from '@/modules/restaurant/online/schemas';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
-import { getClientIp } from '@/lib/action';
 import { AppError } from '@/lib/errors';
 
 export type CheckoutState = { error?: string } | undefined;
@@ -49,9 +45,10 @@ function checkoutInputFromForm(formData: FormData) {
 /**
  * Checkout for an already-authenticated customer.
  *
- * Reached only from the signed-in path in the storefront — a guest goes
- * through sendCheckoutOtpAction / placeVerifiedOrderAction (D4) instead, since
- * an unauthenticated request has no verified email to attach an order to.
+ * Reached only from the signed-in path in the storefront (0078): a
+ * signed-out visitor is redirected to sign in/sign up — phone + OTP — before
+ * this action is ever reachable, so there is no separate guest checkout path
+ * to keep in step with this one.
  */
 export async function checkoutAction(
   _prev: CheckoutState,
@@ -74,97 +71,6 @@ export async function checkoutAction(
   // The token is the guest's only handle on this order, so the tracking page is
   // where they land. redirect() throws NEXT_REDIRECT and must stay outside the
   // try above, which would otherwise report a failure for a placed order.
-  redirect(`/order/track/${placed.token}`);
-}
-
-export type OtpState = { error?: string; ok?: boolean } | undefined;
-
-/**
- * Send a 6-digit email OTP to a guest checking out (D4).
- *
- * `shouldCreateUser: true` means a first-time email gets a Supabase Auth user
- * created for it right here — exactly like customerSignUpAction, just without
- * a password, since the code itself is the proof of ownership. No SMS
- * provider, no per-message cost: Supabase sends this through its own email
- * delivery, same channel `customerSignUpAction`'s confirmation mail already
- * uses.
- */
-export async function sendCheckoutOtpAction(
-  _prev: OtpState,
-  formData: FormData,
-): Promise<OtpState> {
-  const parsed = otpSendInput.safeParse({ email: formData.get('customerEmail') });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'بريد إلكتروني غير صحيح' };
-  }
-
-  const ip = getClientIp();
-  for (const key of [`checkout-otp-send:ip:${ip}`, `checkout-otp-send:email:${parsed.data.email.toLowerCase()}`]) {
-    if (!checkRateLimit(key, RATE_LIMITS.checkoutOtpSend).ok) {
-      return { error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' };
-    }
-  }
-
-  const supabase = createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data.email,
-    options: { shouldCreateUser: true },
-  });
-  if (error) return { error: 'تعذّر إرسال رمز التحقق. حاول مرة أخرى.' };
-
-  return { ok: true };
-}
-
-/**
- * Verify the OTP and place the order in one step (D4).
- *
- * verifyOtp signs the caller in through the same cookie-backed server client
- * placeOnlineOrder reads a moment later, so by the time it calls
- * restaurant_place_online_order, auth.uid() already resolves — the order is
- * linked to a real, email-verified customer account exactly the way an
- * already-signed-in checkout is, never left as an anonymous guest row.
- */
-export async function placeVerifiedOrderAction(
-  _prev: CheckoutState,
-  formData: FormData,
-): Promise<CheckoutState> {
-  const parsedOtp = otpVerifyInput.safeParse({
-    email: formData.get('customerEmail'),
-    code: formData.get('otpCode'),
-  });
-  if (!parsedOtp.success) {
-    return { error: parsedOtp.error.issues[0]?.message ?? 'رمز التحقق غير صحيح' };
-  }
-
-  const ip = getClientIp();
-  for (const key of [`checkout-otp-verify:ip:${ip}`, `checkout-otp-verify:email:${parsedOtp.data.email.toLowerCase()}`]) {
-    if (!checkRateLimit(key, RATE_LIMITS.checkoutOtpVerify).ok) {
-      return { error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' };
-    }
-  }
-
-  let input: ReturnType<typeof checkoutInputFromForm>;
-  try {
-    input = checkoutInputFromForm(formData);
-  } catch {
-    return { error: 'السلة غير صالحة.' };
-  }
-
-  const supabase = createSupabaseServerClient();
-  const { error: otpError } = await supabase.auth.verifyOtp({
-    email: parsedOtp.data.email,
-    token: parsedOtp.data.code,
-    type: 'email',
-  });
-  if (otpError) return { error: 'رمز التحقق غير صحيح أو منتهي الصلاحية.' };
-
-  let placed: Awaited<ReturnType<typeof placeOnlineOrder>>;
-  try {
-    placed = await placeOnlineOrder(input);
-  } catch (error) {
-    return { error: error instanceof AppError ? error.message : 'تعذّر إتمام الطلب.' };
-  }
-
   redirect(`/order/track/${placed.token}`);
 }
 

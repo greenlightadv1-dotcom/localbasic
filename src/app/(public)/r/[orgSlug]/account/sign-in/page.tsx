@@ -27,7 +27,7 @@ export default async function CustomerSignInPage({
   searchParams,
 }: {
   params: { orgSlug: string };
-  searchParams: { claim?: string };
+  searchParams: { claim?: string; next?: string };
 }) {
   const site = await getWebsite(params.orgSlug);
   if (!site) notFound();
@@ -38,6 +38,13 @@ export default async function CustomerSignInPage({
   const claim = /^[A-Za-z0-9_-]{22,64}$/.test(searchParams.claim ?? '')
     ? searchParams.claim!
     : null;
+  // Where checkout sent the customer from — validated the same way the
+  // action that ultimately redirects there validates it: same-origin only.
+  const next = /^\/(?!\/)\S*$/.test(searchParams.next ?? '') ? searchParams.next! : null;
+  const carry = new URLSearchParams({
+    ...(claim ? { claim } : {}),
+    ...(next ? { next } : {}),
+  }).toString();
 
   return (
     <AccountAuthShell site={site} orgSlug={params.orgSlug}>
@@ -47,11 +54,11 @@ export default async function CustomerSignInPage({
             <h1 className="text-lg font-bold">تسجيل الدخول</h1>
             <p className="text-sm text-muted">تابع طلباتك وعناوينك المحفوظة.</p>
           </div>
-          <CustomerAuthForm mode="sign-in" orgSlug={params.orgSlug} claim={claim} />
+          <CustomerAuthForm mode="sign-in" orgSlug={params.orgSlug} claim={claim} next={next} />
           <p className="text-center text-sm text-muted">
             ليس لديك حساب؟{' '}
             <Link
-              href={`/r/${params.orgSlug}/account/sign-up${claim ? `?claim=${claim}` : ''}`}
+              href={`/r/${params.orgSlug}/account/sign-up${carry ? `?${carry}` : ''}`}
               className="font-semibold text-primary hover:underline"
             >
               أنشئ حسابًا

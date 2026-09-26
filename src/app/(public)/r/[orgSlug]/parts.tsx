@@ -9,7 +9,7 @@ import {
   DEFAULT_THEME, type SectionConfig, type Theme,
 } from '@/modules/restaurant/website/builder-shared';
 import {
-  lavechiCssVars, LAVECHI_SHELL_BACKDROP, LAVECHI_SHELL_SHADOW,
+  lavechiCssVars,
 } from '@/modules/restaurant/website/lavechi-theme';
 
 /**
@@ -207,11 +207,15 @@ export function SiteHeader({
 }
 
 export function Hero({
-  site, orgSlug, branch, config = {},
+  site, orgSlug, branch, signedIn, config = {},
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
+  /** Gates the order button (0078): a signed-out visitor goes to sign-in/
+   *  sign-up first, carrying the order page as `next`, rather than straight
+   *  to the storefront. */
+  signedIn: boolean;
   /** Builder content. Empty for a restaurant on the default layout. */
   config?: SectionConfig;
 }) {
@@ -221,6 +225,11 @@ export function Hero({
   const heroImage = config.imageUrl || site.heroUrl;
   const heading = config.title || site.organizationName;
   const tagline = config.subtitle ?? site.tagline;
+  const orderHref = branch
+    ? signedIn
+      ? `/order/${orgSlug}/${branch.slug}`
+      : `/r/${orgSlug}/account/sign-in?next=${encodeURIComponent(`/order/${orgSlug}/${branch.slug}`)}`
+    : null;
 
   return (
     <section className="relative overflow-hidden border-b border-line">
@@ -259,9 +268,9 @@ export function Hero({
           ) : null}
 
           <div className="flex flex-wrap gap-3 pt-1">
-            {canOrder && branch ? (
+            {canOrder && orderHref ? (
               <Link
-                href={`/order/${orgSlug}/${branch.slug}`}
+                href={orderHref}
                 style={{ borderRadius: 'var(--lb-btn-radius)' }}
                 className="inline-flex h-12 items-center justify-center bg-primary px-7 text-base font-semibold text-primary-fg transition-colors hover:bg-primary/90"
               >
@@ -590,26 +599,3 @@ export function SiteFooter({
   );
 }
 
-/**
- * The Lavechi theme's app-like floating container.
- *
- * Below ~460px of viewport width — any real phone — the inner card already
- * IS the full width, so the backdrop never actually shows: this is a no-op
- * there. Above it, the page reads as a phone-shaped app centered on a darker
- * page, exactly the way the spec's screenshots do.
- */
-export function LavechiShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="flex min-h-dvh w-full justify-center"
-      style={{ background: LAVECHI_SHELL_BACKDROP }}
-    >
-      <div
-        className="relative min-h-dvh w-full max-w-[460px] overflow-hidden"
-        style={{ boxShadow: LAVECHI_SHELL_SHADOW }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}

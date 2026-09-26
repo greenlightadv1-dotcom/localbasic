@@ -39,11 +39,6 @@ export const LAVECHI_CARD_SHADOW = '0 18px 44px rgba(0,0,0,.2)';
 /** Shown only while a gold (primary) button is the active/pressed one. */
 export const LAVECHI_GOLD_GLOW = `0 12px 28px ${LAVECHI.gold}33`;
 
-/** The floating "phone" shell's own shadow, wider than a card's — see `LavechiShell`. */
-export const LAVECHI_SHELL_SHADOW = '0 0 60px rgba(0,0,0,.5)';
-/** What shows on either side of the shell once the viewport is wider than it. */
-export const LAVECHI_SHELL_BACKDROP = '#061B14';
-
 export const LAVECHI_RADIUS = {
   panel: '22px',   // cards/panels: 18–26px
   control: '13px', // primary buttons/inputs: 12–15px

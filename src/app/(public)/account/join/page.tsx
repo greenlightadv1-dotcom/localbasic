@@ -52,7 +52,7 @@ export default async function JoinPage({
                 سنربط هذا الطلب بحسابك، وتقدر تتابع طلباتك القادمة من مكان واحد.
               </p>
             </div>
-            <CustomerAuthForm mode="sign-up" orgSlug={null} claim={token} />
+            <CustomerAuthForm mode="sign-up" orgSlug={null} claim={token} next={null} />
           </CardBody>
         </Card>
       </main>

@@ -17,7 +17,6 @@ import {
 import {
   brandStyle, backgroundClass, containerClass,
   SiteHeader, Hero, About, BranchPicker, Location, Hours, Contact, Gallery, Cta, SiteFooter,
-  LavechiShell,
 } from './parts';
 import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
 
@@ -82,13 +81,17 @@ function renderSection(
     savedAddresses: { id: string; label: string; address: string; isDefault: boolean }[];
     customerName: string;
     customerPhone: string;
-    customerEmail: string;
   },
 ) {
   const { config } = spec;
   switch (spec.type) {
     case 'hero':
-      return <Hero site={ctx.site} orgSlug={ctx.orgSlug} branch={ctx.branch} config={config} />;
+      return (
+        <Hero
+          site={ctx.site} orgSlug={ctx.orgSlug} branch={ctx.branch}
+          signedIn={ctx.signedIn} config={config}
+        />
+      );
     case 'about':
       return <About site={ctx.site} config={config} />;
     case 'menu':
@@ -113,7 +116,6 @@ function renderSection(
           savedAddresses={ctx.savedAddresses}
           customerName={ctx.customerName}
           customerPhone={ctx.customerPhone}
-          customerEmail={ctx.customerEmail}
           signedIn={ctx.signedIn}
           favoriteProductIds={[...ctx.favoriteIds]}
         />
@@ -206,10 +208,9 @@ export async function RestaurantSite({
     })),
     customerName: profile?.fullName ?? '',
     customerPhone: profile?.phone ?? '',
-    customerEmail: profile?.email ?? '',
   };
 
-  const page = (
+  return (
     <div style={brandStyle(site, theme)} className={`min-h-dvh ${backgroundClass(theme)}`}>
       <SiteHeader site={site} orgSlug={orgSlug} branch={branch} signedIn={signedIn} theme={theme} />
       <main className={`mx-auto ${containerClass(theme)}`}>
@@ -223,10 +224,4 @@ export async function RestaurantSite({
       <SiteFooter site={site} orgSlug={orgSlug} branch={branch} />
     </div>
   );
-
-  // The app-like floating container: full width on a real phone (where the
-  // viewport already is roughly this narrow), a centered 460px card with a
-  // darker backdrop everywhere wider. Only the Lavechi preset asks for this;
-  // every other theme keeps rendering as a normal, unconstrained page.
-  return theme.background === 'lavechi' ? <LavechiShell>{page}</LavechiShell> : page;
 }

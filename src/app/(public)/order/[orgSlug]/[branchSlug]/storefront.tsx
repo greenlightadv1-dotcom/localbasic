@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
 import {
-  checkoutAction, sendCheckoutOtpAction, placeVerifiedOrderAction,
-  quoteCartAction, toggleFavoriteAction, type CheckoutState,
+  checkoutAction, quoteCartAction, toggleFavoriteAction, type CheckoutState,
 } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
@@ -49,7 +49,6 @@ export function Storefront({
   savedAddresses = [],
   customerName = '',
   customerPhone = '',
-  customerEmail = '',
   signedIn = false,
   favoriteProductIds = [],
 }: {
@@ -68,11 +67,13 @@ export function Storefront({
   savedAddresses?: { id: string; label: string; address: string; isDefault: boolean }[];
   customerName?: string;
   customerPhone?: string;
-  customerEmail?: string;
-  /** Whether a customer account is signed in. The heart toggle only ever
-   *  renders for one — a guest has no favorites row to toggle. Also decides
-   *  whether checkout needs an email OTP (D4): a signed-in customer's email
-   *  is already verified, a guest's is not. */
+  /**
+   * Whether a customer account is signed in. The heart toggle only ever
+   * renders for one — a guest has no favorites row to toggle. Checkout
+   * itself is gated on it (0078): a signed-out visitor still browses and
+   * builds a cart, but placing the order redirects to sign-in/sign-up
+   * first, with the cart preserved across that round trip.
+   */
   signedIn?: boolean;
   favoriteProductIds?: string[];
 }) {
@@ -90,24 +91,21 @@ export function Storefront({
   // above `lg:`, where the panel is always visible in its own column.
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
+  const router = useRouter();
 
-  // Returning-guest convenience: a signed-out visitor's contact details are
-  // remembered locally so they never retype them on their next order — on
-  // this device only, and only ever a fallback under whatever the server
-  // already knows (a signed-in customer's real profile always wins, since
-  // `customerName` etc. arrive non-empty in that case and the cache read
-  // below is skipped). The keys are shared with the table-QR ordering flow
-  // (/p/[token]), so switching between the two on one phone still remembers
-  // the same name.
+  // Returning-guest convenience: a signed-out visitor's name/phone are
+  // remembered locally so they are not retyped on the next visit — on this
+  // device only, and only ever a fallback under whatever the server already
+  // knows (a signed-in customer's real profile always wins, since
+  // `customerName`/`customerPhone` arrive non-empty in that case). The keys
+  // are shared with the table-QR ordering flow (/p/[token]).
   const [name, setName] = useState(customerName);
   const [phone, setPhone] = useState(customerPhone);
-  const [email, setEmail] = useState(customerEmail);
   useEffect(() => {
     if (signedIn) return;
     try {
       if (!name) setName(localStorage.getItem('lb-guest-name') ?? '');
       if (!phone) setPhone(localStorage.getItem('lb-guest-phone') ?? '');
-      if (!email) setEmail(localStorage.getItem('lb-guest-email') ?? '');
     } catch {
       // Private browsing or a blocked store: fields just start empty.
     }
@@ -117,33 +115,44 @@ export function Storefront({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // D4: a guest must verify a 6-digit email code before an order places; a
-  // signed-in customer already has a verified email and skips straight to
-  // checkoutAction, exactly the D3 path. `otpSent` gates which field the form
-  // shows next — the email field until a code goes out, then the code field —
-  // and `submit` below is what decides which server action a given press of
-  // the button actually reaches.
-  const [otpSent, setOtpSent] = useState(false);
-  async function submit(prev: CheckoutState, formData: FormData): Promise<CheckoutState> {
-    if (!signedIn) {
-      try {
-        if (name) localStorage.setItem('lb-guest-name', name);
-        if (phone) localStorage.setItem('lb-guest-phone', phone);
-        if (email) localStorage.setItem('lb-guest-email', email);
-      } catch {
-        // Best-effort only — a blocked or full store just means these
-        // fields start empty again next visit, nothing else changes.
+  // Checkout is gated on having an account (0078). A signed-out visitor still
+  // browses and builds a full cart; the cart is what would otherwise be lost
+  // sending them off to sign in, so it is stashed here and restored once they
+  // are back — signed in, on this exact page — rather than requiring the
+  // trip to remember nothing.
+  const cartStorageKey = `lb-cart:${orgSlug}:${branchSlug}`;
+  useEffect(() => {
+    if (!signedIn) return;
+    try {
+      const saved = localStorage.getItem(cartStorageKey);
+      if (!saved) return;
+      const restored = JSON.parse(saved) as { lines: Line[]; fulfillment: Fulfillment };
+      if (Array.isArray(restored.lines) && restored.lines.length > 0) {
+        setLines(restored.lines);
+        if (restored.fulfillment) setFulfillment(restored.fulfillment);
+        repriceWith(restored.lines, restored.fulfillment ?? fulfillment);
       }
+      localStorage.removeItem(cartStorageKey);
+    } catch {
+      // A corrupt or blocked store just means starting with an empty cart.
     }
-    if (signedIn) return checkoutAction(prev, formData);
-    if (!otpSent) {
-      const result = await sendCheckoutOtpAction(prev, formData);
-      if (!result?.error) setOtpSent(true);
-      return result;
+    // Only ever runs once, right after landing back here signed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn]);
+
+  function goToSignIn() {
+    try {
+      if (lines.length > 0) {
+        localStorage.setItem(cartStorageKey, JSON.stringify({ lines, fulfillment }));
+      }
+    } catch {
+      // Best-effort only — worst case the cart is empty when they return.
     }
-    return placeVerifiedOrderAction(prev, formData);
+    const next = `/order/${orgSlug}/${branchSlug}`;
+    router.push(`/r/${orgSlug}/account/sign-in?next=${encodeURIComponent(next)}`);
   }
-  const [state, action] = useFormState<CheckoutState, FormData>(submit, undefined);
+
+  const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
 
   // One key per checkout attempt, so a double-click or a retry is recognised
   // server-side as the same attempt rather than a second order.
@@ -489,6 +498,26 @@ export function Storefront({
           </div>
         </div>
 
+        {!signedIn ? (
+          // Checkout is gated on an account (0078) — a signed-out visitor
+          // still builds a full cart, but placing the order needs a phone
+          // number to place it under. goToSignIn() stashes the cart first,
+          // so it is exactly as it was when they come back signed in.
+          <div className="mt-4 rounded-[18px] border border-line bg-elevated p-4 text-center">
+            <p className="mb-3 text-sm text-muted">
+              سجّل الدخول لإتمام الطلب — رقم هاتفك هو حسابك.
+            </p>
+            <button
+              type="button"
+              onClick={goToSignIn}
+              disabled={lines.length === 0}
+              style={{ boxShadow: lines.length > 0 ? LAVECHI_GOLD_GLOW : undefined }}
+              className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
+            >
+              تسجيل الدخول لإتمام الطلب
+            </button>
+          </div>
+        ) : (
         <form action={action} className="mt-4 space-y-3">
           <input type="hidden" name="orgSlug" value={orgSlug} />
           <input type="hidden" name="branchSlug" value={branchSlug} />
@@ -505,12 +534,6 @@ export function Storefront({
             </p>
           ) : null}
 
-          {!signedIn && otpSent && !state?.error ? (
-            <p className="rounded-[13px] border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
-              تم إرسال رمز مكوّن من 6 أرقام إلى بريدك الإلكتروني.
-            </p>
-          ) : null}
-
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
             <input name="customerName" required maxLength={120} value={name}
@@ -523,41 +546,6 @@ export function Storefront({
               onChange={(e) => setPhone(e.target.value)}
               className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
-
-          {/* D4: a guest verifies the email an order is placed under; a
-              signed-in customer's is already verified and needs neither
-              field. The email locks once a code is sent — changing it would
-              mean verifying a code against an address it was never sent to. */}
-          {!signedIn ? (
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-fg">البريد الإلكتروني</span>
-              <input
-                name="customerEmail" type="email" required maxLength={254} dir="ltr"
-                value={email} onChange={(e) => setEmail(e.target.value)} disabled={otpSent}
-                className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none disabled:opacity-60"
-              />
-            </label>
-          ) : null}
-
-          {!signedIn && otpSent ? (
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-fg">
-                رمز التحقق المرسل إلى بريدك
-              </span>
-              <input
-                name="otpCode" required inputMode="numeric" pattern="\d{6}" maxLength={6} dir="ltr"
-                autoFocus
-                className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-center text-lg font-bold tracking-[0.5em] text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => setOtpSent(false)}
-                className="mt-1.5 text-xs font-semibold text-muted hover:text-fg"
-              >
-                تغيير البريد الإلكتروني
-              </button>
-            </label>
-          ) : null}
 
           {fulfillment === 'delivery' && savedAddresses.length > 0 ? (
             <label className="block">
@@ -611,16 +599,13 @@ export function Storefront({
           </label>
 
           {lines.length > 0 ? (
-            signedIn || otpSent ? (
-              <Submit label="تأكيد الطلب (الدفع نقدًا)" pendingLabel="جارٍ إرسال الطلب…" />
-            ) : (
-              <Submit label="إرسال رمز التحقق" pendingLabel="جارٍ الإرسال…" />
-            )
+            <Submit label="تأكيد الطلب (الدفع نقدًا)" pendingLabel="جارٍ إرسال الطلب…" />
           ) : null}
           <p className="text-center text-xs text-muted">
             الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
           </p>
         </form>
+        )}
       </section>
 
       {/* Mobile only: a sticky bottom bar standing in for the cart panel,

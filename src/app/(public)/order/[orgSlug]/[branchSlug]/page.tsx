@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
 import { currentUser, getAddresses, getProfile, getFavorites } from '@/modules/restaurant/account/service';
 import { lavechiCssVars, LAVECHI_SPLASH_BACKGROUND } from '@/modules/restaurant/website/lavechi-theme';
-import { LavechiShell } from '../../../r/[orgSlug]/parts';
 import { Storefront } from './storefront';
 
 export const dynamic = 'force-dynamic';
@@ -51,12 +50,11 @@ export default async function OrderPage({
     : [null, [], []];
 
   return (
-    <LavechiShell>
-      <div
-        className="min-h-dvh"
-        style={{ ...lavechiCssVars(), background: LAVECHI_SPLASH_BACKGROUND } as React.CSSProperties}
-      >
-        <div className="mx-auto max-w-5xl px-4 py-8 text-[#F4F1E4] sm:px-6">
+    <div
+      className="min-h-dvh"
+      style={{ ...lavechiCssVars(), background: LAVECHI_SPLASH_BACKGROUND } as React.CSSProperties}
+    >
+      <div className="mx-auto max-w-5xl px-4 py-8 text-[#F4F1E4] sm:px-6">
           <div className="mb-6 flex items-center gap-3">
             {info.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element -- an
@@ -88,12 +86,10 @@ export default async function OrderPage({
             }))}
             customerName={profile?.fullName ?? ''}
             customerPhone={profile?.phone ?? ''}
-            customerEmail={profile?.email ?? ''}
             signedIn={Boolean(user)}
             favoriteProductIds={favorites.map((f) => f.productId)}
           />
-        </div>
       </div>
-    </LavechiShell>
+    </div>
   );
 }

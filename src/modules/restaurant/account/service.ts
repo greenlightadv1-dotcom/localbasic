@@ -97,6 +97,7 @@ export async function saveProfile(input: unknown): Promise<void> {
     p_org_slug: parsed.data.orgSlug,
     p_name: parsed.data.name,
     p_phone: parsed.data.phone || null,
+    p_email: parsed.data.email || null,
   });
   if (error) throw new AppError('validation', error.message);
 }

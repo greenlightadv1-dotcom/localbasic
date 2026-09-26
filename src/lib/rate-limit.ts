@@ -56,12 +56,6 @@ export const RATE_LIMITS = {
   // domains cannot multiply the first limit away.
   domainVerify: { limit: 10, windowMs: 10 * 60_000 },
   domainVerifyUser: { limit: 60, windowMs: 10 * 60_000 },
-  // Email OTP for guest checkout. Sending a code costs an outbound email, so
-  // it is capped tighter than verifying one already received; both are keyed
-  // per-IP and per-email the same way `signIn` is, so neither a spray across
-  // addresses nor hammering a single one gets far.
-  checkoutOtpSend: { limit: 5, windowMs: 10 * 60_000 },
-  checkoutOtpVerify: { limit: 8, windowMs: 10 * 60_000 },
   // Retail storefront checkout. Looser than `publicOrder` on purpose: a retail
   // shop's customers arrive from mobile carriers and office networks, where
   // many genuine buyers share one address, and a restaurant's 10-per-10-minutes

@@ -7,9 +7,9 @@ import { Field, Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
 import type { SavedAddress } from '@/modules/restaurant/account/service';
 import {
-  customerSignInAction, customerSignOutAction, customerSignUpAction,
-  deleteAddressAction, saveAddressAction, saveProfileAction, saveSettingsAction,
-  toggleFavoriteAction, type AccountState,
+  customerSignInAction, customerSignOutAction, customerSignUpAction, customerVerifyOtpAction,
+  resendCustomerOtpAction, deleteAddressAction, saveAddressAction, saveProfileAction,
+  saveSettingsAction, toggleFavoriteAction, type AccountState,
 } from './actions';
 
 /**
@@ -40,17 +40,44 @@ export function SignOutButton({ orgSlug }: { orgSlug: string }) {
   );
 }
 
+/**
+ * Sign-in is one step: phone + password. Sign-up is two: phone/password/
+ * name/optional email/optional address, then — once Supabase has sent the
+ * SMS — a 6-digit code. `otpSent` is local UI state only; the phone number
+ * that state belongs to is never trusted from it, only from what the form
+ * itself re-submits on the second step.
+ */
 export function CustomerAuthForm({
   mode,
   orgSlug,
   claim,
+  next,
 }: {
   mode: 'sign-in' | 'sign-up';
   orgSlug: string | null;
   claim: string | null;
+  next: string | null;
 }) {
-  const [state, formAction] = useFormState<AccountState, FormData>(
-    mode === 'sign-in' ? customerSignInAction : customerSignUpAction,
+  const [otpSent, setOtpSent] = useState(false);
+  const [phone, setPhone] = useState('');
+
+  async function submit(prev: AccountState, formData: FormData): Promise<AccountState> {
+    if (mode === 'sign-in') return customerSignInAction(prev, formData);
+    if (!otpSent) {
+      const result = await customerSignUpAction(prev, formData);
+      if (result && 'otpRequired' in result && result.otpRequired) {
+        setPhone(String(formData.get('phone') ?? ''));
+        setOtpSent(true);
+        return undefined;
+      }
+      return result as AccountState;
+    }
+    return customerVerifyOtpAction(prev, formData);
+  }
+
+  const [state, formAction] = useFormState<AccountState, FormData>(submit, undefined);
+  const [resendState, resendAction] = useFormState<AccountState, FormData>(
+    resendCustomerOtpAction,
     undefined,
   );
 
@@ -61,48 +88,97 @@ export function CustomerAuthForm({
       {/* The order-status token the customer already holds, carried through
           the form so the order can be attached the moment they are signed in. */}
       {claim && <input type="hidden" name="claim" value={claim} />}
+      {/* Where to return to once signed in — the checkout the customer was
+          on, when this screen was reached as a gate rather than head-on. */}
+      {next && <input type="hidden" name="next" value={next} />}
 
-      {mode === 'sign-up' && (
-        <Field label="الاسم" required>
-          {(p) => <Input {...p} name="name" autoComplete="name" required minLength={2} />}
-        </Field>
-      )}
-
-      <Field label="البريد الإلكتروني" required>
-        {(p) => <Input {...p} name="email" type="email" autoComplete="email" required dir="ltr" />}
-      </Field>
-
-      <Field label="كلمة المرور" required hint={mode === 'sign-up' ? '8 أحرف على الأقل' : undefined}>
-        {(p) => (
-          <Input
-            {...p}
-            name="password"
-            type="password"
-            autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-            minLength={8}
-            required
-            dir="ltr"
-          />
-        )}
-      </Field>
-
-      {mode === 'sign-up' && (
-        <Field label="تأكيد كلمة المرور" required>
-          {(p) => (
-            <Input
-              {...p}
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              dir="ltr"
-            />
+      {mode === 'sign-up' && otpSent ? (
+        <>
+          <p className="text-sm text-muted">
+            أرسلنا رمزًا مكوّنًا من 6 أرقام إلى <span dir="ltr">{phone}</span>.
+          </p>
+          <input type="hidden" name="phone" value={phone} />
+          <Field label="رمز التحقق" required>
+            {(p) => (
+              <Input
+                {...p}
+                name="code"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                dir="ltr"
+                required
+                autoFocus
+                className="text-center text-lg tracking-[0.5em]"
+              />
+            )}
+          </Field>
+          {resendState?.error && <Alert tone="danger">{resendState.error}</Alert>}
+          {resendState?.ok && <Alert tone="success">{resendState.ok}</Alert>}
+          <Submit label="تأكيد ودخول" />
+          <button
+            type="submit"
+            formAction={resendAction}
+            className="w-full text-center text-sm font-semibold text-muted hover:text-fg"
+          >
+            إعادة إرسال الرمز
+          </button>
+        </>
+      ) : (
+        <>
+          {mode === 'sign-up' && (
+            <Field label="الاسم" required>
+              {(p) => <Input {...p} name="name" autoComplete="name" required minLength={2} />}
+            </Field>
           )}
-        </Field>
-      )}
 
-      <Submit label={mode === 'sign-in' ? 'دخول' : 'إنشاء الحساب'} />
+          <Field label="رقم الهاتف" required hint="مع رمز الدولة، مثل ‎+20 1XX XXX XXXX">
+            {(p) => <Input {...p} name="phone" type="tel" autoComplete="tel" required dir="ltr" />}
+          </Field>
+
+          <Field label="كلمة المرور" required hint={mode === 'sign-up' ? '8 أحرف على الأقل' : undefined}>
+            {(p) => (
+              <Input
+                {...p}
+                name="password"
+                type="password"
+                autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+                minLength={8}
+                required
+                dir="ltr"
+              />
+            )}
+          </Field>
+
+          {mode === 'sign-up' && (
+            <>
+              <Field label="تأكيد كلمة المرور" required>
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    dir="ltr"
+                  />
+                )}
+              </Field>
+
+              <Field label="البريد الإلكتروني (اختياري)">
+                {(p) => <Input {...p} name="email" type="email" autoComplete="email" dir="ltr" />}
+              </Field>
+
+              <Field label="العنوان (اختياري)">
+                {(p) => <Textarea {...p} name="address" maxLength={500} />}
+              </Field>
+            </>
+          )}
+
+          <Submit label={mode === 'sign-in' ? 'دخول' : 'إرسال رمز التحقق'} />
+        </>
+      )}
     </form>
   );
 }
@@ -129,17 +205,18 @@ export function ProfileForm({
         {(p) => <Input {...p} name="name" defaultValue={name} required minLength={2} />}
       </Field>
 
-      <Field label="رقم الهاتف" hint="نستخدمه للتواصل بخصوص طلباتك.">
-        {(p) => (
-          <Input {...p} name="phone" type="tel" defaultValue={phone ?? ''} dir="ltr" maxLength={32} />
-        )}
+      {/* Read-only on purpose (0077). Phone is the identity the customer signs
+          in with; changing it is an Auth operation this form does not do, and
+          writing a new value into the restaurant's record would only make
+          the two disagree. */}
+      <Field label="رقم الهاتف" hint="لتغيير رقمك تواصل معنا — الهاتف هو هويتك في تسجيل الدخول.">
+        {(p) => <Input {...p} value={phone ?? ''} readOnly disabled dir="ltr" />}
       </Field>
 
-      {/* Read-only on purpose. The address is the identity the customer signs
-          in with; changing it is an Auth operation, and writing a new value
-          into the restaurant's record would only make the two disagree. */}
-      <Field label="البريد الإلكتروني" hint="لتغيير بريدك تواصل معنا — البريد هو هويتك في تسجيل الدخول.">
-        {(p) => <Input {...p} value={email ?? ''} readOnly disabled dir="ltr" />}
+      <Field label="البريد الإلكتروني (اختياري)" hint="للتواصل بخصوص طلباتك فقط.">
+        {(p) => (
+          <Input {...p} name="email" type="email" defaultValue={email ?? ''} dir="ltr" maxLength={200} />
+        )}
       </Field>
 
       <Submit label="حفظ" />

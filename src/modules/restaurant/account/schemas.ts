@@ -27,6 +27,13 @@ export const profileInput = z.object({
     .max(32)
     .refine((v) => v === '' || v.length >= 6, 'رقم الهاتف غير صحيح')
     .optional(),
+  // Contact-only — never an Auth identity. See 0077.
+  email: z
+    .string()
+    .trim()
+    .max(200)
+    .refine((v) => v === '' || z.string().email().safeParse(v).success, 'بريد إلكتروني غير صحيح')
+    .optional(),
 });
 
 export const settingsInput = z.object({

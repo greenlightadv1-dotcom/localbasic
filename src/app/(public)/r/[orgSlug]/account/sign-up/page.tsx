@@ -20,7 +20,7 @@ export default async function CustomerSignUpPage({
   searchParams,
 }: {
   params: { orgSlug: string };
-  searchParams: { claim?: string };
+  searchParams: { claim?: string; next?: string };
 }) {
   const site = await getWebsite(params.orgSlug);
   if (!site) notFound();
@@ -30,6 +30,11 @@ export default async function CustomerSignUpPage({
   const claim = /^[A-Za-z0-9_-]{22,64}$/.test(searchParams.claim ?? '')
     ? searchParams.claim!
     : null;
+  const next = /^\/(?!\/)\S*$/.test(searchParams.next ?? '') ? searchParams.next! : null;
+  const carry = new URLSearchParams({
+    ...(claim ? { claim } : {}),
+    ...(next ? { next } : {}),
+  }).toString();
 
   return (
     <AccountAuthShell site={site} orgSlug={params.orgSlug}>
@@ -38,14 +43,14 @@ export default async function CustomerSignUpPage({
           <div className="space-y-1">
             <h1 className="text-lg font-bold">إنشاء حساب</h1>
             <p className="text-sm text-muted">
-              احفظ طلباتك وعناوينك — الطلب بدون حساب متاح دائمًا.
+              رقم هاتفك هو حسابك — نتحقّق منه برمز عبر رسالة نصية.
             </p>
           </div>
-          <CustomerAuthForm mode="sign-up" orgSlug={params.orgSlug} claim={claim} />
+          <CustomerAuthForm mode="sign-up" orgSlug={params.orgSlug} claim={claim} next={next} />
           <p className="text-center text-sm text-muted">
             لديك حساب بالفعل؟{' '}
             <Link
-              href={`/r/${params.orgSlug}/account/sign-in${claim ? `?claim=${claim}` : ''}`}
+              href={`/r/${params.orgSlug}/account/sign-in${carry ? `?${carry}` : ''}`}
               className="font-semibold text-primary hover:underline"
             >
               تسجيل الدخول
