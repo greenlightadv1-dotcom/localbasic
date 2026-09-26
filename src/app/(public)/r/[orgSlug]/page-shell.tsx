@@ -17,6 +17,7 @@ import {
 import {
   brandStyle, backgroundClass, containerClass,
   SiteHeader, Hero, About, BranchPicker, Location, Hours, Contact, Gallery, Cta, SiteFooter,
+  LavechiShell,
 } from './parts';
 import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
 
@@ -208,9 +209,9 @@ export async function RestaurantSite({
     customerEmail: profile?.email ?? '',
   };
 
-  return (
+  const page = (
     <div style={brandStyle(site, theme)} className={`min-h-dvh ${backgroundClass(theme)}`}>
-      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} signedIn={signedIn} />
+      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} signedIn={signedIn} theme={theme} />
       <main className={`mx-auto ${containerClass(theme)}`}>
         {/* The branch picker is structural rather than a section: a multi-branch
             restaurant must always be able to switch, whatever its layout. */}
@@ -222,4 +223,10 @@ export async function RestaurantSite({
       <SiteFooter site={site} orgSlug={orgSlug} branch={branch} />
     </div>
   );
+
+  // The app-like floating container: full width on a real phone (where the
+  // viewport already is roughly this narrow), a centered 460px card with a
+  // darker backdrop everywhere wider. Only the Lavechi preset asks for this;
+  // every other theme keeps rendering as a normal, unconstrained page.
+  return theme.background === 'lavechi' ? <LavechiShell>{page}</LavechiShell> : page;
 }

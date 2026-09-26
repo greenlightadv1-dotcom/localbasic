@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Minus, Plus, ShoppingBag, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
@@ -10,6 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
+import {
+  LAVECHI_CARD_SHADOW, LAVECHI_SHEET_SPRING,
+  usePrefersReducedMotion,
+} from '@/modules/restaurant/website/lavechi-theme';
 import type {
   PublicCategory,
   PublicContext,
@@ -17,6 +22,33 @@ import type {
   PublicVariant,
 } from '@/modules/restaurant/public/service';
 import { placeGuestOrderAction } from './actions';
+
+/** A bottom sheet: springs up from off-screen, slides back down on close. */
+function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const reduced = usePrefersReducedMotion();
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={reduced ? { y: 0 } : { y: '100%' }}
+        animate={{ y: 0 }}
+        exit={reduced ? { y: 0 } : { y: '100%' }}
+        transition={reduced ? { duration: 0 } : LAVECHI_SHEET_SPRING}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[85dvh] overflow-y-auto rounded-t-[22px] bg-elevated p-4"
+        style={{ boxShadow: LAVECHI_CARD_SHADOW }}
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
 
 type CartLine = {
   key: string;
@@ -173,18 +205,31 @@ export function GuestMenu({
 
   return (
     <main className="mx-auto max-w-2xl pb-28">
-      <header className="sticky top-0 z-20 border-b border-line bg-elevated/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-elevated/70 px-4 py-3 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          {context.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={context.logoUrl} alt="" className="h-10 w-10 rounded object-contain" />
-          ) : (
-            <span className="flex h-10 w-10 items-center justify-center rounded bg-primary text-sm font-bold text-primary-fg">
-              {context.organizationName.slice(0, 2)}
+          <span className="relative inline-flex shrink-0">
+            {context.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={context.logoUrl}
+                alt=""
+                className="lavechi-ring-pulse h-10 w-10 rounded-full object-cover"
+              />
+            ) : (
+              <span className="lavechi-ring-pulse flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-fg">
+                {context.organizationName.slice(0, 2)}
+              </span>
+            )}
+            <span aria-hidden className="lavechi-steam pointer-events-none absolute -top-2 start-1/2 -translate-x-1/2">
+              <span className="absolute block h-3 w-1 -translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
+              <span className="absolute block h-3 w-1 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
+              <span className="absolute block h-3 w-1 translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
             </span>
-          )}
+          </span>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-bold">{context.organizationName}</h1>
+            <h1 className="truncate font-reem text-lg font-normal tracking-wide text-fg">
+              {context.organizationName}
+            </h1>
             <p className="text-xs text-muted">
               {context.branchName} · طاولة {context.tableName}
             </p>
@@ -229,7 +274,11 @@ export function GuestMenu({
               )}
               <ul className="space-y-2">
                 {category.products.map((product) => (
-                  <li key={product.id} className="rounded-lg border border-line bg-elevated p-3">
+                  <li
+                    key={product.id}
+                    className="rounded-[18px] border border-line bg-elevated p-3"
+                    style={{ boxShadow: LAVECHI_CARD_SHADOW }}
+                  >
                     <div className="flex gap-3">
                       {product.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -237,7 +286,7 @@ export function GuestMenu({
                           src={product.image_url}
                           alt=""
                           loading="lazy"
-                          className="h-20 w-20 shrink-0 rounded object-cover"
+                          className="h-20 w-20 shrink-0 rounded-[13px] object-cover"
                         />
                       )}
                       <div className="min-w-0 flex-1">
@@ -255,7 +304,7 @@ export function GuestMenu({
                                 disabled={!variant.available || !context.orderingEnabled}
                                 onClick={() => choose(product, variant)}
                                 className={cn(
-                                  'flex min-h-11 items-center gap-2 rounded border px-3 text-sm font-semibold transition-colors',
+                                  'flex min-h-11 items-center gap-2 rounded-[13px] border px-3 text-sm font-extrabold transition-colors',
                                   variant.available && context.orderingEnabled
                                     ? 'border-primary/30 bg-primary-soft text-primary active:bg-primary active:text-primary-fg'
                                     : 'cursor-not-allowed border-line bg-surface text-muted',
@@ -298,12 +347,17 @@ export function GuestMenu({
       )}
 
       {/* Cart sheet */}
-      {cartOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-fg/40">
-          <div className="max-h-[85dvh] overflow-y-auto rounded-t-lg bg-elevated p-4">
+      <AnimatePresence>
+        {cartOpen && (
+          <Sheet onClose={() => setCartOpen(false)}>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold">طلبك</h2>
-              <button type="button" onClick={() => setCartOpen(false)} aria-label="إغلاق">
+              <h2 className="font-reem text-lg font-normal tracking-wide">طلبك</h2>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                aria-label="إغلاق"
+                className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-line"
+              >
                 <X className="h-5 w-5 text-muted" />
               </button>
             </div>
@@ -410,17 +464,22 @@ export function GuestMenu({
                 {isPending ? 'جارٍ الإرسال…' : 'إرسال الطلب'}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </Sheet>
+        )}
+      </AnimatePresence>
 
       {/* Modifier sheet */}
-      {picking && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-fg/40">
-          <div className="max-h-[85dvh] overflow-y-auto rounded-t-lg bg-elevated p-4">
+      <AnimatePresence>
+        {picking && (
+          <Sheet onClose={() => setPicking(null)}>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold">{picking.product.name}</h2>
-              <button type="button" onClick={() => setPicking(null)} aria-label="إغلاق">
+              <h2 className="font-reem text-lg font-normal tracking-wide">{picking.product.name}</h2>
+              <button
+                type="button"
+                onClick={() => setPicking(null)}
+                aria-label="إغلاق"
+                className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-line"
+              >
                 <X className="h-5 w-5 text-muted" />
               </button>
             </div>
@@ -486,9 +545,9 @@ export function GuestMenu({
             <Button size="touch" block className="mt-4" onClick={confirmModifiers}>
               إضافة للطلب
             </Button>
-          </div>
-        </div>
-      )}
+          </Sheet>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

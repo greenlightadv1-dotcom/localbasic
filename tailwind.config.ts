@@ -36,6 +36,10 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--lb-font-sans)', 'system-ui', 'sans-serif'],
+        // The Lavechi theme's display face — brand name, screen titles, order
+        // codes, item-sheet titles. Body text, prices and buttons stay on
+        // Cairo (the `sans` family above), which already loads platform-wide.
+        reem: ['"Reem Kufi"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 2px rgb(14 19 48 / 0.04), 0 1px 3px rgb(14 19 48 / 0.06)',

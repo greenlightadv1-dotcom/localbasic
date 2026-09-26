@@ -49,12 +49,16 @@ export const THEME_FONT_LABELS: Record<ThemeFont, string> = {
   'ibm-plex-arabic': 'IBM Plex Arabic',
 };
 
-export const THEME_BACKGROUNDS = ['light', 'dark', 'warm'] as const;
+export const THEME_BACKGROUNDS = ['light', 'dark', 'warm', 'lavechi'] as const;
 export type ThemeBackground = (typeof THEME_BACKGROUNDS)[number];
 export const THEME_BACKGROUND_LABELS: Record<ThemeBackground, string> = {
   light: 'فاتح',
   dark: 'داكن',
   warm: 'دافئ',
+  // A complete, fixed identity (deep green + gold, Reem Kufi/Cairo) rather
+  // than a tint of the organization's own colors, unlike the other three —
+  // see src/modules/restaurant/website/lavechi-theme.ts.
+  lavechi: 'لافيتشي',
 };
 
 export const BUTTON_STYLES = ['rounded', 'square', 'pill'] as const;
@@ -93,8 +97,16 @@ export type Theme = {
 export const DEFAULT_THEME: Theme = {
   primaryColor: null,
   accentColor: null,
-  background: 'light',
+  // The platform default, per the unified-storefront brief: every restaurant
+  // that has never customized its theme gets the Lavechi identity out of the
+  // box. An organization that opens the builder and picks a different preset
+  // overrides this the same way it always could.
+  background: 'lavechi',
   font: 'system',
+  // 12–15px, not the 'pill' preset's full 9999px — brandStyle() overrides
+  // --lb-btn-radius to the Lavechi spec's 13px regardless of this value
+  // whenever background is 'lavechi', so this only matters if a restaurant
+  // switches to a different preset later.
   buttonStyle: 'rounded',
   width: 'normal',
 };

@@ -78,3 +78,28 @@ body {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+/* ===========================================================================
+   Lavechi theme decoration — the logo's ring pulse and floating steam.
+   Purely decorative, so both already fold into the blanket
+   prefers-reduced-motion rule above (animation-duration clamped to ~0).
+   =========================================================================== */
+@keyframes lb-ring-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(215, 222, 62, 0.45); }
+  70% { box-shadow: 0 0 0 14px rgba(215, 222, 62, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(215, 222, 62, 0); }
+}
+.lavechi-ring-pulse {
+  animation: lb-ring-pulse 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes lb-steam {
+  0% { transform: translateY(0) scaleX(1); opacity: 0; }
+  15% { opacity: 0.55; }
+  100% { transform: translateY(-18px) scaleX(1.4); opacity: 0; }
+}
+.lavechi-steam span {
+  animation: lb-steam 2.6s ease-in-out infinite;
+}
+.lavechi-steam span:nth-child(2) { animation-delay: 0.5s; }
+.lavechi-steam span:nth-child(3) { animation-delay: 1s; }

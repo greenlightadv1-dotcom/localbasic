@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { AppError } from '@/lib/errors';
 import { getPublicContext, getPublicMenu } from '@/modules/restaurant/public/service';
-import { hexToRgbChannels } from '@/modules/core/branding/service';
+import { lavechiCssVars } from '@/modules/restaurant/website/lavechi-theme';
+import { LavechiShell } from '../../r/[orgSlug]/parts';
 import { GuestMenu } from './guest-menu';
 
 export const dynamic = 'force-dynamic';
@@ -44,16 +45,13 @@ export default async function PublicMenuPage({ params }: { params: { token: stri
   const menu = await getPublicMenu(params.token);
 
   return (
-    <div
-      className="min-h-dvh bg-surface"
-      style={
-        {
-          '--lb-primary': hexToRgbChannels(context.primaryColor),
-          '--lb-accent': hexToRgbChannels(context.secondaryColor),
-        } as React.CSSProperties
-      }
-    >
-      <GuestMenu token={params.token} context={context} menu={menu} />
-    </div>
+    <LavechiShell>
+      <div
+        className="min-h-dvh bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] text-[#F4F1E4]"
+        style={lavechiCssVars() as React.CSSProperties}
+      >
+        <GuestMenu token={params.token} context={context} menu={menu} />
+      </div>
+    </LavechiShell>
   );
 }

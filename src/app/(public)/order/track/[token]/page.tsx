@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOrderByToken } from '@/modules/restaurant/online/service';
+import { lavechiCssVars, LAVECHI_CARD_SHADOW } from '@/modules/restaurant/website/lavechi-theme';
+import { LavechiShell } from '../../../r/[orgSlug]/parts';
 import { EditWindow } from './track';
 import { OrderProgress } from './order-progress';
 
@@ -28,9 +30,13 @@ export default async function TrackPage({ params }: { params: { token: string } 
   if (!order) notFound();
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+    <LavechiShell>
+      <div
+        className="mx-auto min-h-dvh max-w-lg bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] px-4 py-10 text-[#F4F1E4] sm:px-6"
+        style={lavechiCssVars() as React.CSSProperties}
+      >
       <p className="text-sm text-muted">طلب رقم</p>
-      <h1 className="mb-4 text-2xl font-extrabold text-fg" dir="ltr">{order.number}</h1>
+      <h1 className="mb-4 font-reem text-2xl font-normal tracking-wide text-fg" dir="ltr">{order.number}</h1>
 
       <div className="mb-6">
         <OrderProgress token={params.token} initialStatus={order.status} />
@@ -42,7 +48,7 @@ export default async function TrackPage({ params }: { params: { token: string } 
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-line bg-elevated p-4">
+      <div className="rounded-[18px] border border-line bg-elevated p-4" style={{ boxShadow: LAVECHI_CARD_SHADOW }}>
         <ul className="space-y-2 border-b border-line pb-3 text-sm">
           {order.items.map((i, idx) => (
             <li key={idx} className="flex justify-between gap-3">
@@ -89,6 +95,7 @@ export default async function TrackPage({ params }: { params: { token: string } 
           إنشاء حساب
         </Link>
       </div>
-    </div>
+      </div>
+    </LavechiShell>
   );
 }

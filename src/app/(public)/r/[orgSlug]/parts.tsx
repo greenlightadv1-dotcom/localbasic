@@ -8,6 +8,9 @@ import {
 import {
   DEFAULT_THEME, type SectionConfig, type Theme,
 } from '@/modules/restaurant/website/builder-shared';
+import {
+  lavechiCssVars, LAVECHI_SHELL_BACKDROP, LAVECHI_SHELL_SHADOW,
+} from '@/modules/restaurant/website/lavechi-theme';
 
 /**
  * Presentation for the public restaurant website.
@@ -40,6 +43,14 @@ const BUTTON_RADIUS: Record<Theme['buttonStyle'], string> = {
  * stylesheet unvalidated.
  */
 export function brandStyle(site: Website, theme: Theme = DEFAULT_THEME): React.CSSProperties {
+  // Lavechi is a complete, fixed identity, not a tint of the organization's
+  // own colors — every platform token is re-themed at once (see
+  // lavechiCssVars), the same way 'dark' and 'warm' already ignore branding
+  // colors for their own background choice.
+  if (theme.background === 'lavechi') {
+    return lavechiCssVars() as React.CSSProperties;
+  }
+
   const primary = hexToRgb(theme.primaryColor ?? site.primaryColor);
   const accent = hexToRgb(theme.accentColor ?? site.secondaryColor);
   const style: Record<string, string> = {
@@ -62,8 +73,15 @@ export function brandStyle(site: Website, theme: Theme = DEFAULT_THEME): React.C
   return style as React.CSSProperties;
 }
 
-/** The page background, from the theme's three presets. */
+/** The page background, from the theme's four presets. */
 export function backgroundClass(theme: Theme = DEFAULT_THEME): string {
+  if (theme.background === 'lavechi') {
+    // The exact radial gradient the splash/landing screen specifies,
+    // applied here so it also covers every other screen this subtree
+    // renders — a restaurant's whole storefront is one continuous surface,
+    // not a splash screen followed by a plain one.
+    return 'bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] text-[#F4F1E4]';
+  }
   return theme.background === 'dark'
     ? 'bg-fg text-white'
     : theme.background === 'warm'
@@ -82,51 +100,77 @@ function hexToRgb(hex: string): string {
   return `${parseInt(m[1]!, 16)} ${parseInt(m[2]!, 16)} ${parseInt(m[3]!, 16)}`;
 }
 
-/** A restaurant's logo, or its initial when it has none. */
-function Mark({ site, className }: { site: Website; className?: string }) {
-  if (site.logoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- tenant logos are
-      // arbitrary remote URLs; next/image would need every host allowlisted.
-      <img
-        src={site.logoUrl}
-        alt={site.organizationName}
-        className={cn('h-10 w-10 rounded-full object-cover', className)}
-        loading="lazy"
-      />
-    );
-  }
-  return (
+/**
+ * A restaurant's logo, or its initial when it has none.
+ *
+ * `animated` (Lavechi only) adds the ring pulse and a few floating steam
+ * wisps — purely decorative, so a missing logo still shows them around the
+ * initial-letter mark.
+ */
+function Mark({ site, className, animated = false }: { site: Website; className?: string; animated?: boolean }) {
+  const mark = site.logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element -- tenant logos are
+    // arbitrary remote URLs; next/image would need every host allowlisted.
+    <img
+      src={site.logoUrl}
+      alt={site.organizationName}
+      className={cn('h-10 w-10 rounded-full object-cover', animated && 'lavechi-ring-pulse', className)}
+      loading="lazy"
+    />
+  ) : (
     <span
       aria-hidden
       className={cn(
         'flex h-10 w-10 items-center justify-center rounded-full bg-primary text-lg font-extrabold text-primary-fg',
+        animated && 'lavechi-ring-pulse',
         className,
       )}
     >
       {site.organizationName.trim().charAt(0)}
     </span>
   );
+
+  if (!animated) return mark;
+
+  return (
+    <span className="relative inline-flex">
+      {mark}
+      <span aria-hidden className="lavechi-steam pointer-events-none absolute -top-2 start-1/2 -translate-x-1/2">
+        <span className="absolute block h-3 w-1 -translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
+        <span className="absolute block h-3 w-1 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
+        <span className="absolute block h-3 w-1 translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
+      </span>
+    </span>
+  );
 }
 
 export function SiteHeader({
-  site, orgSlug, branch, signedIn,
+  site, orgSlug, branch, signedIn, theme = DEFAULT_THEME,
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
   /** Drives the account link only. Authorisation is never a rendered state. */
   signedIn: boolean;
+  theme?: Theme;
 }) {
   const orderHref = branch ? `/order/${orgSlug}/${branch.slug}` : null;
   const canOrder = Boolean(branch?.orderingEnabled);
+  const lavechi = theme.background === 'lavechi';
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur">
+    <header
+      className={cn(
+        'sticky top-0 z-40 border-b border-line backdrop-blur transition-[background-color,box-shadow] duration-300',
+        lavechi ? 'bg-bg/70' : 'bg-bg/90',
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-3 px-4 sm:px-6">
         <Link href={`/r/${orgSlug}`} className="flex items-center gap-2.5">
-          <Mark site={site} />
-          <span className="font-extrabold text-fg">{site.organizationName}</span>
+          <Mark site={site} animated={lavechi} />
+          <span className={cn('font-extrabold text-fg', lavechi && 'font-reem font-normal tracking-wide')}>
+            {site.organizationName}
+          </span>
         </Link>
 
         <nav aria-label="أقسام الموقع" className="ms-auto flex items-center gap-1">
@@ -543,5 +587,29 @@ export function SiteFooter({
         ) : null}
       </div>
     </footer>
+  );
+}
+
+/**
+ * The Lavechi theme's app-like floating container.
+ *
+ * Below ~460px of viewport width — any real phone — the inner card already
+ * IS the full width, so the backdrop never actually shows: this is a no-op
+ * there. Above it, the page reads as a phone-shaped app centered on a darker
+ * page, exactly the way the spec's screenshots do.
+ */
+export function LavechiShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex min-h-dvh w-full justify-center"
+      style={{ background: LAVECHI_SHELL_BACKDROP }}
+    >
+      <div
+        className="relative min-h-dvh w-full max-w-[460px] overflow-hidden"
+        style={{ boxShadow: LAVECHI_SHELL_SHADOW }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

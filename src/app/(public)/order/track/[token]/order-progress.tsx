@@ -75,7 +75,7 @@ export function OrderProgress({ token, initialStatus }: { token: string; initial
                 i < current
                   ? 'bg-primary text-primary-fg'
                   : i === current
-                    ? 'animate-pulse bg-primary text-primary-fg ring-4 ring-primary/20'
+                    ? 'lavechi-ring-pulse bg-primary text-primary-fg'
                     : 'bg-surface text-muted ring-1 ring-line'
               }`}
               aria-hidden="true"

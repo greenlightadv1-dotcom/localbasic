@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
 import { currentUser, getAddresses, getProfile, getFavorites } from '@/modules/restaurant/account/service';
-import { hexToRgbChannels } from '@/lib/color';
+import { lavechiCssVars, LAVECHI_SPLASH_BACKGROUND } from '@/modules/restaurant/website/lavechi-theme';
+import { LavechiShell } from '../../../r/[orgSlug]/parts';
 import { Storefront } from './storefront';
 
 export const dynamic = 'force-dynamic';
@@ -49,52 +50,50 @@ export default async function OrderPage({
       ])
     : [null, [], []];
 
-  // The restaurant's own colors, not LocalBasic's — see 0068. Scoped as CSS
-  // variables on this page's own root, exactly the way the Site Engine
-  // renderer themes a published site, so brand adoption reads as one
-  // mechanism used twice rather than two.
-  const brandStyle = {
-    ['--brand-primary' as string]: hexToRgbChannels(info.primaryColor),
-    ['--brand-secondary' as string]: hexToRgbChannels(info.secondaryColor),
-  };
-
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6" style={brandStyle}>
-      <div className="mb-6 flex items-center gap-3">
-        {info.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- an
-          // organization-supplied external URL, not a build-time asset.
-          <img
-            src={info.logoUrl}
-            alt=""
-            className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-[rgb(var(--brand-primary)/0.3)]"
+    <LavechiShell>
+      <div
+        className="min-h-dvh"
+        style={{ ...lavechiCssVars(), background: LAVECHI_SPLASH_BACKGROUND } as React.CSSProperties}
+      >
+        <div className="mx-auto max-w-5xl px-4 py-8 text-[#F4F1E4] sm:px-6">
+          <div className="mb-6 flex items-center gap-3">
+            {info.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element -- an
+              // organization-supplied external URL, not a build-time asset.
+              <img
+                src={info.logoUrl}
+                alt=""
+                className="lavechi-ring-pulse h-12 w-12 shrink-0 rounded-full object-cover"
+              />
+            )}
+            <div>
+              <h1 className="font-reem text-2xl font-normal tracking-wide text-fg">{info.organizationName}</h1>
+              <p className="text-sm text-muted">{info.branchName}</p>
+            </div>
+          </div>
+          <Storefront
+            orgSlug={params.orgSlug}
+            branchSlug={params.branchSlug}
+            items={menu.items}
+            modifierGroups={menu.modifierGroups}
+            currency={info.currency}
+            pickupEnabled={info.pickupEnabled}
+            deliveryEnabled={info.deliveryEnabled}
+            savedAddresses={addresses.map((a) => ({
+              id: a.id,
+              label: a.label,
+              address: a.address,
+              isDefault: a.isDefault,
+            }))}
+            customerName={profile?.fullName ?? ''}
+            customerPhone={profile?.phone ?? ''}
+            customerEmail={profile?.email ?? ''}
+            signedIn={Boolean(user)}
+            favoriteProductIds={favorites.map((f) => f.productId)}
           />
-        )}
-        <div>
-          <h1 className="text-2xl font-extrabold text-fg">{info.organizationName}</h1>
-          <p className="text-sm text-muted">{info.branchName}</p>
         </div>
       </div>
-      <Storefront
-        orgSlug={params.orgSlug}
-        branchSlug={params.branchSlug}
-        items={menu.items}
-        modifierGroups={menu.modifierGroups}
-        currency={info.currency}
-        pickupEnabled={info.pickupEnabled}
-        deliveryEnabled={info.deliveryEnabled}
-        savedAddresses={addresses.map((a) => ({
-          id: a.id,
-          label: a.label,
-          address: a.address,
-          isDefault: a.isDefault,
-        }))}
-        customerName={profile?.fullName ?? ''}
-        customerPhone={profile?.phone ?? ''}
-        customerEmail={profile?.email ?? ''}
-        signedIn={Boolean(user)}
-        favoriteProductIds={favorites.map((f) => f.productId)}
-      />
-    </div>
+    </LavechiShell>
   );
 }
