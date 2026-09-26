@@ -159,6 +159,8 @@ export type KitchenTicket = {
     quantity: number;
     note: string | null;
     modifiers: { name: string }[];
+    stationId: string | null;
+    stationKind: string | null;
   }[];
 };
 
@@ -189,7 +191,7 @@ export async function listKitchenTickets(
   const [{ data: items }, { data: tables }] = await Promise.all([
     supabase
       .from('restaurant_order_items')
-      .select('id, order_id, product_name, variant_name, quantity, note')
+      .select('id, order_id, product_name, variant_name, quantity, note, station_id, station_kind')
       .in('order_id', orderIds)
       .order('position'),
     tableIds.length
@@ -223,6 +225,8 @@ export async function listKitchenTickets(
       quantity: i.quantity,
       note: i.note,
       modifiers: modsByItem.get(i.id) ?? [],
+      stationId: i.station_id,
+      stationKind: i.station_kind,
     });
     linesByOrder.set(i.order_id, list);
   }

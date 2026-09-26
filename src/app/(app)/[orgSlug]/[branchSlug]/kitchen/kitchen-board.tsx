@@ -9,7 +9,10 @@ import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
 import type { KitchenTicket } from '@/modules/restaurant/orders/service';
-import { setOrderStatusAction } from '../restaurant-actions';
+import type { Station } from '@/modules/restaurant/stations/service';
+import { setOrderStatusAction, setOrderItemStationAction } from '../restaurant-actions';
+
+const STATION_KIND_LABELS: Record<string, string> = { kitchen: 'مطبخ', bar: 'بار' };
 
 /**
  * The board's ticket carries no money. That is enforced by the type coming
@@ -38,10 +41,14 @@ const COLUMNS = [
  */
 export function KitchenBoard({
   tickets,
+  stations,
+  canReassign,
   organizationSlug,
   branchSlug,
 }: {
   tickets: Ticket[];
+  stations: Station[];
+  canReassign: boolean;
   organizationSlug: string;
   branchSlug: string;
 }) {
@@ -49,6 +56,27 @@ export function KitchenBoard({
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [, setTick] = useState(0);
+  const [kindFilter, setKindFilter] = useState<'all' | 'kitchen' | 'bar'>('all');
+
+  // Only offer the kitchen/bar tabs when the board actually has a mix — a
+  // branch with no bar items configured shouldn't see an empty "بار" tab.
+  const presentKinds = new Set(
+    tickets.flatMap((t) => t.lines.map((l) => l.stationKind).filter(Boolean)) as string[],
+  );
+
+  function reassign(orderItemId: string, stationId: string) {
+    startTransition(async () => {
+      const result = await setOrderItemStationAction(
+        { organizationSlug, branchSlug },
+        { orderItemId, stationId },
+      );
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   // Ticket ages tick without a request; the board itself refreshes on a slower
   // beat so a new order appears without anyone touching the screen.
@@ -86,10 +114,37 @@ export function KitchenBoard({
     );
   }
 
+  const visibleTickets = tickets
+    .map((t) => ({
+      ...t,
+      lines: kindFilter === 'all' ? t.lines : t.lines.filter((l) => l.stationKind === kindFilter),
+    }))
+    .filter((t) => t.lines.length > 0);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="space-y-4">
+      {presentKinds.size > 1 && (
+        <div role="tablist" aria-label="تصفية حسب المحطة" className="flex gap-2">
+          {(['all', 'kitchen', 'bar'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kindFilter === k}
+              onClick={() => setKindFilter(k)}
+              className={cn(
+                'rounded-full px-4 py-1.5 text-sm font-semibold',
+                kindFilter === k ? 'bg-primary text-primary-fg' : 'border border-line text-muted',
+              )}
+            >
+              {k === 'all' ? 'الكل' : STATION_KIND_LABELS[k]}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-3">
       {COLUMNS.map((column) => {
-        const columnTickets = tickets.filter((t) => t.summary.status === column.status);
+        const columnTickets = visibleTickets.filter((t) => t.summary.status === column.status);
         return (
           <section key={column.status} aria-label={column.title} className="space-y-3">
             <h2 className="flex items-center justify-between text-base font-bold">
@@ -162,6 +217,26 @@ export function KitchenBoard({
                                 {line.note}
                               </p>
                             )}
+                            {canReassign && stations.length > 1 && (
+                              <label className="ps-6">
+                                <span className="sr-only">نقل هذا الصنف لمحطة أخرى</span>
+                                <select
+                                  value={line.stationId ?? ''}
+                                  disabled={isPending}
+                                  onChange={(e) => e.target.value && reassign(line.id, e.target.value)}
+                                  className="mt-1 h-7 rounded border border-line bg-elevated px-1.5 text-xs text-muted"
+                                >
+                                  <option value="" disabled>
+                                    نقل لمحطة أخرى…
+                                  </option>
+                                  {stations.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} ({STATION_KIND_LABELS[s.kind] ?? s.kind})
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -194,6 +269,7 @@ export function KitchenBoard({
       <p className="sr-only" aria-live="polite">
         {tickets.length} طلب في المطبخ
       </p>
+      </div>
     </div>
   );
 }

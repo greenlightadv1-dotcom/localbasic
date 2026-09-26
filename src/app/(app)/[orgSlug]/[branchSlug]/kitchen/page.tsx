@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext } from '@/modules/core/tenancy/context';
 import { listKitchenTickets } from '@/modules/restaurant/orders/service';
+import { listStations } from '@/modules/restaurant/stations/service';
 import { KitchenBoard } from './kitchen-board';
 
 export const metadata = { title: 'شاشة المطبخ' };
@@ -18,11 +19,13 @@ export default async function KitchenPage({
 
   // One batched call: four queries whatever the board holds, and no price
   // column selected, so nothing financial reaches the client payload.
-  const tickets = await listKitchenTickets(ctx);
+  const [tickets, stations] = await Promise.all([listKitchenTickets(ctx), listStations(ctx)]);
 
   return (
     <KitchenBoard
       tickets={tickets}
+      stations={stations}
+      canReassign={ctx.permissions.has('restaurant.menu.manage')}
       organizationSlug={ctx.organizationSlug}
       branchSlug={ctx.branchSlug}
     />
