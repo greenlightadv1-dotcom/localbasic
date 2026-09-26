@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
+import { ImageUpload } from '@/components/patterns/image-upload';
 import {
   BUTTON_STYLES, BUTTON_STYLE_LABELS, CONTAINER_WIDTHS, CONTAINER_WIDTH_LABELS,
   CTA_TARGETS, CTA_TARGET_LABELS, SECTION_LABELS, THEME_BACKGROUNDS,
@@ -142,16 +143,18 @@ function Toggle({
 }
 
 export function SectionForm({
-  orgSlug, branchSlug, section,
+  orgSlug, branchSlug, organizationId, section,
 }: {
   orgSlug: string;
   branchSlug: string;
+  organizationId: string;
   section: WebsiteSection;
 }) {
   const [state, formAction] = useFormState<BuilderState, FormData>(saveSectionAction, undefined);
   const c = section.config;
-  const [images, setImages] = useState<string[]>(
-    c.images && c.images.length > 0 ? c.images : [''],
+  const [imageUrl, setImageUrl] = useState<string | null>(c.imageUrl ?? null);
+  const [images, setImages] = useState<(string | null)[]>(
+    c.images && c.images.length > 0 ? c.images : [null],
   );
 
   return (
@@ -186,11 +189,16 @@ export function SectionForm({
       ) : null}
 
       {['hero', 'about'].includes(section.type) ? (
-        <Field label="رابط الصورة" hint="روابط https فقط">
-          {(p) => (
-            <Input {...p} name="imageUrl" defaultValue={c.imageUrl ?? ''} dir="ltr" maxLength={500} />
-          )}
-        </Field>
+        <div>
+          <input type="hidden" name="imageUrl" value={imageUrl ?? ''} />
+          <ImageUpload
+            organizationId={organizationId}
+            purpose="banner"
+            value={imageUrl}
+            onChange={setImageUrl}
+            label="صورة القسم"
+          />
+        </div>
       ) : null}
 
       {['hero', 'cta'].includes(section.type) ? (
@@ -214,32 +222,45 @@ export function SectionForm({
       ) : null}
 
       {section.type === 'gallery' ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm font-medium text-fg">الصور</p>
           {images.map((src, i) => (
-            <Input
-              key={i}
-              name="images"
-              defaultValue={src}
-              dir="ltr"
-              maxLength={500}
-              placeholder="https://…"
-              aria-label={`رابط الصورة ${i + 1}`}
-            />
+            <div key={i} className="flex items-start gap-2">
+              <input type="hidden" name="images" value={src ?? ''} />
+              <div className="flex-1">
+                <ImageUpload
+                  organizationId={organizationId}
+                  purpose="banner"
+                  value={src}
+                  onChange={(url) => setImages((v) => v.map((x, j) => (j === i ? url : x)))}
+                  label={`صورة ${i + 1}`}
+                  aspectClassName="aspect-video"
+                />
+              </div>
+              {images.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-6 text-danger"
+                  onClick={() => setImages((v) => v.filter((_, j) => j !== i))}
+                >
+                  حذف
+                </Button>
+              ) : null}
+            </div>
           ))}
           {images.length < 12 ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setImages((v) => [...v, ''])}
+              onClick={() => setImages((v) => [...v, null])}
             >
               أضف صورة
             </Button>
           ) : null}
-          <p className="text-xs text-muted">
-            روابط https فقط، حتى 12 صورة. لا يوجد رفع ملفات في هذه المرحلة.
-          </p>
+          <p className="text-xs text-muted">حتى 12 صورة.</p>
         </div>
       ) : null}
 

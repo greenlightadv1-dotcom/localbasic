@@ -320,12 +320,20 @@ test('markup typed into the builder is refused, not rendered', async ({ page }) 
 });
 
 test('a non-https image URL is refused', async ({ page }) => {
+  // The field is now a direct file-upload widget (ImageUpload), not a typed
+  // URL — an ordinary user has no way to enter a non-https value at all any
+  // more. What this test still proves is that the SERVER refuses one anyway,
+  // by writing straight to the hidden input ImageUpload drives, the same
+  // value a tampered client would have to submit to reach the server at all.
   await actAs(page, 'owner@demo.local');
   await page.goto(BUILDER);
   await page.getByLabel('أضف قسمًا').selectOption('about');
   await page.getByRole('button', { name: 'إضافة' }).click();
 
-  await page.getByRole('textbox', { name: 'رابط الصورة' }).fill('javascript:alert(1)');
+  await page.locator('input[name="imageUrl"]').evaluate((el: HTMLInputElement) => {
+    el.value = 'javascript:alert(1)';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await page.getByRole('button', { name: 'حفظ القسم' }).first().click();
   await expect(page.getByText(/يجب أن يبدأ بـ https/)).toBeVisible();
 });

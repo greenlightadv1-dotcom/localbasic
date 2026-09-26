@@ -149,6 +149,7 @@ export default async function BuilderPage({
                         <SectionForm
                           orgSlug={params.orgSlug}
                           branchSlug={params.branchSlug}
+                          organizationId={ctx.organizationId}
                           section={section}
                         />
                       </div>
