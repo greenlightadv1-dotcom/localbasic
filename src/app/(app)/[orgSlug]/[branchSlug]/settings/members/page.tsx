@@ -16,7 +16,8 @@ const ROLE_NAMES: Record<string, string> = {
   manager: 'مدير فرع',
   accountant: 'محاسب',
   cashier: 'كاشير',
-  kitchen: 'المطبخ',
+  kitchen: 'شيف',
+  barista: 'باريستا',
   waiter: 'كابتن',
   staff: 'موظف',
 };

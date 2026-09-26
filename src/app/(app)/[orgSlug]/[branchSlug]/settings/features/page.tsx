@@ -28,8 +28,8 @@ export default async function FeaturesPage({
       <FeatureToggle
         scope={scope}
         featureKey="kitchen_display_enabled"
-        title="شاشة المطبخ"
-        description="عرض وتوجيه الطلبات لشاشة المطبخ. عند الإيقاف تختفي شاشة المطبخ ويتابع الكاشير الطلبات مباشرة."
+        title="شاشتا المطبخ والباريستا"
+        description="عرض وتوجيه الطلبات تلقائيًا لشاشتي الشيف (المطبخ) والباريستا حسب نوع الصنف. عند الإيقاف تختفي الشاشتان ويتابع الكاشير الطلبات مباشرة."
         initialEnabled={ctx.kitchenDisplayEnabled}
       />
       <FeatureToggle

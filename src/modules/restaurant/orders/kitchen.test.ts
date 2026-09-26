@@ -146,3 +146,54 @@ describe('listKitchenTickets', () => {
     expect(h.selects).toHaveLength(1);
   });
 });
+
+// The chef and barista screens (0080) each lock to one station kind, applied
+// after the same four queries above — no separate query path to drift from.
+describe('listKitchenTickets station filter', () => {
+  beforeEach(() => {
+    h.rows.restaurant_orders = [
+      {
+        id: 'o1', number: 'R-001', status: 'confirmed', table_id: 't1',
+        note: null, placed_at: '2026-09-20T10:00:00Z',
+      },
+      {
+        id: 'o2', number: 'R-002', status: 'confirmed', table_id: 't1',
+        note: null, placed_at: '2026-09-20T10:01:00Z',
+      },
+    ];
+    h.rows.restaurant_order_items = [
+      {
+        id: 'i1', order_id: 'o1', product_name: 'لاتيه', variant_name: 'default',
+        quantity: 1, note: null, station_id: null, station_kind: 'bar',
+      },
+      {
+        id: 'i2', order_id: 'o1', product_name: 'برجر', variant_name: 'default',
+        quantity: 1, note: null, station_id: null, station_kind: 'kitchen',
+      },
+      {
+        id: 'i3', order_id: 'o2', product_name: 'شاي', variant_name: 'default',
+        quantity: 1, note: null, station_id: null, station_kind: 'bar',
+      },
+    ];
+    h.rows.restaurant_order_item_modifiers = [];
+  });
+
+  it('keeps only lines of the requested kind, and drops a ticket with none of them', async () => {
+    const barTickets = await listKitchenTickets(ctx, undefined, 'bar');
+    expect(barTickets.map((t) => t.summary.id).sort()).toEqual(['o1', 'o2']);
+    const o1 = barTickets.find((t) => t.summary.id === 'o1')!;
+    expect(o1.lines.map((l) => l.productName)).toEqual(['لاتيه']);
+
+    // o2 has no kitchen line at all, so the whole ticket drops out — a chef
+    // should never see an empty card for someone else's drink order.
+    const kitchenTickets = await listKitchenTickets(ctx, undefined, 'kitchen');
+    expect(kitchenTickets.map((t) => t.summary.id)).toEqual(['o1']);
+    expect(kitchenTickets[0]!.lines.map((l) => l.productName)).toEqual(['برجر']);
+  });
+
+  it('keeps every line, from both stations, when no kind is requested', async () => {
+    const tickets = await listKitchenTickets(ctx);
+    const lineCount = tickets.reduce((n, t) => n + t.lines.length, 0);
+    expect(lineCount).toBe(3);
+  });
+});

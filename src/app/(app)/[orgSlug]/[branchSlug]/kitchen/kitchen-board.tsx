@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChefHat, Clock, StickyNote } from 'lucide-react';
+import { ChefHat, Clock, Coffee, StickyNote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
@@ -33,19 +33,28 @@ const COLUMNS = [
 ];
 
 /**
- * The kitchen display.
+ * The kitchen/bar display.
  *
  * Built for a tablet at arm's length in a hot, busy room: three columns, large
  * type, one button per ticket, high contrast, and no financial information of
- * any kind — the kitchen role cannot read it and does not need it.
+ * any kind — neither the chef nor the barista role can read it and neither
+ * needs it.
+ *
+ * One component, two routes (/kitchen, /barista, 0080): `tickets` arrives
+ * already filtered to this station's lines server-side (listKitchenTickets'
+ * own stationKind filter), so there is no client-side kind switch here — a
+ * chef only ever renders this with kitchen tickets, a barista only with bar
+ * ones.
  */
 export function KitchenBoard({
+  stationKind,
   tickets,
   stations,
   canReassign,
   organizationSlug,
   branchSlug,
 }: {
+  stationKind: 'kitchen' | 'bar';
   tickets: Ticket[];
   stations: Station[];
   canReassign: boolean;
@@ -56,13 +65,6 @@ export function KitchenBoard({
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [, setTick] = useState(0);
-  const [kindFilter, setKindFilter] = useState<'all' | 'kitchen' | 'bar'>('all');
-
-  // Only offer the kitchen/bar tabs when the board actually has a mix — a
-  // branch with no bar items configured shouldn't see an empty "بار" tab.
-  const presentKinds = new Set(
-    tickets.flatMap((t) => t.lines.map((l) => l.stationKind).filter(Boolean)) as string[],
-  );
 
   function reassign(orderItemId: string, stationId: string) {
     startTransition(async () => {
@@ -107,44 +109,18 @@ export function KitchenBoard({
   if (tickets.length === 0) {
     return (
       <EmptyState
-        icon={ChefHat}
-        title="لا توجد طلبات في المطبخ"
+        icon={stationKind === 'kitchen' ? ChefHat : Coffee}
+        title={stationKind === 'kitchen' ? 'لا توجد طلبات في المطبخ' : 'لا توجد طلبات في الباريستا'}
         description="ستظهر الطلبات هنا فور تأكيدها من الكاشير أو الكابتن."
       />
     );
   }
 
-  const visibleTickets = tickets
-    .map((t) => ({
-      ...t,
-      lines: kindFilter === 'all' ? t.lines : t.lines.filter((l) => l.stationKind === kindFilter),
-    }))
-    .filter((t) => t.lines.length > 0);
-
   return (
     <div className="space-y-4">
-      {presentKinds.size > 1 && (
-        <div role="tablist" aria-label="تصفية حسب المحطة" className="flex gap-2">
-          {(['all', 'kitchen', 'bar'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={kindFilter === k}
-              onClick={() => setKindFilter(k)}
-              className={cn(
-                'rounded-full px-4 py-1.5 text-sm font-semibold',
-                kindFilter === k ? 'bg-primary text-primary-fg' : 'border border-line text-muted',
-              )}
-            >
-              {k === 'all' ? 'الكل' : STATION_KIND_LABELS[k]}
-            </button>
-          ))}
-        </div>
-      )}
       <div className="grid gap-4 lg:grid-cols-3">
       {COLUMNS.map((column) => {
-        const columnTickets = visibleTickets.filter((t) => t.summary.status === column.status);
+        const columnTickets = tickets.filter((t) => t.summary.status === column.status);
         return (
           <section key={column.status} aria-label={column.title} className="space-y-3">
             <h2 className="flex items-center justify-between text-base font-bold">
@@ -267,7 +243,7 @@ export function KitchenBoard({
         );
       })}
       <p className="sr-only" aria-live="polite">
-        {tickets.length} طلب في المطبخ
+        {tickets.length} طلب في {stationKind === 'kitchen' ? 'المطبخ' : 'الباريستا'}
       </p>
       </div>
     </div>

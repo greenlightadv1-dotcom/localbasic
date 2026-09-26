@@ -13,7 +13,7 @@ const ROLE_HINTS: Record<string, { label: string; note: string }> = {
   'owner@demo.local': { label: 'المالك', note: 'كل الصلاحيات' },
   'manager@demo.local': { label: 'مدير الفرع', note: 'تشغيل كامل بدون إدارة المؤسسة' },
   'cashier@demo.local': { label: 'كاشير', note: 'الطلبات والتحصيل — بدون إدارة المنيو' },
-  'kitchen@demo.local': { label: 'المطبخ', note: 'شاشة المطبخ فقط — بدون أي صلاحية مالية' },
+  'kitchen@demo.local': { label: 'شيف', note: 'شاشة المطبخ فقط — بدون أي صلاحية مالية' },
   'waiter@demo.local': { label: 'كابتن', note: 'الصالة والتقديم — بدون أي صلاحية مالية' },
 };
 

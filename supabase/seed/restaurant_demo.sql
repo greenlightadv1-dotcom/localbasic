@@ -140,8 +140,8 @@ begin
     (org, 'المشاوي', 'على الفحم، تُقدَّم مع الأرز والسلطة', 1) returning id into cat_grills;
   insert into public.restaurant_categories (organization_id, name, description, sort_order) values
     (org, 'الشاورما', 'شاورما سورية أصلية', 2) returning id into cat_shawarma;
-  insert into public.restaurant_categories (organization_id, name, description, sort_order) values
-    (org, 'المشروبات', '', 3) returning id into cat_drinks;
+  insert into public.restaurant_categories (organization_id, name, description, sort_order, default_station_kind) values
+    (org, 'المشروبات', '', 3, 'bar') returning id into cat_drinks;
   insert into public.restaurant_categories (organization_id, name, description, sort_order) values
     (org, 'الحلويات', 'تُحضَّر يوميًا', 4) returning id into cat_sweets;
 

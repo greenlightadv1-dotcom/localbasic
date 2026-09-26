@@ -53,7 +53,7 @@ export function AppShell({
   // settings, which drops those links from the nav entirely rather than just
   // disabling a button — a cashier-only setup has no reason to see either.
   const featureGatedHrefs = new Set<string>([
-    ...(ctx.kitchenDisplayEnabled ? [] : ['/kitchen']),
+    ...(ctx.kitchenDisplayEnabled ? [] : ['/kitchen', '/barista']),
     ...(ctx.captainHallEnabled ? [] : ['/service']),
   ]);
   const hasPermission = (permission: NavItem['permission']) =>

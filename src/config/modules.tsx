@@ -86,7 +86,12 @@ export const MODULES: Record<string, ModuleDefinition> = {
     navigation: [
       { href: '/cashier', label: 'الكاشير', icon: 'ScanBarcode', permission: 'restaurant.pos.use' },
       { href: '/orders', label: 'الطلبات', icon: 'ClipboardList', permission: 'restaurant.order.read' },
-      { href: '/kitchen', label: 'المطبخ', icon: 'ChefHat', permission: 'restaurant.kitchen.use' },
+      // Chef and barista are separate roles/permissions (0080) with separate
+      // screens, each locked server-side to its own station's tickets — a
+      // barista never sees food-prep tasks and a chef never sees drink
+      // tickets, rather than one shared board with a client-side filter tab.
+      { href: '/kitchen', label: 'المطبخ (الشيف)', icon: 'ChefHat', permission: 'restaurant.kitchen.use' },
+      { href: '/barista', label: 'الباريستا', icon: 'Coffee', permission: 'restaurant.bar.use' },
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },

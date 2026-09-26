@@ -61,6 +61,7 @@ export const PERMISSIONS = [
   'restaurant.order.update',
   'restaurant.order.cancel',
   'restaurant.kitchen.use',
+  'restaurant.bar.use',
   'restaurant.service.use',
   'restaurant.pos.use',
   'restaurant.pos.discount',

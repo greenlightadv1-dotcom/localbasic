@@ -272,6 +272,14 @@ export type KitchenTicket = {
 export async function listKitchenTickets(
   ctx: TenantContext,
   statuses: OrderStatus[] = ['confirmed', 'preparing', 'ready'],
+  /**
+   * The chef and barista screens each lock to their own station (0080): a
+   * ticket that has no line item of the requested kind is dropped entirely,
+   * and a ticket that has some of each keeps only the matching lines — a
+   * barista never sees the food half of a mixed order. Omitted for any
+   * other caller (e.g. a future combined view), which keeps every line.
+   */
+  stationKind?: 'kitchen' | 'bar',
 ): Promise<KitchenTicket[]> {
   const supabase = createSupabaseServerClient();
 
@@ -336,7 +344,7 @@ export async function listKitchenTickets(
     linesByOrder.set(i.order_id, list);
   }
 
-  return orders.map((o) => ({
+  const tickets = orders.map((o) => ({
     summary: {
       id: o.id,
       number: o.number,
@@ -347,6 +355,11 @@ export async function listKitchenTickets(
     },
     lines: linesByOrder.get(o.id) ?? [],
   }));
+
+  if (!stationKind) return tickets;
+  return tickets
+    .map((t) => ({ ...t, lines: t.lines.filter((l) => l.stationKind === stationKind) }))
+    .filter((t) => t.lines.length > 0);
 }
 
 /** One order with its lines and modifiers — the kitchen ticket and the bill. */
