@@ -2,7 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { checkoutAction, quoteCartAction, toggleFavoriteAction, type CheckoutState } from '../../actions';
+import {
+  checkoutAction, sendCheckoutOtpAction, placeVerifiedOrderAction,
+  quoteCartAction, toggleFavoriteAction, type CheckoutState,
+} from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
 import { cn } from '@/lib/cn';
@@ -13,7 +16,7 @@ function money(cents: number, currency: string) {
   return `${(cents / 100).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ${currency}`;
 }
 
-function Submit() {
+function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -21,7 +24,7 @@ function Submit() {
       disabled={pending}
       className="h-12 w-full rounded-lg bg-[rgb(var(--brand-primary))] text-base font-semibold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
     >
-      {pending ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
+      {pending ? pendingLabel : label}
     </button>
   );
 }
@@ -45,6 +48,7 @@ export function Storefront({
   savedAddresses = [],
   customerName = '',
   customerPhone = '',
+  customerEmail = '',
   signedIn = false,
   favoriteProductIds = [],
 }: {
@@ -63,8 +67,11 @@ export function Storefront({
   savedAddresses?: { id: string; label: string; address: string; isDefault: boolean }[];
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
   /** Whether a customer account is signed in. The heart toggle only ever
-   *  renders for one — a guest has no favorites row to toggle. */
+   *  renders for one — a guest has no favorites row to toggle. Also decides
+   *  whether checkout needs an email OTP (D4): a signed-in customer's email
+   *  is already verified, a guest's is not. */
   signedIn?: boolean;
   favoriteProductIds?: string[];
 }) {
@@ -82,7 +89,24 @@ export function Storefront({
   // above `lg:`, where the panel is always visible in its own column.
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
-  const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
+
+  // D4: a guest must verify a 6-digit email code before an order places; a
+  // signed-in customer already has a verified email and skips straight to
+  // checkoutAction, exactly the D3 path. `otpSent` gates which field the form
+  // shows next — the email field until a code goes out, then the code field —
+  // and `submit` below is what decides which server action a given press of
+  // the button actually reaches.
+  const [otpSent, setOtpSent] = useState(false);
+  async function submit(prev: CheckoutState, formData: FormData): Promise<CheckoutState> {
+    if (signedIn) return checkoutAction(prev, formData);
+    if (!otpSent) {
+      const result = await sendCheckoutOtpAction(prev, formData);
+      if (!result?.error) setOtpSent(true);
+      return result;
+    }
+    return placeVerifiedOrderAction(prev, formData);
+  }
+  const [state, action] = useFormState<CheckoutState, FormData>(submit, undefined);
 
   // One key per checkout attempt, so a double-click or a retry is recognised
   // server-side as the same attempt rather than a second order.
@@ -442,6 +466,12 @@ export function Storefront({
             </p>
           ) : null}
 
+          {!signedIn && otpSent && !state?.error ? (
+            <p className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+              تم إرسال رمز مكوّن من 6 أرقام إلى بريدك الإلكتروني.
+            </p>
+          ) : null}
+
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
             <input name="customerName" required maxLength={120} defaultValue={customerName}
@@ -452,6 +482,41 @@ export function Storefront({
             <input name="customerPhone" required maxLength={32} dir="ltr" defaultValue={customerPhone}
               className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
+
+          {/* D4: a guest verifies the email an order is placed under; a
+              signed-in customer's is already verified and needs neither
+              field. The email locks once a code is sent — changing it would
+              mean verifying a code against an address it was never sent to. */}
+          {!signedIn ? (
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-fg">البريد الإلكتروني</span>
+              <input
+                name="customerEmail" type="email" required maxLength={254} dir="ltr"
+                defaultValue={customerEmail} disabled={otpSent}
+                className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none disabled:opacity-60"
+              />
+            </label>
+          ) : null}
+
+          {!signedIn && otpSent ? (
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-fg">
+                رمز التحقق المرسل إلى بريدك
+              </span>
+              <input
+                name="otpCode" required inputMode="numeric" pattern="\d{6}" maxLength={6} dir="ltr"
+                autoFocus
+                className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-center text-lg font-bold tracking-[0.5em] text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setOtpSent(false)}
+                className="mt-1.5 text-xs font-semibold text-muted hover:text-fg"
+              >
+                تغيير البريد الإلكتروني
+              </button>
+            </label>
+          ) : null}
 
           {fulfillment === 'delivery' && savedAddresses.length > 0 ? (
             <label className="block">
@@ -504,7 +569,13 @@ export function Storefront({
               className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
-          {lines.length > 0 ? <Submit /> : null}
+          {lines.length > 0 ? (
+            signedIn || otpSent ? (
+              <Submit label="تأكيد الطلب (الدفع نقدًا)" pendingLabel="جارٍ إرسال الطلب…" />
+            ) : (
+              <Submit label="إرسال رمز التحقق" pendingLabel="جارٍ الإرسال…" />
+            )
+          ) : null}
           <p className="text-center text-xs text-muted">
             الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
           </p>

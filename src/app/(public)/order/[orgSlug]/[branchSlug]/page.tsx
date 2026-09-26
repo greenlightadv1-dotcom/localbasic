@@ -91,6 +91,7 @@ export default async function OrderPage({
         }))}
         customerName={profile?.fullName ?? ''}
         customerPhone={profile?.phone ?? ''}
+        customerEmail={profile?.email ?? ''}
         signedIn={Boolean(user)}
         favoriteProductIds={favorites.map((f) => f.productId)}
       />

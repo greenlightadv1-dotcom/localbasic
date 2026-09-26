@@ -73,6 +73,19 @@ export const checkoutInput = storefront
     { message: 'التوصيل يحتاج عنوانًا', path: ['address'] },
   );
 
+/**
+ * Email OTP for guest checkout (D4). Sending needs only the address;
+ * verifying needs it again alongside the 6-digit code, since Supabase's
+ * verifyOtp call is keyed on the same email the code was sent to.
+ */
+export const otpSendInput = z.object({
+  email: z.string().trim().email('بريد إلكتروني غير صحيح').max(254),
+});
+
+export const otpCode = z.string().trim().regex(/^\d{6}$/, 'رمز التحقق 6 أرقام');
+
+export const otpVerifyInput = otpSendInput.extend({ code: otpCode });
+
 /** The guest's capability token: opaque, 22–64 base64url characters. */
 export const orderToken = z
   .string()
