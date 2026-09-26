@@ -19,7 +19,7 @@ function Submit() {
     <button
       type="submit"
       disabled={pending}
-      className="h-12 w-full rounded bg-[rgb(var(--brand-primary))] text-base font-semibold text-white hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
+      className="h-12 w-full rounded-lg bg-[rgb(var(--brand-primary))] text-base font-semibold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
     >
       {pending ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
     </button>
@@ -248,45 +248,76 @@ export function Storefront({
           </div>
         )}
 
-        <ul key={activeCategory ?? 'all'} className="animate-fade-in space-y-3">
+        <ul
+          key={activeCategory ?? 'all'}
+          className="animate-fade-in grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3"
+        >
           {visibleItems.map((item) => {
             const groups = groupsByProduct.get(item.productId) ?? [];
             return (
-              <li key={item.variantId} className="rounded-lg border border-line bg-elevated p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-fg">
-                      {item.productName}
-                      {item.variantName !== 'default' ? (
-                        <span className="text-muted"> — {item.variantName}</span>
-                      ) : null}
-                    </p>
-                    {item.description ? (
-                      <p className="mt-0.5 text-sm text-muted">{item.description}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {signedIn && (
-                      <button
-                        type="button"
-                        onClick={() => toggleFavorite(item.productId)}
-                        aria-pressed={favorites.has(item.productId)}
-                        aria-label={favorites.has(item.productId) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-                        className={cn(
-                          'flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-colors',
-                          favorites.has(item.productId) ? 'text-danger' : 'text-muted/50 hover:text-danger',
-                        )}
+              <li
+                key={item.variantId}
+                className="flex flex-col overflow-hidden rounded-xl border border-line bg-elevated shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="relative aspect-square w-full shrink-0 bg-surface">
+                  {item.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-muted/40">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                        className="h-10 w-10"
+                        aria-hidden="true"
                       >
-                        {favorites.has(item.productId) ? '♥' : '♡'}
-                      </button>
-                    )}
-                    <span className="font-bold text-fg">
-                      {money(item.priceCents, currency)}
-                    </span>
-                  </div>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm0 13 5-6 3 3 4-5 5 6"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                  {signedIn && (
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(item.productId)}
+                      aria-pressed={favorites.has(item.productId)}
+                      aria-label={favorites.has(item.productId) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                      className={cn(
+                        'absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-bg/80 text-lg leading-none shadow-sm backdrop-blur transition-colors',
+                        favorites.has(item.productId) ? 'text-danger' : 'text-muted/60 hover:text-danger',
+                      )}
+                    >
+                      {favorites.has(item.productId) ? '♥' : '♡'}
+                    </button>
+                  )}
                 </div>
 
-                <AddControl item={item} groups={groups} currency={currency} onAdd={add} />
+                <div className="flex flex-1 flex-col gap-1 p-3">
+                  <p className="line-clamp-1 font-semibold text-fg">
+                    {item.productName}
+                    {item.variantName !== 'default' ? (
+                      <span className="text-muted"> — {item.variantName}</span>
+                    ) : null}
+                  </p>
+                  {item.description ? (
+                    <p className="line-clamp-2 text-xs text-muted">{item.description}</p>
+                  ) : null}
+                  <span className="mt-auto pt-1 font-bold text-fg">
+                    {money(item.priceCents, currency)}
+                  </span>
+
+                  <AddControl item={item} groups={groups} currency={currency} onAdd={add} />
+                </div>
               </li>
             );
           })}
@@ -313,11 +344,11 @@ export function Storefront({
           </button>
         </div>
 
-        <div className="rounded-lg border border-line bg-elevated p-4">
+        <div className="rounded-xl border border-line bg-elevated p-4 shadow-sm">
           {lines.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">السلة فارغة.</p>
+            <p className="py-8 text-center text-sm text-muted">السلة فارغة.</p>
           ) : (
-            <ul className="space-y-2 border-b border-line pb-3">
+            <ul className="space-y-3 border-b border-line pb-3">
               {lines.map((l, i) => {
                 const item = byVariant.get(l.variantId);
                 return (
@@ -328,19 +359,21 @@ export function Storefront({
                         <span className="text-muted"> (+{l.modifierIds.length})</span>
                       ) : null}
                     </span>
-                    <button
-                      type="button"
-                      aria-label="إنقاص"
-                      onClick={() => setQty(i, l.quantity - 1)}
-                      className="h-7 w-7 rounded border border-line"
-                    >−</button>
-                    <span className="w-6 text-center font-semibold">{l.quantity}</span>
-                    <button
-                      type="button"
-                      aria-label="زيادة"
-                      onClick={() => setQty(i, l.quantity + 1)}
-                      className="h-7 w-7 rounded border border-line"
-                    >+</button>
+                    <div className="flex items-center gap-1 rounded-full border border-line p-0.5">
+                      <button
+                        type="button"
+                        aria-label="إنقاص"
+                        onClick={() => setQty(i, l.quantity - 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full text-fg hover:bg-surface"
+                      >−</button>
+                      <span className="w-6 text-center font-semibold lb-numeric">{l.quantity}</span>
+                      <button
+                        type="button"
+                        aria-label="زيادة"
+                        onClick={() => setQty(i, l.quantity + 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full text-fg hover:bg-surface"
+                      >+</button>
+                    </div>
                   </li>
                 );
               })}
@@ -354,10 +387,10 @@ export function Storefront({
                 type="button"
                 onClick={() => changeFulfillment(f)}
                 className={cn(
-                  'flex-1 rounded px-3 py-2 text-sm font-semibold',
+                  'flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors',
                   fulfillment === f
                     ? 'bg-[rgb(var(--brand-primary))] text-white'
-                    : 'border border-line text-muted',
+                    : 'border border-line text-muted hover:text-fg',
                 )}
               >
                 {FULFILLMENT_LABELS[f]}
@@ -366,27 +399,27 @@ export function Storefront({
           </div>
 
           {/* Every figure below comes back from the server. */}
-          <div className="mt-3 space-y-1 text-sm" aria-live="polite">
+          <div className="mt-3 space-y-1.5 text-sm" aria-live="polite">
             {quoteError ? <p className="text-danger">{quoteError}</p> : null}
             {pricing ? <p className="text-muted">جارٍ الحساب…</p> : null}
             {quote ? (
               <>
                 <div className="flex justify-between text-muted">
-                  <span>الإجمالي الفرعي</span><span>{money(quote.subtotalCents, quote.currency)}</span>
+                  <span>الإجمالي الفرعي</span><span className="lb-numeric">{money(quote.subtotalCents, quote.currency)}</span>
                 </div>
                 {quote.taxCents > 0 ? (
                   <div className="flex justify-between text-muted">
-                    <span>الضريبة</span><span>{money(quote.taxCents, quote.currency)}</span>
+                    <span>الضريبة</span><span className="lb-numeric">{money(quote.taxCents, quote.currency)}</span>
                   </div>
                 ) : null}
                 {quote.deliveryFeeCents > 0 ? (
                   <div className="flex justify-between text-muted">
-                    <span>التوصيل</span><span>{money(quote.deliveryFeeCents, quote.currency)}</span>
+                    <span>التوصيل</span><span className="lb-numeric">{money(quote.deliveryFeeCents, quote.currency)}</span>
                   </div>
                 ) : null}
-                <div className="flex justify-between border-t border-line pt-1 text-base font-extrabold text-fg">
+                <div className="flex justify-between border-t border-line pt-2 text-base font-extrabold text-fg">
                   <span>الإجمالي</span>
-                  <span data-testid="cart-total">{money(quote.totalCents, quote.currency)}</span>
+                  <span data-testid="cart-total" className="lb-numeric">{money(quote.totalCents, quote.currency)}</span>
                 </div>
               </>
             ) : null}
@@ -404,7 +437,7 @@ export function Storefront({
           ) : null}
 
           {state?.error ? (
-            <p className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {state.error}
             </p>
           ) : null}
@@ -412,12 +445,12 @@ export function Storefront({
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
             <input name="customerName" required maxLength={120} defaultValue={customerName}
-              className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+              className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">رقم الهاتف</span>
             <input name="customerPhone" required maxLength={32} dir="ltr" defaultValue={customerPhone}
-              className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+              className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
           {fulfillment === 'delivery' && savedAddresses.length > 0 ? (
@@ -426,7 +459,7 @@ export function Storefront({
               <select
                 value={savedAddressId}
                 onChange={(e) => setSavedAddressId(e.target.value)}
-                className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg"
+                className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none"
               >
                 {savedAddresses.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -443,24 +476,24 @@ export function Storefront({
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-fg">العنوان</span>
                 <input name="address" required maxLength={500}
-                  className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+                  className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-semibold text-fg">المدينة</span>
                   <input name="city" maxLength={120}
-                    className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+                    className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-semibold text-fg">المنطقة</span>
                   <input name="area" maxLength={120}
-                    className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+                    className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
                 </label>
               </div>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-fg">علامة مميزة</span>
                 <input name="landmark" maxLength={240}
-                  className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+                  className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
               </label>
             </>
           ) : null}
@@ -468,7 +501,7 @@ export function Storefront({
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">ملاحظات</span>
             <input name="note" maxLength={500}
-              className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg" />
+              className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
           {lines.length > 0 ? <Submit /> : null}
@@ -523,7 +556,7 @@ function AddControl({
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       {groups.map((g) => (
         <fieldset key={g.groupId} className="mb-2">
           <legend className="mb-1 text-xs font-semibold text-muted">
@@ -537,7 +570,7 @@ function AddControl({
                 type="button"
                 onClick={() => toggle(g, m.id)}
                 className={cn(
-                  'rounded border px-2.5 py-1 text-xs',
+                  'rounded border px-2 py-1 text-xs',
                   chosen.includes(m.id)
                     ? 'border-[rgb(var(--brand-primary))] bg-[rgb(var(--brand-primary)/0.12)] text-[rgb(var(--brand-primary))]'
                     : 'border-line text-muted',
@@ -553,9 +586,9 @@ function AddControl({
       <button
         type="button"
         onClick={() => { onAdd(item, chosen); setChosen([]); }}
-        className="mt-1 rounded bg-[rgb(var(--brand-primary))] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[rgb(var(--brand-primary)/0.9)]"
+        className="mt-1 flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-[rgb(var(--brand-primary))] text-sm font-semibold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
       >
-        أضف للسلة
+        <span aria-hidden="true">+</span> أضف للسلة
       </button>
     </div>
   );
