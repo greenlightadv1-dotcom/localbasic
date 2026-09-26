@@ -28,6 +28,8 @@ import {
   bulkTablesSchema,
   tableStatusSchema,
   reissueQrSchema,
+  tableIdSchema,
+  tableActiveSchema,
 } from '@/modules/restaurant/tables/schemas';
 import {
   createSection,
@@ -35,6 +37,8 @@ import {
   createTableRange,
   issueTableQr,
   setTableStatus,
+  setTableActive,
+  deleteTable,
 } from '@/modules/restaurant/tables/service';
 import {
   createOrderSchema,
@@ -181,6 +185,26 @@ export const reissueTableQrAction = defineTenantAction({
     const result = await issueTableQr(ctx, input.tableId);
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables');
     return result;
+  },
+});
+
+export const setTableActiveAction = defineTenantAction({
+  schema: tableActiveSchema,
+  permission: 'restaurant.table.manage',
+  handler: async ({ ctx, input }) => {
+    await setTableActive(ctx, input.tableId, input.isActive);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/service', '/cashier');
+    return { ok: true };
+  },
+});
+
+export const deleteTableAction = defineTenantAction({
+  schema: tableIdSchema,
+  permission: 'restaurant.table.manage',
+  handler: async ({ ctx, input }) => {
+    await deleteTable(ctx, input.tableId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/service', '/cashier');
+    return { ok: true };
   },
 });
 

@@ -20,6 +20,8 @@ import {
   createTableRangeAction,
   reissueTableQrAction,
   setTableStatusAction,
+  setTableActiveAction,
+  deleteTableAction,
 } from '../restaurant-actions';
 
 const LABELS: Record<TableStatus, string> = {
@@ -61,6 +63,7 @@ export function TablesManager({
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [reissuing, setReissuing] = useState<FloorTable | null>(null);
+  const [deleting, setDeleting] = useState<FloorTable | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const scope = { organizationSlug, branchSlug };
 
@@ -230,7 +233,10 @@ export function TablesManager({
           <CardBody>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {floor.map((table) => (
-                <li key={table.id} className="space-y-3 rounded-lg border border-line p-4">
+                <li
+                  key={table.id}
+                  className={`space-y-3 rounded-lg border border-line p-4 ${table.isActive ? '' : 'opacity-60'}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-xl font-bold">{table.name}</p>
@@ -238,14 +244,29 @@ export function TablesManager({
                         {table.sectionName ?? 'بدون منطقة'} · {table.seats} مقاعد
                       </p>
                     </div>
-                    <Badge tone={TONES[table.status]}>{LABELS[table.status]}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge tone={TONES[table.status]}>{LABELS[table.status]}</Badge>
+                      {!table.isActive && <Badge tone="neutral">معطّلة</Badge>}
+                    </div>
                   </div>
 
                   {table.openOrderCount > 0 && (
-                    <p className="text-sm">
-                      <Money cents={table.openTotalCents} currency={currency} />
-                      <span className="ms-1 text-xs text-muted">({table.openOrderCount} طلب)</span>
-                    </p>
+                    table.openOrderId ? (
+                      <Link
+                        href={`${basePath}/orders/${table.openOrderId}`}
+                        className="block text-sm hover:underline"
+                      >
+                        <Money cents={table.openTotalCents} currency={currency} />
+                        <span className="ms-1 text-xs text-muted">
+                          ({table.openOrderCount} طلب) — عرض الطلب ←
+                        </span>
+                      </Link>
+                    ) : (
+                      <p className="text-sm">
+                        <Money cents={table.openTotalCents} currency={currency} />
+                        <span className="ms-1 text-xs text-muted">({table.openOrderCount} طلب)</span>
+                      </p>
+                    )
                   )}
 
                   {canSetStatus && (
@@ -303,15 +324,40 @@ export function TablesManager({
                       <Badge tone="warn">بدون QR</Badge>
                     )}
                     {canManage && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-danger"
-                        onClick={() => setReissuing(table)}
-                      >
-                        <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                        تجديد
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-danger"
+                          onClick={() => setReissuing(table)}
+                        >
+                          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                          تجديد
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            run(
+                              setTableActiveAction(scope, {
+                                tableId: table.id,
+                                isActive: !table.isActive,
+                              }),
+                              table.isActive ? 'تم تعطيل الطاولة' : 'تم تفعيل الطاولة',
+                            )
+                          }
+                        >
+                          {table.isActive ? 'تعطيل' : 'تفعيل'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-danger"
+                          onClick={() => setDeleting(table)}
+                        >
+                          حذف
+                        </Button>
+                      </>
                     )}
                   </div>
                 </li>
@@ -333,6 +379,21 @@ export function TablesManager({
           const tableId = reissuing.id;
           setReissuing(null);
           run(reissueTableQrAction(scope, { tableId }), 'تم تجديد رمز QR');
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`حذف الطاولة ${deleting?.name ?? ''}`}
+        description="لن تظهر هذه الطاولة بعد الآن في المخطط أو عند الكاشير. الطلبات السابقة عليها تبقى في السجل كما هي. يُرفض الحذف إذا كان عليها طلب مفتوح."
+        confirmLabel="حذف نهائيًا"
+        busy={isPending}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (!deleting) return;
+          const tableId = deleting.id;
+          setDeleting(null);
+          run(deleteTableAction(scope, { tableId }), 'تم حذف الطاولة');
         }}
       />
     </div>

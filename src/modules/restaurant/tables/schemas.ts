@@ -34,3 +34,10 @@ export const tableStatusSchema = z.object({
 });
 
 export const reissueQrSchema = z.object({ tableId: z.string().uuid() });
+
+export const tableIdSchema = z.object({ tableId: z.string().uuid() });
+
+export const tableActiveSchema = z.object({
+  tableId: z.string().uuid(),
+  isActive: z.coerce.boolean(),
+});

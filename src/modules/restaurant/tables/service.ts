@@ -16,8 +16,12 @@ export type FloorTable = {
   sectionName: string | null;
   token: string | null;
   publicUrl: string | null;
+  isActive: boolean;
   openOrderCount: number;
   openTotalCents: number;
+  /** The most recent open order on this table, if any — so staff can tap the
+   *  table and land straight on its order rather than searching the queue. */
+  openOrderId: string | null;
 };
 
 /**
@@ -46,7 +50,7 @@ export async function listFloor(ctx: TenantContext): Promise<FloorTable[]> {
   const [{ data: tables, error }, { data: sections }] = await Promise.all([
     supabase
       .from('restaurant_tables')
-      .select('id, name, seats, status, section_id, public_link_id')
+      .select('id, name, seats, status, section_id, public_link_id, is_active')
       .eq('organization_id', ctx.organizationId)
       .eq('branch_id', ctx.branchId)
       .is('deleted_at', null)
@@ -68,7 +72,7 @@ export async function listFloor(ctx: TenantContext): Promise<FloorTable[]> {
       : Promise.resolve({ data: [] as { id: string; token: string }[] }),
     supabase
       .from('restaurant_orders')
-      .select('table_id, total_cents')
+      .select('id, table_id, total_cents')
       .eq('branch_id', ctx.branchId)
       .in('status', ['new', 'confirmed', 'preparing', 'ready', 'served']),
   ]);
@@ -88,8 +92,10 @@ export async function listFloor(ctx: TenantContext): Promise<FloorTable[]> {
       sectionName: table.section_id ? (sectionName.get(table.section_id) ?? null) : null,
       token,
       publicUrl: token ? publicUrlForToken(token) : null,
+      isActive: table.is_active,
       openOrderCount: open.length,
       openTotalCents: open.reduce((sum, o) => sum + o.total_cents, 0),
+      openOrderId: open[0]?.id ?? null,
     };
   });
 }
@@ -225,6 +231,68 @@ export async function setTableStatus(ctx: TenantContext, tableId: string, status
     throw new AppError('conflict', 'لا يمكن الانتقال إلى هذه الحالة من الحالة الحالية.');
   }
   if (error) throw toAppError(error, 'setTableStatus');
+}
+
+/**
+ * Enable or disable a table without deleting it — the floor plan stays
+ * intact, but a broken or removed table drops off the picker until it is
+ * re-enabled. Refused while the table has an open order: disabling it out
+ * from under a live tab would strand that order with no table to point at.
+ */
+export async function setTableActive(ctx: TenantContext, tableId: string, isActive: boolean) {
+  const supabase = createSupabaseServerClient();
+
+  if (!isActive) {
+    const { count } = await supabase
+      .from('restaurant_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', ctx.organizationId)
+      .eq('table_id', tableId)
+      .in('status', ['new', 'confirmed', 'preparing', 'ready', 'served']);
+    if (count && count > 0) {
+      throw new AppError('conflict', 'لا يمكن تعطيل طاولة عليها طلب مفتوح.');
+    }
+  }
+
+  const { error } = await supabase
+    .from('restaurant_tables')
+    .update({ is_active: isActive })
+    .eq('organization_id', ctx.organizationId)
+    .eq('branch_id', ctx.branchId)
+    .eq('id', tableId)
+    .is('deleted_at', null);
+
+  if (error) throw toAppError(error, 'setTableActive');
+}
+
+/**
+ * Soft-delete: sets deleted_at rather than removing the row, so every past
+ * order that pointed at this table keeps a table_id that still resolves.
+ * listFloor() and every table picker already filter on `deleted_at is null`
+ * (see above), so a deleted table simply stops appearing anywhere live.
+ */
+export async function deleteTable(ctx: TenantContext, tableId: string) {
+  const supabase = createSupabaseServerClient();
+
+  const { count } = await supabase
+    .from('restaurant_orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', ctx.organizationId)
+    .eq('table_id', tableId)
+    .in('status', ['new', 'confirmed', 'preparing', 'ready', 'served']);
+  if (count && count > 0) {
+    throw new AppError('conflict', 'لا يمكن حذف طاولة عليها طلب مفتوح.');
+  }
+
+  const { error } = await supabase
+    .from('restaurant_tables')
+    .update({ is_active: false, deleted_at: new Date().toISOString() })
+    .eq('organization_id', ctx.organizationId)
+    .eq('branch_id', ctx.branchId)
+    .eq('id', tableId)
+    .is('deleted_at', null);
+
+  if (error) throw toAppError(error, 'deleteTable');
 }
 
 /** QR as an SVG string, ready to render inline or print. */
