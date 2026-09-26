@@ -69,3 +69,17 @@ export async function setBundleActive(
     .eq('id', bundleId);
   if (error) throw toAppError(error, 'setBundleActive');
 }
+
+export async function setBundleImage(
+  ctx: TenantContext,
+  bundleId: string,
+  imageUrl: string | null,
+): Promise<void> {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_bundles')
+    .update({ image_url: imageUrl })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', bundleId);
+  if (error) throw toAppError(error, 'setBundleImage');
+}

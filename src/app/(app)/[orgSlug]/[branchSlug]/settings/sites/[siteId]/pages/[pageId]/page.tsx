@@ -58,6 +58,7 @@ export default async function SitePageEditor({
   const ids = {
     orgSlug: ctx.organizationSlug,
     branchSlug: ctx.branchSlug,
+    organizationId: ctx.organizationId,
     siteId: site.id,
     pageId: page.id,
   };

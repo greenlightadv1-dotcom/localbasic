@@ -15,6 +15,7 @@ export type MenuItem = {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   categoryId: string | null;
   categoryName: string | null;
   taxRateBp: number;
@@ -37,7 +38,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     supabase
       .from('restaurant_products')
       .select(
-        'id, name, description, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order',
+        'id, name, description, image_url, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order',
       )
       .eq('organization_id', ctx.organizationId)
       .is('deleted_at', null)
@@ -85,6 +86,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     id: product.id,
     name: product.name,
     description: product.description,
+    imageUrl: product.image_url,
     categoryId: product.category_id,
     categoryName: product.category_id ? (categoryName.get(product.category_id) ?? null) : null,
     taxRateBp: product.tax_rate_bp,
@@ -107,7 +109,7 @@ export async function listCategories(ctx: TenantContext) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from('restaurant_categories')
-    .select('id, name, description, sort_order, is_active')
+    .select('id, name, description, image_url, sort_order, is_active')
     .eq('organization_id', ctx.organizationId)
     .order('sort_order')
     .order('name');
@@ -117,7 +119,7 @@ export async function listCategories(ctx: TenantContext) {
 
 export async function createCategory(
   ctx: TenantContext,
-  input: { name: string; description?: string; sortOrder: number },
+  input: { name: string; description?: string; imageUrl?: string | null; sortOrder: number },
 ) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
@@ -126,6 +128,7 @@ export async function createCategory(
       organization_id: ctx.organizationId,
       name: input.name,
       description: input.description ?? null,
+      image_url: input.imageUrl ?? null,
       sort_order: input.sortOrder,
       created_by: ctx.userId,
     })
@@ -133,6 +136,36 @@ export async function createCategory(
     .single();
   if (error) throw toAppError(error, 'createCategory');
   return data;
+}
+
+/** Sets or clears a category's photo. */
+export async function setCategoryImage(
+  ctx: TenantContext,
+  categoryId: string,
+  imageUrl: string | null,
+) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_categories')
+    .update({ image_url: imageUrl })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', categoryId);
+  if (error) throw toAppError(error, 'setCategoryImage');
+}
+
+/** Sets or clears a product's photo. */
+export async function setProductImage(
+  ctx: TenantContext,
+  productId: string,
+  imageUrl: string | null,
+) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_products')
+    .update({ image_url: imageUrl })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', productId);
+  if (error) throw toAppError(error, 'setProductImage');
 }
 
 /**
@@ -151,6 +184,7 @@ export async function createMenuProduct(ctx: TenantContext, input: MenuProductIn
       category_id: input.categoryId ?? null,
       name: input.name,
       description: input.description ?? null,
+      image_url: input.imageUrl ?? null,
       tax_rate_bp: Math.round(input.taxRatePercent * 100),
       prep_minutes: input.prepMinutes,
       created_by: ctx.userId,

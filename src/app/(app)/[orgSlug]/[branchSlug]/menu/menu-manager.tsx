@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, ImageIcon, Plus, Trash2 } from 'lucide-react';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
+import { ImageUpload } from '@/components/patterns/image-upload';
 import { formatMoney } from '@/lib/money';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
 import {
@@ -17,6 +18,7 @@ import {
   createMenuProductAction,
   toggleMenuProductAction,
   toggleBestSellerAction,
+  setProductImageAction,
   setAvailabilityAction,
 } from '../restaurant-actions';
 
@@ -34,6 +36,7 @@ export function MenuManager({
   categories,
   currency,
   canManage,
+  organizationId,
   organizationSlug,
   branchSlug,
 }: {
@@ -41,6 +44,7 @@ export function MenuManager({
   categories: { id: string; name: string }[];
   currency: string;
   canManage: boolean;
+  organizationId: string;
   organizationSlug: string;
   branchSlug: string;
 }) {
@@ -51,6 +55,8 @@ export function MenuManager({
   const [showItemForm, setShowItemForm] = useState(false);
   const [variants, setVariants] = useState<VariantDraft[]>([{ key: 0, name: '', price: '' }]);
   const [groups, setGroups] = useState<GroupDraft[]>([]);
+  const [newItemImage, setNewItemImage] = useState<string | null>(null);
+  const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
   const scope = { organizationSlug, branchSlug };
 
   function addCategory(formData: FormData) {
@@ -75,6 +81,7 @@ export function MenuManager({
         name: formData.get('name'),
         categoryId: formData.get('categoryId') || null,
         description: formData.get('description') || undefined,
+        imageUrl: newItemImage,
         taxRatePercent: formData.get('taxRatePercent') || 0,
         prepMinutes: formData.get('prepMinutes') || 0,
         variants: variants.map((v) => ({ name: v.name || 'default', priceCents: v.price || '0' })),
@@ -94,6 +101,7 @@ export function MenuManager({
       setShowItemForm(false);
       setVariants([{ key: 0, name: '', price: '' }]);
       setGroups([]);
+      setNewItemImage(null);
       router.refresh();
     });
   }
@@ -101,6 +109,14 @@ export function MenuManager({
   function toggleItem(productId: string, isActive: boolean) {
     startTransition(async () => {
       const result = await toggleMenuProductAction(scope, { productId, isActive });
+      if (!result.ok) toast.error(result.error);
+      else router.refresh();
+    });
+  }
+
+  function saveItemImage(productId: string, imageUrl: string | null) {
+    startTransition(async () => {
+      const result = await setProductImageAction(scope, { id: productId, imageUrl });
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });
@@ -213,6 +229,15 @@ export function MenuManager({
                   </Field>
                 </div>
               </div>
+
+              <ImageUpload
+                organizationId={organizationId}
+                purpose="product"
+                value={newItemImage}
+                onChange={setNewItemImage}
+                label="صورة الصنف"
+                aspectClassName="aspect-square"
+              />
 
               <fieldset className="rounded border border-line p-3">
                 <legend className="px-1 text-sm font-medium">الأحجام والأسعار</legend>
@@ -484,9 +509,27 @@ export function MenuManager({
               </thead>
               <tbody>
                 {menu.map((item) => (
-                  <tr key={item.id} className="border-b border-line last:border-0">
+                  <Fragment key={item.id}>
+                  <tr className="border-b border-line last:border-0">
                     <td className="p-3">
-                      <span className="font-medium">{item.name}</span>
+                      <div className="flex items-center gap-2">
+                        {canManage ? (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedImageId((id) => (id === item.id ? null : item.id))}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-line bg-surface"
+                            aria-label={`صورة ${item.name}`}
+                          >
+                            {item.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
+                              <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 text-muted" aria-hidden="true" />
+                            )}
+                          </button>
+                        ) : null}
+                        <span className="font-medium">{item.name}</span>
+                      </div>
                       {item.modifierGroupCount > 0 && (
                         <span className="ms-2 text-xs text-muted">
                           {item.modifierGroupCount} مجموعة إضافات
@@ -555,6 +598,21 @@ export function MenuManager({
                       </td>
                     )}
                   </tr>
+                  {expandedImageId === item.id && (
+                    <tr className="border-b border-line bg-surface last:border-0">
+                      <td colSpan={canManage ? 6 : 4} className="p-3">
+                        <ImageUpload
+                          organizationId={organizationId}
+                          purpose="product"
+                          value={item.imageUrl}
+                          onChange={(url) => saveItemImage(item.id, url)}
+                          label={`صورة ${item.name}`}
+                          aspectClassName="aspect-square"
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

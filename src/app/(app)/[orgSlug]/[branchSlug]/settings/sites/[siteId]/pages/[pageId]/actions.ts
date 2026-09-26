@@ -144,8 +144,8 @@ function collect(
     if (!formData.has(key)) continue;
 
     const value = String(formData.get(key) ?? '');
-    if (key === 'ctaHref') {
-      // An empty optional link is "no link", not an empty string.
+    if (key === 'ctaHref' || key === 'imageUrl') {
+      // An empty optional link or image is "none", not an empty string.
       out[key] = value.trim() === '' ? null : value;
     } else if (key === 'limit') {
       out[key] = value.trim() === '' ? null : Number(value);

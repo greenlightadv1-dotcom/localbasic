@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
+import { ImageUpload } from '@/components/patterns/image-upload';
 import { formatMoney } from '@/lib/money';
 import type { Bundle } from '@/modules/restaurant/bundles/service';
-import { createBundleAction, toggleBundleActiveAction } from './actions';
+import { createBundleAction, toggleBundleActiveAction, setBundleImageAction } from './actions';
 
 type Scope = { organizationSlug: string; branchSlug: string };
 
@@ -20,12 +21,14 @@ export function BundlesManager({
   bundles,
   currency,
   canManage,
+  organizationId,
   organizationSlug,
   branchSlug,
 }: {
   bundles: Bundle[];
   currency: string;
   canManage: boolean;
+  organizationId: string;
   organizationSlug: string;
   branchSlug: string;
 }) {
@@ -33,6 +36,7 @@ export function BundlesManager({
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [newImage, setNewImage] = useState<string | null>(null);
   const scope: Scope = { organizationSlug, branchSlug };
 
   function addBundle(formData: FormData) {
@@ -41,7 +45,7 @@ export function BundlesManager({
       const result = await createBundleAction(scope, {
         name: formData.get('name'),
         description: formData.get('description') || '',
-        imageUrl: formData.get('imageUrl') || '',
+        imageUrl: newImage || '',
         priceCents: formData.get('price') || '0',
       });
       if (!result.ok) {
@@ -50,6 +54,7 @@ export function BundlesManager({
       }
       toast.success('تمت إضافة الباقة');
       (document.getElementById('bundle-form') as HTMLFormElement | null)?.reset();
+      setNewImage(null);
       router.refresh();
     });
   }
@@ -57,6 +62,14 @@ export function BundlesManager({
   function toggleActive(bundleId: string, isActive: boolean) {
     startTransition(async () => {
       const result = await toggleBundleActiveAction(scope, { bundleId, isActive });
+      if (!result.ok) toast.error(result.error);
+      else router.refresh();
+    });
+  }
+
+  function saveImage(bundleId: string, imageUrl: string | null) {
+    startTransition(async () => {
+      const result = await setBundleImageAction(scope, { bundleId, imageUrl });
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });
@@ -83,9 +96,13 @@ export function BundlesManager({
                 {(p) => <Input {...p} name="price" type="text" inputMode="decimal" required />}
               </Field>
               <div className="sm:col-span-2">
-                <Field label="رابط الصورة">
-                  {(p) => <Input {...p} name="imageUrl" type="url" dir="ltr" placeholder="https://…" />}
-                </Field>
+                <ImageUpload
+                  organizationId={organizationId}
+                  purpose="bundle"
+                  value={newImage}
+                  onChange={setNewImage}
+                  label="صورة الباقة"
+                />
               </div>
               <div className="sm:col-span-2">
                 <Field label="وصف المحتويات">
@@ -122,12 +139,35 @@ export function BundlesManager({
                 </thead>
                 <tbody>
                   {bundles.map((b) => (
-                    <tr key={b.id} className="border-b border-line last:border-0">
+                    <tr key={b.id} className="border-b border-line last:border-0 align-top">
                       <td className="p-3">
-                        <span className="font-medium">{b.name}</span>
-                        {b.description && (
-                          <p className="mt-0.5 text-xs text-muted">{b.description}</p>
-                        )}
+                        <div className="flex items-start gap-2">
+                          {b.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
+                            <img
+                              src={b.imageUrl}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded object-cover"
+                            />
+                          )}
+                          <div>
+                            <span className="font-medium">{b.name}</span>
+                            {b.description && (
+                              <p className="mt-0.5 text-xs text-muted">{b.description}</p>
+                            )}
+                            {canManage && (
+                              <div className="mt-2 max-w-xs">
+                                <ImageUpload
+                                  organizationId={organizationId}
+                                  purpose="bundle"
+                                  value={b.imageUrl}
+                                  onChange={(url) => saveImage(b.id, url)}
+                                  label="الصورة"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="lb-numeric p-3">{formatMoney(b.priceCents, currency)}</td>
                       {canManage && (

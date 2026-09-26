@@ -26,6 +26,7 @@ export default async function BundlesPage({
         bundles={bundles}
         currency={ctx.currency}
         canManage={can(ctx, 'restaurant.menu.manage')}
+        organizationId={ctx.organizationId}
         organizationSlug={ctx.organizationSlug}
         branchSlug={ctx.branchSlug}
       />

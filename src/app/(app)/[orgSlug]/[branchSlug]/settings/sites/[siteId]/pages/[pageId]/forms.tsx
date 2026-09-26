@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
+import { ImageUpload } from '@/components/patterns/image-upload';
 
 import { ConfirmDialog } from '@/components/ui/confirm';
 import {
@@ -52,7 +53,13 @@ function Scope({ orgSlug, branchSlug }: { orgSlug: string; branchSlug: string })
   );
 }
 
-type Ids = { orgSlug: string; branchSlug: string; siteId: string; pageId: string };
+type Ids = {
+  orgSlug: string;
+  branchSlug: string;
+  organizationId: string;
+  siteId: string;
+  pageId: string;
+};
 
 function Targets({ ids, sectionId }: { ids: Ids; sectionId?: string }) {
   return (
@@ -152,12 +159,33 @@ export function SectionForm({
       {type === 'testimonials' && <ListNotice kind="testimonials" />}
       {type === 'contact' && <ContactFields section={section} state={state} />}
       {type === 'footer' && <FooterFields section={section} state={state} />}
+      {type === 'banner' && (
+        <BannerFields section={section} state={state} organizationId={ids.organizationId} />
+      )}
       {type === 'menu' && (
         <MenuFields section={section} state={state} categories={categories} />
       )}
       {type === 'business_info' && <BusinessInfoFields section={section} state={state} />}
       {type === 'hours' && <HoursFields section={section} state={state} />}
       {type === 'branches' && <BranchesFields section={section} state={state} />}
+      {type === 'best_sellers' && (
+        <LiveLimitedFields
+          section={section}
+          state={state}
+          type="best_sellers"
+          placeholder="الأكثر مبيعًا"
+          notice="بيانات حيّة — الأصناف المُعلّمة «الأكثر مبيعًا» من شاشة المنيو تظهر هنا تلقائيًا."
+        />
+      )}
+      {type === 'bundles' && (
+        <LiveLimitedFields
+          section={section}
+          state={state}
+          type="bundles"
+          placeholder="العروض والباقات"
+          notice="بيانات حيّة — الباقات المُفعّلة من شاشة العروض والباقات تظهر هنا تلقائيًا."
+        />
+      )}
 
       <Submit label="حفظ القسم" />
     </form>
@@ -236,6 +264,45 @@ function ContactFields({ section, state }: FieldProps) {
       <Field label="العنوان البريدي" error={state?.fieldErrors?.address}>
         {(p) => <Textarea {...p} name="address" defaultValue={c.address} maxLength={300} />}
       </Field>
+    </>
+  );
+}
+
+function BannerFields({
+  section,
+  state,
+  organizationId,
+}: FieldProps & { organizationId: string }) {
+  const c = parseSectionContent('banner', section.content);
+  const [imageUrl, setImageUrl] = useState<string | null>(c.imageUrl);
+  return (
+    <>
+      <Field label="العنوان" error={state?.fieldErrors?.title}>
+        {(p) => <Input {...p} name="title" defaultValue={c.title} maxLength={120} />}
+      </Field>
+      <Field label="جملة فرعية" error={state?.fieldErrors?.subtitle}>
+        {(p) => <Textarea {...p} name="subtitle" defaultValue={c.subtitle} maxLength={300} />}
+      </Field>
+      <input type="hidden" name="imageUrl" value={imageUrl ?? ''} />
+      <ImageUpload
+        organizationId={organizationId}
+        purpose="banner"
+        value={imageUrl}
+        onChange={setImageUrl}
+        label="صورة البانر"
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="نص الزر" error={state?.fieldErrors?.ctaLabel}>
+          {(p) => <Input {...p} name="ctaLabel" defaultValue={c.ctaLabel} maxLength={40} />}
+        </Field>
+        <Field
+          label="وجهة الزر"
+          hint="مسار داخلي مثل /about أو mailto: أو tel: فقط."
+          error={state?.fieldErrors?.ctaHref}
+        >
+          {(p) => <Input {...p} name="ctaHref" dir="ltr" defaultValue={c.ctaHref ?? ''} />}
+        </Field>
+      </div>
     </>
   );
 }
@@ -344,6 +411,32 @@ function LiveOnlyFields({
             maxLength={120}
             placeholder={placeholder}
           />
+        )}
+      </Field>
+    </>
+  );
+}
+
+/** Like LiveOnlyFields, plus the "at most N" narrowing best_sellers/bundles share with menu. */
+function LiveLimitedFields({
+  section,
+  state,
+  type,
+  notice,
+  placeholder,
+}: FieldProps & { type: 'best_sellers' | 'bundles'; notice: string; placeholder: string }) {
+  const c = parseSectionContent(type, section.content);
+  return (
+    <>
+      <LiveNotice>{notice}</LiveNotice>
+      <Field label="العنوان" error={state?.fieldErrors?.title}>
+        {(p) => (
+          <Input {...p} name="title" defaultValue={c.title} maxLength={120} placeholder={placeholder} />
+        )}
+      </Field>
+      <Field label="حد أقصى" hint="اتركه فارغًا لعرض الكل (حتى 50)." error={state?.fieldErrors?.limit}>
+        {(p) => (
+          <Input {...p} name="limit" type="number" min={1} max={50} dir="ltr" defaultValue={c.limit ?? ''} />
         )}
       </Field>
     </>

@@ -27,6 +27,7 @@ export default async function MenuPage({
         categories={categories}
         currency={ctx.currency}
         canManage={can(ctx, 'restaurant.menu.manage')}
+        organizationId={ctx.organizationId}
         organizationSlug={ctx.organizationSlug}
         branchSlug={ctx.branchSlug}
       />

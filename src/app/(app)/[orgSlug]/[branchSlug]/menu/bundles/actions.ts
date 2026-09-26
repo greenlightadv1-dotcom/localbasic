@@ -2,8 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { defineTenantAction } from '@/lib/action';
-import { bundleSchema, toggleBundleActiveSchema } from '@/modules/restaurant/bundles/schemas';
-import { createBundle, setBundleActive } from '@/modules/restaurant/bundles/service';
+import {
+  bundleSchema,
+  toggleBundleActiveSchema,
+  setBundleImageSchema,
+} from '@/modules/restaurant/bundles/schemas';
+import { createBundle, setBundleActive, setBundleImage } from '@/modules/restaurant/bundles/service';
 
 export const createBundleAction = defineTenantAction({
   schema: bundleSchema,
@@ -20,6 +24,16 @@ export const toggleBundleActiveAction = defineTenantAction({
   permission: 'restaurant.menu.manage',
   handler: async ({ ctx, input }) => {
     await setBundleActive(ctx, input.bundleId, input.isActive);
+    revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/menu/bundles`);
+    return { ok: true };
+  },
+});
+
+export const setBundleImageAction = defineTenantAction({
+  schema: setBundleImageSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await setBundleImage(ctx, input.bundleId, input.imageUrl);
     revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/menu/bundles`);
     return { ok: true };
   },

@@ -14,13 +14,20 @@ export const priceInput = z
 export const categorySchema = z.object({
   name: z.string().trim().min(1, 'اسم التصنيف مطلوب').max(120),
   description: z.string().trim().max(500).optional(),
+  imageUrl: z.string().trim().url().max(2000).nullable().optional(),
   sortOrder: z.coerce.number().int().min(0).default(0),
+});
+
+export const setImageSchema = z.object({
+  id: z.string().uuid(),
+  imageUrl: z.string().trim().url().max(2000).nullable(),
 });
 
 export const menuProductSchema = z.object({
   name: z.string().trim().min(1, 'اسم الصنف مطلوب').max(200),
   categoryId: z.string().uuid().nullable().optional(),
   description: z.string().trim().max(1000).optional(),
+  imageUrl: z.string().trim().url().max(2000).nullable().optional(),
   taxRatePercent: z.coerce.number().min(0).max(100).default(0),
   prepMinutes: z.coerce.number().int().min(0).max(600).default(0),
   variants: z

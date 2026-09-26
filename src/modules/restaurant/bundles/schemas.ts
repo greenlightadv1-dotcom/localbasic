@@ -19,3 +19,8 @@ export const toggleBundleActiveSchema = z.object({
   bundleId: z.string().uuid(),
   isActive: z.coerce.boolean(),
 });
+
+export const setBundleImageSchema = z.object({
+  bundleId: z.string().uuid(),
+  imageUrl: z.string().trim().url().max(2000).nullable(),
+});
