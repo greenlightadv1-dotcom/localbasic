@@ -57,6 +57,8 @@ function ctx(permissions: string[]): TenantContext {
     isOwner: false,
     enabledModules: ['retail'],
     primaryModule: 'retail',
+    kitchenDisplayEnabled: true,
+    captainHallEnabled: true,
   };
 }
 

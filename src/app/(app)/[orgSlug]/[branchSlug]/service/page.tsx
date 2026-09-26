@@ -15,6 +15,7 @@ export default async function ServicePage({
 }) {
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!can(ctx, 'restaurant.service.use')) notFound();
+  if (!ctx.captainHallEnabled) notFound();
 
   const [orders, floor] = await Promise.all([
     listOrders(ctx, { statuses: ['new', 'confirmed', 'preparing', 'ready', 'served'] }),

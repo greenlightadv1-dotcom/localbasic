@@ -14,6 +14,7 @@ export default async function KitchenPage({
 }) {
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!ctx.permissions.has('restaurant.kitchen.use')) notFound();
+  if (!ctx.kitchenDisplayEnabled) notFound();
 
   // One batched call: four queries whatever the board holds, and no price
   // column selected, so nothing financial reaches the client payload.

@@ -49,7 +49,15 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
-  const allowed = (items: NavItem[]) => items.filter((i) => ctx.permissions.has(i.permission));
+  // Scaled-down mode: an org can turn off Kitchen Display or Captain/Hall from
+  // settings, which drops those links from the nav entirely rather than just
+  // disabling a button — a cashier-only setup has no reason to see either.
+  const featureGatedHrefs = new Set<string>([
+    ...(ctx.kitchenDisplayEnabled ? [] : ['/kitchen']),
+    ...(ctx.captainHallEnabled ? [] : ['/service']),
+  ]);
+  const allowed = (items: NavItem[]) =>
+    items.filter((i) => ctx.permissions.has(i.permission) && !featureGatedHrefs.has(i.href));
 
   const coreNav = allowed(coreNavigationFor(ctx.enabledModules));
   const settingsNav = allowed(SETTINGS_NAVIGATION);

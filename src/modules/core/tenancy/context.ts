@@ -41,6 +41,14 @@ export type TenantContext = {
   isOwner: boolean;
   enabledModules: string[];
   primaryModule: string;
+  /**
+   * Granular operational toggles, read from organization_modules.settings
+   * for the 'restaurant' module. Default true — these are pre-existing
+   * capabilities that stay on unless an admin explicitly scales down to a
+   * simplified, cashier-only setup.
+   */
+  kitchenDisplayEnabled: boolean;
+  captainHallEnabled: boolean;
 };
 
 export type SessionUser = { id: string; email: string | null; fullName: string | null };
@@ -114,7 +122,7 @@ export const resolveTenantContext = cache(
         supabase.from('member_branches').select('branch_id').eq('member_id', membership.id),
         supabase
           .from('organization_modules')
-          .select('module_key')
+          .select('module_key, settings')
           .eq('organization_id', org.id)
           .eq('enabled', true),
         supabase
@@ -129,6 +137,9 @@ export const resolveTenantContext = cache(
     // platform read policy on branches is not scoped to a branch assignment,
     // so a Platform Admin who is also a member of one branch would otherwise
     // see every branch of that organization.
+    const restaurantModule = (modules ?? []).find((m) => m.module_key === 'restaurant');
+    const restaurantSettings = (restaurantModule?.settings ?? {}) as Record<string, unknown>;
+
     const assigned = membership.all_branches
       ? null
       : new Set((memberBranches ?? []).map((b) => b.branch_id));
@@ -181,6 +192,8 @@ export const resolveTenantContext = cache(
       isOwner,
       enabledModules: (modules ?? []).map((m) => m.module_key),
       primaryModule: org.primary_module,
+      kitchenDisplayEnabled: restaurantSettings.kitchen_display_enabled !== false,
+      captainHallEnabled: restaurantSettings.captain_hall_enabled !== false,
     };
   },
 );
