@@ -11,10 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
-import {
-  LAVECHI_CARD_SHADOW, LAVECHI_SHEET_SPRING,
-  usePrefersReducedMotion,
-} from '@/modules/restaurant/website/lavechi-theme';
+import { LAVECHI_CARD_SHADOW, LAVECHI_SHEET_SPRING } from '@/modules/restaurant/website/lavechi-theme';
+import { usePrefersReducedMotion } from '@/modules/restaurant/website/lavechi-theme-client';
 import type {
   PublicCategory,
   PublicContext,

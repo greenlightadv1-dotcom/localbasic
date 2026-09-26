@@ -1,7 +1,3 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-
 /**
  * The Lavechi design system.
  *
@@ -16,6 +12,16 @@ import { useEffect, useState } from 'react';
  * of them (the gold button glow, the hairline border) are used as literal
  * string composites (`${gold}33`, an rgba() already carrying its own alpha),
  * which a `var()` reference cannot be suffixed with in plain CSS.
+ *
+ * Deliberately NOT 'use client': `lavechiCssVars()` and the constants below
+ * are called from Server Components (parts.tsx's brandStyle(), the /p/[token]
+ * and /order/track/[token] pages) as plain functions, not as JSX. Marking
+ * this module 'use client' replaces those exports with client-reference
+ * stubs in the server bundle — the build still succeeds, but calling one
+ * from server code throws "is not a function" at request time. The one
+ * export here that genuinely needs the client (usePrefersReducedMotion, a
+ * hook) lives in the sibling ./lavechi-theme-client.ts instead, so this file
+ * can stay hook-free and safe to import from anywhere.
  */
 export const LAVECHI = {
   bg: '#07231A',
@@ -103,22 +109,3 @@ export const LAVECHI_SHEET_SPRING = { type: 'spring' as const, damping: 30, stif
 export const LAVECHI_SHEET_INITIAL = { y: '100%' };
 export const LAVECHI_SHEET_ANIMATE = { y: 0 };
 export const LAVECHI_SHEET_EXIT = { y: '100%' };
-
-/**
- * Respects the platform preference both ways: Framer Motion is told to skip
- * straight to the end state, and any hand-written CSS animation this hook
- * gates (the logo's ring pulse, the steam wisps) can be turned off the same
- * way `prefers-reduced-motion` already turns off the CSS `animation` a
- * `@media` query would.
- */
-export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(query.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
-}

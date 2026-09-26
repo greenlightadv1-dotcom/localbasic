@@ -24,10 +24,25 @@
 --     item and its RLS policies) is enough; the keys staying seeded and
 --     granted to owner/admin is inert once nothing reads them for this
 --     feature.
+--
+-- Tables first, THEN functions: a policy on site_sections/site_pages calls
+-- app.site_page_can_manage()/app.site_page_can_read() etc, so dropping those
+-- functions before the tables that reference them in a policy fails with
+-- "cannot drop function ... because other objects depend on it". CASCADE on
+-- the table drop clears the policy (and its function reference) along with
+-- the table; only then can the now-unreferenced functions themselves go.
 -- =============================================================================
 
--- Public read surface (0062) — depends on the tables below only through the
--- function body, not a real dependency, so it is dropped first for clarity.
+-- Tables first: CASCADE clears their own policies, triggers, indexes and
+-- check constraints, including everything that depends on the functions
+-- below (RLS policies calling app.site_can_read/site_can_manage/etc).
+drop table if exists public.site_revisions cascade;
+drop table if exists public.site_settings cascade;
+drop table if exists public.site_sections cascade;
+drop table if exists public.site_pages cascade;
+drop table if exists public.sites cascade;
+
+-- Public read surface (0062)
 drop function if exists public.site_public_page(text, text);
 
 -- Platform Admin wrapper (0061)
@@ -45,45 +60,25 @@ drop function if exists public.site_unpublish(uuid);
 drop function if exists public.site_rollback(uuid, uuid);
 drop function if exists public.site_publish(uuid, text);
 drop function if exists app.site_snapshot(uuid);
--- check_site_revision_immutable / check_site_snapshot are trigger functions
--- on site_revisions; the table drop below removes the triggers, and the
--- functions are dropped explicitly afterward.
+drop function if exists app.check_site_revision_immutable();
+drop function if exists app.check_site_snapshot();
 
 -- Page operations (0058)
 drop function if exists public.site_page_delete(uuid);
 drop function if exists public.site_pages_reorder(uuid, uuid[]);
 drop function if exists public.site_page_create(uuid, text, text);
--- assert_site_homepage / check_site_page_identity are trigger functions on
--- site_pages; dropped explicitly after the table below.
+drop function if exists app.assert_site_homepage();
+drop function if exists app.check_site_page_identity();
 
--- Write layer (0057)
+-- Write layer (0057/0059)
 drop function if exists public.site_sections_reorder(uuid, uuid[]);
--- check_site_settings / check_site_section_content are trigger functions;
--- dropped explicitly after the tables below (0059 replaced the latter with
--- an identical-name definition, so one drop covers both).
+drop function if exists app.check_site_settings();
+drop function if exists app.check_site_section_content();
 
--- Core (0055) + identity integrity (0056)
+-- Core (0055/0056)
 drop function if exists public.site_provision(uuid, text, text, uuid);
--- check_site_identity is a trigger function on sites; dropped after the
--- table below.
+drop function if exists app.check_site_identity();
 drop function if exists app.site_page_can_manage(uuid);
 drop function if exists app.site_page_can_read(uuid);
 drop function if exists app.site_can_manage(uuid);
 drop function if exists app.site_can_read(uuid);
-
--- Tables, in dependency order. CASCADE clears their own policies, triggers,
--- and indexes; the underlying trigger FUNCTIONS are separate objects and are
--- dropped explicitly afterward since nothing else references them.
-drop table if exists public.site_revisions cascade;
-drop table if exists public.site_settings cascade;
-drop table if exists public.site_sections cascade;
-drop table if exists public.site_pages cascade;
-drop table if exists public.sites cascade;
-
-drop function if exists app.check_site_revision_immutable();
-drop function if exists app.check_site_snapshot();
-drop function if exists app.assert_site_homepage();
-drop function if exists app.check_site_page_identity();
-drop function if exists app.check_site_settings();
-drop function if exists app.check_site_section_content();
-drop function if exists app.check_site_identity();
