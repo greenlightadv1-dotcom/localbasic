@@ -4,6 +4,7 @@ import {
   getOrganizationByCode, listSubscriptionHistory, listPlans,
   listCustomerBranches, listCustomerModules, listCustomerAudit, listCustomerDomains,
 } from '@/modules/platform/billing/service';
+import { listCustomerStaff, listCustomerRoleCatalog } from '@/modules/platform/staff/service';
 import {
   AdminHeading, Panel, CustomerCode, ExpiryBadge, StatusBadge,
   formatDate, periodLabel, money,
@@ -11,6 +12,7 @@ import {
 import { RenewForm } from './renew-form';
 import { AdjustDaysForm, SwitchPlanForm } from './subscription-ops-form';
 import { DangerZone } from './danger-zone';
+import { StaffRoles } from './staff-roles';
 
 import { getPlatformContext } from '@/modules/platform/admin/context';
 
@@ -75,13 +77,15 @@ export default async function CustomerProfilePage({
   if (!org) notFound();
   const justCreated = searchParams.created === '1';
 
-  const [history, plans, branches, modules, audit, domains] = await Promise.all([
+  const [history, plans, branches, modules, audit, domains, staff, roleCatalog] = await Promise.all([
     listSubscriptionHistory(org.id),
     listPlans(),
     listCustomerBranches(code),
     listCustomerModules(code),
     listCustomerAudit(code, 30),
     listCustomerDomains(code),
+    listCustomerStaff(code),
+    listCustomerRoleCatalog(code),
   ]);
 
   const currentPlanId = plans.find((p) => p.key === org.planKey)?.id ?? null;
@@ -306,6 +310,19 @@ export default async function CustomerProfilePage({
           <SwitchPlanForm organizationId={org.id} plans={plans} currentPlanId={currentPlanId} />
         </Panel>
       </div>
+
+      <Panel className="mt-6">
+        <h2 className="border-b border-line px-5 py-3 text-sm font-bold text-fg">
+          فريق العمل والأدوار
+          <span className="ms-2 font-normal text-muted">إدارة أدوار الموظفين من لوحة المنصة</span>
+        </h2>
+        <StaffRoles
+          customerCode={org.customerCode}
+          staff={staff}
+          roles={roleCatalog}
+          isPlatformOwner={platformCtx?.role === 'owner'}
+        />
+      </Panel>
 
       <Panel className="mt-6 border-danger/30">
         <h2 className="border-b border-danger/30 bg-danger/5 px-5 py-3 text-sm font-bold text-danger">

@@ -3259,8 +3259,12 @@ export type Database = {
       platform_customer_branches: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_domains: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_modules: { Args: Record<string, unknown>; Returns: Json };
-      platform_adjust_subscription_days: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_profile: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_role_catalog: { Args: Record<string, unknown>; Returns: Json };
+      platform_customer_staff: { Args: Record<string, unknown>; Returns: Json };
+      platform_adjust_subscription_days: { Args: Record<string, unknown>; Returns: Json };
+      platform_grant_staff_role: { Args: Record<string, unknown>; Returns: Json };
+      platform_revoke_staff_role: { Args: Record<string, unknown>; Returns: Json };
       platform_dashboard_stats: { Args: Record<string, unknown>; Returns: Json };
       platform_delete_organization: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };

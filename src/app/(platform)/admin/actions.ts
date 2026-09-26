@@ -9,6 +9,7 @@ import {
 import { createLead, updateLead } from '@/modules/platform/leads/service';
 import { setServiceAvailability } from '@/modules/platform/services/service';
 import { onboardCustomer } from '@/modules/platform/onboarding/service';
+import { grantStaffRole, revokeStaffRole } from '@/modules/platform/staff/service';
 import { PROMO_REASONS } from '@/modules/platform/billing/schemas';
 import { AppError } from '@/lib/errors';
 
@@ -267,4 +268,42 @@ export async function onboardCustomerAction(
   // redirect() throws NEXT_REDIRECT, so it must sit outside the try above or
   // the catch would swallow it and report a failure for work that succeeded.
   redirect(`/admin/customers/${result.customerCode}?created=1`);
+}
+
+export type StaffRoleState = { error?: string; ok?: string } | undefined;
+
+export async function grantStaffRoleAction(
+  _prev: StaffRoleState,
+  formData: FormData,
+): Promise<StaffRoleState> {
+  try {
+    await grantStaffRole({
+      customerCode: String(formData.get('customerCode') ?? ''),
+      memberId: String(formData.get('memberId') ?? ''),
+      roleId: String(formData.get('roleId') ?? ''),
+      branchId: String(formData.get('branchId') ?? '') || null,
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر منح الدور.' };
+  }
+  revalidatePath('/admin/customers', 'layout');
+  return { ok: 'تم منح الدور.' };
+}
+
+export async function revokeStaffRoleAction(
+  _prev: StaffRoleState,
+  formData: FormData,
+): Promise<StaffRoleState> {
+  try {
+    await revokeStaffRole({
+      customerCode: String(formData.get('customerCode') ?? ''),
+      memberId: String(formData.get('memberId') ?? ''),
+      roleId: String(formData.get('roleId') ?? ''),
+      branchId: String(formData.get('branchId') ?? '') || null,
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر سحب الدور.' };
+  }
+  revalidatePath('/admin/customers', 'layout');
+  return { ok: 'تم سحب الدور.' };
 }
