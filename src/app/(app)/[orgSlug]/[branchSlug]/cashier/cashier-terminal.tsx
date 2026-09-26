@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Minus, Trash2, Search, ReceiptText, X } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, ReceiptText, X, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/field';
 import { Badge } from '@/components/ui/badge';
@@ -13,11 +13,19 @@ import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/patterns/states';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
 import type { FloorTable } from '@/modules/restaurant/tables/service';
-import type { OrderSummary } from '@/modules/restaurant/orders/service';
+import type { CashierOrder } from '@/modules/restaurant/orders/service';
 import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas';
 import { createOrderAction, payOrderAction, setOrderStatusAction } from '../restaurant-actions';
+
+const CHANNEL_LABELS: Record<string, string> = {
+  qr: 'رمز QR', waiter: 'الكابتن', cashier: 'الكاشير', online: 'أونلاين',
+};
+const TYPE_LABELS: Record<string, string> = {
+  dine_in: 'صالة', takeaway: 'سفري', pickup: 'استلام', delivery: 'توصيل',
+};
 
 type ModifierGroup = {
   id: string;
@@ -55,16 +63,18 @@ export function CashierTerminal({
   currency,
   canDiscount,
   canCancel,
+  branchId,
   organizationSlug,
   branchSlug,
 }: {
   menu: MenuItem[];
   modifierGroups: ModifierGroup[];
   floor: FloorTable[];
-  openOrders: OrderSummary[];
+  openOrders: CashierOrder[];
   currency: string;
   canDiscount: boolean;
   canCancel: boolean;
+  branchId: string;
   organizationSlug: string;
   branchSlug: string;
 }) {
@@ -83,7 +93,7 @@ export function CashierTerminal({
   const [chosen, setChosen] = useState<Record<string, string[]>>({});
 
   // Settling an existing order.
-  const [settling, setSettling] = useState<OrderSummary | null>(null);
+  const [settling, setSettling] = useState<CashierOrder | null>(null);
   const [tendered, setTendered] = useState('');
   const [discount, setDiscount] = useState('');
   const [method, setMethod] = useState('cash');
@@ -94,8 +104,36 @@ export function CashierTerminal({
     due: number;
     change: number;
   } | null>(null);
-  const [cancelling, setCancelling] = useState<OrderSummary | null>(null);
+  const [cancelling, setCancelling] = useState<CashierOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  // New orders (an online guest, a QR table, another till) and status
+  // changes both land on this branch's restaurant_orders rows. Realtime
+  // delivers a change here only when this session's own RLS (orders_select,
+  // 0020) would let it read that row directly — the same guarantee
+  // MembershipWatch already relies on — so subscribing needs no new broadcast
+  // trigger, just the table added to the publication (0073).
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`cashier-orders:${branchId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'restaurant_orders',
+          filter: `branch_id=eq.${branchId}`,
+        },
+        () => router.refresh(),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [branchId, router]);
 
   const results = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -214,7 +252,7 @@ export function CashierTerminal({
     });
   }
 
-  function confirmOrder(order: OrderSummary) {
+  function confirmOrder(order: CashierOrder) {
     startTransition(async () => {
       const result = await setOrderStatusAction(
         { organizationSlug, branchSlug },
@@ -311,60 +349,137 @@ export function CashierTerminal({
               <p className="p-5 text-center text-sm text-muted">لا توجد طلبات مفتوحة.</p>
             ) : (
               <ul className="divide-y divide-line">
-                {openOrders.map((order) => (
-                  <li key={order.id} className="flex flex-wrap items-center gap-2 p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">
-                        {order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : 'سفري'}
-                        <span className="lb-numeric ms-2 text-sm text-muted">#{order.number}</span>
-                        {order.channel === 'qr' && (
-                          <Badge tone="info" className="ms-2">
-                            QR
-                          </Badge>
-                        )}
-                      </p>
-                      <p className="lb-numeric text-sm text-muted">
-                        {formatMoney(order.totalCents, currency)}
-                        {order.paidCents > 0 && order.paidCents < order.totalCents && (
-                          <span className="text-warn">
-                            {' '}
-                            · مدفوع {formatMoney(order.paidCents, currency)}
-                          </span>
-                        )}
-                      </p>
+                {openOrders.map((order) => {
+                  const expanded = expandedOrderId === order.id;
+                  return (
+                  <li key={order.id} className="p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedOrderId(expanded ? null : order.id)}
+                        className="flex min-w-0 flex-1 items-start gap-2 text-start"
+                      >
+                        <ChevronDown
+                          className={cn('mt-1 h-4 w-4 shrink-0 text-muted transition-transform', expanded && 'rotate-180')}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">
+                            {order.tableName ? <>طاولة <bdi>{order.tableName}</bdi></> : TYPE_LABELS[order.type] ?? order.type}
+                            <span className="lb-numeric ms-2 text-sm text-muted">#{order.number}</span>
+                            <Badge tone={order.channel === 'online' ? 'info' : 'neutral'} className="ms-2">
+                              {CHANNEL_LABELS[order.channel] ?? order.channel}
+                            </Badge>
+                          </p>
+                          <p className="lb-numeric text-sm text-muted">
+                            {formatMoney(order.totalCents, currency)}
+                            {order.paidCents > 0 && order.paidCents < order.totalCents && (
+                              <span className="text-warn">
+                                {' '}
+                                · مدفوع {formatMoney(order.paidCents, currency)}
+                              </span>
+                            )}
+                            {' · '}
+                            {order.itemCount} صنف
+                          </p>
+                        </div>
+                      </button>
+                      <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+                      {order.status === 'new' && (
+                        <Button size="sm" disabled={isPending} onClick={() => confirmOrder(order)}>
+                          تأكيد
+                        </Button>
+                      )}
+                      {order.paidCents < order.totalCents && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => {
+                            setSettling(order);
+                            setTendered('');
+                            setDiscount('');
+                          }}
+                        >
+                          تحصيل
+                        </Button>
+                      )}
+                      {canCancel && order.paidCents === 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-danger"
+                          onClick={() => setCancelling(order)}
+                        >
+                          إلغاء
+                        </Button>
+                      )}
                     </div>
-                    <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
-                    {order.status === 'new' && (
-                      <Button size="sm" disabled={isPending} onClick={() => confirmOrder(order)}>
-                        تأكيد
-                      </Button>
-                    )}
-                    {order.paidCents < order.totalCents && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isPending}
-                        onClick={() => {
-                          setSettling(order);
-                          setTendered('');
-                          setDiscount('');
-                        }}
-                      >
-                        تحصيل
-                      </Button>
-                    )}
-                    {canCancel && order.paidCents === 0 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-danger"
-                        onClick={() => setCancelling(order)}
-                      >
-                        إلغاء
-                      </Button>
+
+                    {expanded && (
+                      <div className="mt-3 space-y-3 rounded-lg border border-line bg-surface p-3 text-sm">
+                        {order.guestName && (
+                          <p>
+                            <span className="text-muted">العميل: </span>
+                            <span className="font-medium">{order.guestName}</span>
+                            {order.guestPhone && (
+                              <span className="lb-numeric text-muted"> — {order.guestPhone}</span>
+                            )}
+                          </p>
+                        )}
+                        {order.delivery && (
+                          <div className="rounded border border-line bg-elevated p-2">
+                            <p className="font-medium">
+                              {order.delivery.recipientName}
+                              <span className="lb-numeric text-muted"> — {order.delivery.phone}</span>
+                            </p>
+                            <p className="text-muted">
+                              {order.delivery.address}
+                              {(order.delivery.area || order.delivery.city) && (
+                                <span> ({[order.delivery.area, order.delivery.city].filter(Boolean).join('، ')})</span>
+                              )}
+                            </p>
+                            {order.delivery.landmark && (
+                              <p className="text-xs text-muted">علامة مميزة: {order.delivery.landmark}</p>
+                            )}
+                            {order.delivery.notes && (
+                              <p className="text-xs text-muted">ملاحظات التوصيل: {order.delivery.notes}</p>
+                            )}
+                          </div>
+                        )}
+                        <ul className="space-y-1.5">
+                          {order.lines.map((line) => (
+                            <li key={line.id}>
+                              <p className="flex gap-2 font-medium">
+                                <span className="lb-numeric shrink-0 text-primary">{line.quantity}×</span>
+                                <span>
+                                  <bdi>{line.productName}</bdi>
+                                  {line.variantName !== 'default' && (
+                                    <span className="text-muted"> — {line.variantName}</span>
+                                  )}
+                                </span>
+                              </p>
+                              {line.modifiers.length > 0 && (
+                                <p className="ps-6 text-xs text-muted">
+                                  {line.modifiers.map((m) => m.name).join('، ')}
+                                </p>
+                              )}
+                              {line.note && (
+                                <p className="ps-6 text-xs font-medium text-warn">{line.note}</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                        {order.note && (
+                          <p className="rounded bg-warn/10 p-2 text-xs font-medium text-warn">
+                            ملاحظة الطلب: {order.note}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </CardBody>

@@ -25,6 +25,7 @@ export type OrderSummary = {
   tableName: string | null;
   tableId: string | null;
   guestName: string | null;
+  guestPhone: string | null;
   totalCents: number;
   paidCents: number;
   itemCount: number;
@@ -49,7 +50,7 @@ export async function listOrders(
   let query = supabase
     .from('restaurant_orders')
     .select(
-      'id, number, status, channel, type, table_id, guest_name, total_cents, note, placed_at, invoice_id',
+      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id',
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
@@ -112,6 +113,7 @@ export async function listOrders(
     tableId: o.table_id,
     tableName: o.table_id ? (tableName.get(o.table_id) ?? null) : null,
     guestName: o.guest_name,
+    guestPhone: o.guest_phone,
     totalCents: o.total_cents,
     paidCents: o.invoice_id ? (paid.get(o.invoice_id) ?? 0) : 0,
     itemCount: (items ?? []).filter((i) => i.order_id === o.id).length,
@@ -122,6 +124,109 @@ export async function listOrders(
 }
 
 export const listActiveOrders = (ctx: TenantContext) => listOrders(ctx, { statuses: ACTIVE });
+
+export type CashierOrder = OrderSummary & {
+  lines: {
+    id: string;
+    productName: string;
+    variantName: string;
+    quantity: number;
+    note: string | null;
+    modifiers: { name: string }[];
+  }[];
+  delivery: {
+    recipientName: string;
+    phone: string;
+    city: string | null;
+    area: string | null;
+    address: string;
+    landmark: string | null;
+    notes: string | null;
+  } | null;
+};
+
+/**
+ * listOrders(), with the full breakdown a cashier actually needs to hand an
+ * order over or read it out: every line with its modifiers and note, and a
+ * delivery order's recipient/address. A summary-only queue is enough to see
+ * that an order exists; it is not enough to serve or dispatch it.
+ *
+ * Batched the same way listKitchenTickets() is — one query per related
+ * table for the whole page, not one per order — so a busy till with fifty
+ * open orders costs four extra round trips, not fifty.
+ */
+export async function listOrdersWithDetails(
+  ctx: TenantContext,
+  options: { statuses?: OrderStatus[]; limit?: number; since?: Date } = {},
+): Promise<CashierOrder[]> {
+  const summaries = await listOrders(ctx, options);
+  if (!summaries.length) return [];
+
+  const supabase = createSupabaseServerClient();
+  const orderIds = summaries.map((o) => o.id);
+  const deliveryIds = summaries.filter((o) => o.type === 'delivery').map((o) => o.id);
+
+  const [{ data: items }, { data: deliveries }] = await Promise.all([
+    supabase
+      .from('restaurant_order_items')
+      .select('id, order_id, product_name, variant_name, quantity, note')
+      .in('order_id', orderIds)
+      .order('position'),
+    deliveryIds.length
+      ? supabase
+          .from('restaurant_order_deliveries')
+          .select('order_id, recipient_name, phone, city, area, address, landmark, notes')
+          .in('order_id', deliveryIds)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+  ]);
+
+  const itemIds = (items ?? []).map((i) => i.id);
+  const { data: modifiers } = itemIds.length
+    ? await supabase
+        .from('restaurant_order_item_modifiers')
+        .select('order_item_id, name')
+        .in('order_item_id', itemIds)
+    : { data: [] as { order_item_id: string; name: string }[] };
+
+  const deliveryByOrder = new Map(
+    (deliveries as
+      | {
+          order_id: string; recipient_name: string; phone: string; city: string | null;
+          area: string | null; address: string; landmark: string | null; notes: string | null;
+        }[]
+      | null ?? []
+    ).map((d) => [d.order_id, d]),
+  );
+
+  return summaries.map((summary) => ({
+    ...summary,
+    lines: (items ?? [])
+      .filter((i) => i.order_id === summary.id)
+      .map((i) => ({
+        id: i.id,
+        productName: i.product_name,
+        variantName: i.variant_name,
+        quantity: Number(i.quantity),
+        note: i.note,
+        modifiers: (modifiers ?? [])
+          .filter((m) => m.order_item_id === i.id)
+          .map((m) => ({ name: m.name })),
+      })),
+    delivery: (() => {
+      const d = deliveryByOrder.get(summary.id);
+      if (!d) return null;
+      return {
+        recipientName: d.recipient_name,
+        phone: d.phone,
+        city: d.city,
+        area: d.area,
+        address: d.address,
+        landmark: d.landmark,
+        notes: d.notes,
+      };
+    })(),
+  }));
+}
 
 /**
  * A kitchen ticket: what to cook, for which table, and how long it has been

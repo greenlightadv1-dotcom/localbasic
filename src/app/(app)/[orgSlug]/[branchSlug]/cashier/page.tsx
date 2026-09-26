@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { listMenu } from '@/modules/restaurant/menu/service';
 import { listFloor } from '@/modules/restaurant/tables/service';
-import { listOrders } from '@/modules/restaurant/orders/service';
+import { listOrdersWithDetails } from '@/modules/restaurant/orders/service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { CashierTerminal } from './cashier-terminal';
 
@@ -57,7 +57,7 @@ export default async function CashierPage({
   const [menu, floor, openOrders] = await Promise.all([
     listMenu(ctx),
     listFloor(ctx),
-    listOrders(ctx, { statuses: ['new', 'confirmed', 'preparing', 'ready', 'served'] }),
+    listOrdersWithDetails(ctx, { statuses: ['new', 'confirmed', 'preparing', 'ready', 'served'] }),
   ]);
 
   const modifierGroups = await loadModifiers(
@@ -74,6 +74,7 @@ export default async function CashierPage({
       currency={ctx.currency}
       canDiscount={can(ctx, 'restaurant.pos.discount')}
       canCancel={can(ctx, 'restaurant.order.cancel')}
+      branchId={ctx.branchId}
       organizationSlug={ctx.organizationSlug}
       branchSlug={ctx.branchSlug}
     />
