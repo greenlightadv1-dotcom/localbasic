@@ -1,7 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
-import { grantAdminAction, revokeAdminAction, type RosterState } from './actions';
+import { grantAdminAction, revokeAdminAction, createAdminDirectAction, type RosterState } from './actions';
 
 function Submit({ label, subtle }: { label: string; subtle?: boolean }) {
   const { pending } = useFormStatus();
@@ -64,6 +64,86 @@ export function GrantAdminForm() {
         </div>
 
         <Submit label="منح الصلاحية" />
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Create a brand-new platform-staff account directly: an owner sets the
+ * password here and the account works immediately with it — no invite, no
+ * forced change on first login.
+ */
+export function CreateAdminDirectForm() {
+  const [state, formAction] = useFormState<RosterState, FormData>(createAdminDirectAction, undefined);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      {state?.error ? (
+        <p
+          data-testid="create-admin-error"
+          className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
+          {state.error}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[14rem]">
+          <label htmlFor="create-admin-name" className="mb-1 block text-xs font-medium text-muted">
+            الاسم الكامل
+          </label>
+          <input
+            id="create-admin-name"
+            name="fullName"
+            required
+            maxLength={120}
+            className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg outline-none focus-visible:border-primary"
+          />
+        </div>
+        <div className="min-w-[16rem] flex-1">
+          <label htmlFor="create-admin-email" className="mb-1 block text-xs font-medium text-muted">
+            البريد الإلكتروني
+          </label>
+          <input
+            id="create-admin-email"
+            name="email"
+            type="email"
+            required
+            dir="ltr"
+            className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg outline-none focus-visible:border-primary"
+          />
+        </div>
+        <div className="min-w-[12rem]">
+          <label htmlFor="create-admin-password" className="mb-1 block text-xs font-medium text-muted">
+            كلمة المرور
+          </label>
+          <input
+            id="create-admin-password"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            maxLength={72}
+            dir="ltr"
+            className="h-11 w-full rounded border border-line bg-elevated px-3 text-sm text-fg outline-none focus-visible:border-primary"
+          />
+        </div>
+        <div>
+          <label htmlFor="create-admin-role" className="mb-1 block text-xs font-medium text-muted">
+            الدور
+          </label>
+          <select
+            id="create-admin-role"
+            name="role"
+            defaultValue="staff"
+            className="h-11 rounded border border-line bg-elevated px-3 text-sm text-fg outline-none focus-visible:border-primary"
+          >
+            <option value="staff">موظف</option>
+            <option value="owner">مالك المنصة</option>
+          </select>
+        </div>
+
+        <Submit label="إنشاء الحساب" />
       </div>
     </form>
   );

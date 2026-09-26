@@ -2,7 +2,7 @@ import { getPlatformContext } from '@/modules/platform/admin/context';
 import { listPlatformAdmins } from '@/modules/platform/admin/roster';
 import { adminMetadata } from '@/modules/platform/admin/metadata';
 import { AdminHeading, Panel, formatDate } from '../ui';
-import { GrantAdminForm, RevokeAdminButton } from './forms';
+import { GrantAdminForm, CreateAdminDirectForm, RevokeAdminButton } from './forms';
 
 export const generateMetadata = adminMetadata('فريق المنصة');
 
@@ -45,14 +45,25 @@ export default async function PlatformTeamPage({
       ) : null}
 
       {isOwner ? (
-        <Panel className="mb-4 p-4">
-          <h2 className="mb-3 text-sm font-bold text-fg">إضافة مشغّل</h2>
-          <p className="mb-3 text-xs text-muted">
-            يجب أن يكون لدى الشخص حساب على المنصة بالفعل — هذه الشاشة تمنح صلاحية
-            ولا تُنشئ حسابًا.
-          </p>
-          <GrantAdminForm />
-        </Panel>
+        <>
+          <Panel className="mb-4 p-4">
+            <h2 className="mb-3 text-sm font-bold text-fg">إنشاء حساب مشغّل مباشرةً</h2>
+            <p className="mb-3 text-xs text-muted">
+              يعمل الحساب فورًا بالبريد وكلمة المرور اللي تدخلها هنا — بدون دعوة
+              ولا تغيير إجباري لكلمة المرور عند أول دخول.
+            </p>
+            <CreateAdminDirectForm />
+          </Panel>
+
+          <Panel className="mb-4 p-4">
+            <h2 className="mb-3 text-sm font-bold text-fg">منح صلاحية لحساب موجود</h2>
+            <p className="mb-3 text-xs text-muted">
+              يجب أن يكون لدى الشخص حساب على المنصة بالفعل — هذه الشاشة تمنح صلاحية
+              ولا تُنشئ حسابًا.
+            </p>
+            <GrantAdminForm />
+          </Panel>
+        </>
       ) : (
         <Panel className="mb-4 p-4">
           <p className="text-sm text-muted">

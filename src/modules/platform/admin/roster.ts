@@ -1,6 +1,8 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { AppError } from '@/lib/errors';
+import { ownerProvisioningAvailable, SERVICE_ROLE_ENV } from '@/modules/platform/onboarding/service';
 import { requirePlatformAdmin } from './context';
 
 /**
@@ -73,6 +75,76 @@ export async function grantPlatformAdmin(
     p_note: note?.trim() || null,
   });
   if (error) throw new AppError('validation', error.message);
+}
+
+/**
+ * Create a brand-new platform-staff account directly, with a password an
+ * owner sets, and grant it in the same step.
+ *
+ * grantPlatformAdmin() above only ever promotes an EXISTING identity, by
+ * design (its own docstring: "there is no path here to create an account
+ * that did not exist"). This is that path, for the same reason
+ * createMemberDirect() exists alongside tenant invitations: an owner handing
+ * a new operator a working login on the spot, with no email round trip and
+ * no forced password change — they sign in with exactly the password
+ * entered here.
+ *
+ * IDENTITY (Supabase Admin API) then WORKSPACE (platform_admin_grant, which
+ * already re-checks app.require_platform_owner() itself — this call is not
+ * the authorization, the same relationship every other action on this
+ * surface has with its own database function). If the grant fails after the
+ * account was created, the account is deleted rather than left a
+ * password-having identity with no platform role at all.
+ */
+export async function createPlatformAdminDirect(
+  email: string,
+  password: string,
+  fullName: string,
+  role: 'owner' | 'staff',
+  note?: string,
+): Promise<void> {
+  await requirePlatformAdmin();
+
+  if (!ownerProvisioningAvailable()) {
+    throw new AppError(
+      'validation',
+      `إنشاء الحسابات مباشرةً غير مُهيأ على الخادم. اضبط ${SERVICE_ROLE_ENV}.`,
+    );
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({
+    email: email.trim().toLowerCase(),
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+
+  if (error || !data.user) {
+    const already = /already.*registered|already.*exists/i.test(error?.message ?? '');
+    const badKey = /invalid api key/i.test(error?.message ?? '');
+    throw new AppError(
+      'validation',
+      already
+        ? 'هذا البريد مسجّل بحساب بالفعل. استخدم "منح الصلاحية" أدناه بدلًا من الإنشاء المباشر.'
+        : badKey
+          ? `تعذّر إنشاء الحساب: مفتاح ${SERVICE_ROLE_ENV} في إعدادات النشر غير صحيح أو منتهٍ.`
+          : `تعذّر إنشاء الحساب: ${error?.message ?? 'خطأ غير معروف'}`,
+    );
+  }
+
+  const userId = data.user.id;
+  const supabase = createSupabaseServerClient();
+  const { error: rpcError } = await supabase.rpc('platform_admin_grant', {
+    p_email: email.trim(),
+    p_role: role,
+    p_note: note?.trim() || null,
+  });
+
+  if (rpcError) {
+    await admin.auth.admin.deleteUser(userId).catch(() => {});
+    throw new AppError('validation', rpcError.message);
+  }
 }
 
 export async function revokePlatformAdmin(userId: string): Promise<void> {

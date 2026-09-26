@@ -3064,6 +3064,7 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      branch_create: { Args: Record<string, unknown>; Returns: Json };
       customer_account_profile: { Args: Record<string, unknown>; Returns: Json };
       customer_account_save_profile: { Args: Record<string, unknown>; Returns: Json };
       customer_account_save_settings: { Args: Record<string, unknown>; Returns: Json };

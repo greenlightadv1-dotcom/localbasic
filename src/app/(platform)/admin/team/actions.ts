@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { grantPlatformAdmin, revokePlatformAdmin } from '@/modules/platform/admin/roster';
+import { grantPlatformAdmin, revokePlatformAdmin, createPlatformAdminDirect } from '@/modules/platform/admin/roster';
 import { AppError } from '@/lib/errors';
 
 /**
@@ -45,6 +45,45 @@ export async function grantAdminAction(
     await grantPlatformAdmin(parsed.data.email, parsed.data.role, parsed.data.note);
   } catch (error) {
     return { error: error instanceof AppError ? error.message : 'تعذّر منح الصلاحية.' };
+  }
+
+  revalidatePath('/admin/team');
+  redirect('/admin/team?granted=1');
+}
+
+const createDirectSchema = z.object({
+  email: z.string().trim().toLowerCase().email('أدخل بريدًا صحيحًا').max(200),
+  password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل').max(72),
+  fullName: z.string().trim().min(2, 'الاسم مطلوب').max(120),
+  role: z.enum(['owner', 'staff']),
+  note: z.string().trim().max(300).optional().or(z.literal('')),
+});
+
+export async function createAdminDirectAction(
+  _prev: RosterState,
+  formData: FormData,
+): Promise<RosterState> {
+  const parsed = createDirectSchema.safeParse({
+    email: formData.get('email') ?? '',
+    password: formData.get('password') ?? '',
+    fullName: formData.get('fullName') ?? '',
+    role: formData.get('role') ?? 'staff',
+    note: formData.get('note') ?? '',
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'بيانات غير صالحة' };
+  }
+
+  try {
+    await createPlatformAdminDirect(
+      parsed.data.email,
+      parsed.data.password,
+      parsed.data.fullName,
+      parsed.data.role,
+      parsed.data.note,
+    );
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر إنشاء الحساب.' };
   }
 
   revalidatePath('/admin/team');
