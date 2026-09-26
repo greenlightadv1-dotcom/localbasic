@@ -5,8 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
-import { listInvitations } from '@/modules/core/members/invitations';
-import { CreateMemberDirectForm, InviteForm, RemoveMember, RevokeInvitation } from './invite-forms';
+import { CreateMemberDirectForm, RemoveMember } from './invite-forms';
 
 export const metadata = { title: 'الموظفون' };
 export const dynamic = 'force-dynamic';
@@ -64,7 +63,6 @@ export default async function MembersPage({
     .order('name_ar');
 
   const canManage = can(ctx, 'member.manage');
-  const invitations = await listInvitations(ctx);
 
   const nameById = new Map(
     (profiles ?? []).map((p) => [p.id, { name: p.full_name, phone: p.phone }]),
@@ -88,13 +86,6 @@ export default async function MembersPage({
 
   const ownerUserId = org?.owner_user_id ?? null;
 
-  const INVITE_STATUS: Record<string, { label: string; tone: 'info' | 'success' | 'neutral' | 'danger' }> = {
-    pending: { label: 'بانتظار القبول', tone: 'info' },
-    accepted: { label: 'تم القبول', tone: 'success' },
-    revoked: { label: 'مسحوبة', tone: 'neutral' },
-    expired: { label: 'منتهية', tone: 'danger' },
-  };
-
   return (
     <div className="space-y-4">
     {canManage ? (
@@ -115,74 +106,6 @@ export default async function MembersPage({
               label: ROLE_NAMES[r.key] ?? r.name_ar,
             }))}
           />
-        </CardBody>
-      </Card>
-    ) : null}
-
-    {canManage ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>دعوة موظف بالبريد</CardTitle>
-        </CardHeader>
-        <CardBody className="space-y-3">
-          <p className="text-xs text-muted">
-            تصل الدعوة على البريد، وتنتهي صلاحيتها خلال سبعة أيام. الرابط يُستخدم
-            مرة واحدة فقط، ولا يعمل إلا لصاحب البريد نفسه. استخدمها لموظف مش
-            حاضر دلوقتي، أو يفضّل يختار كلمة المرور بنفسه.
-          </p>
-          <InviteForm
-            orgSlug={ctx.organizationSlug}
-            branchSlug={ctx.branchSlug}
-            roles={(roleRows ?? []).map((r) => ({
-              id: r.id,
-              label: ROLE_NAMES[r.key] ?? r.name_ar,
-            }))}
-          />
-        </CardBody>
-      </Card>
-    ) : null}
-
-    {invitations.length > 0 ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>الدعوات</CardTitle>
-        </CardHeader>
-        <CardBody className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <caption className="sr-only">الدعوات المُرسلة</caption>
-              <thead>
-                <tr className="border-b border-line text-xs text-muted">
-                  <th scope="col" className="p-3 text-start font-medium">البريد</th>
-                  <th scope="col" className="p-3 text-start font-medium">الحالة</th>
-                  {canManage ? <th scope="col" className="p-3 text-start font-medium"> </th> : null}
-                </tr>
-              </thead>
-              <tbody data-testid="invitation-list">
-                {invitations.map((invite) => (
-                  <tr key={invite.id} className="border-b border-line last:border-0">
-                    <td className="p-3 font-medium" dir="ltr">{invite.email}</td>
-                    <td className="p-3">
-                      <Badge tone={INVITE_STATUS[invite.status]?.tone ?? 'neutral'}>
-                        {INVITE_STATUS[invite.status]?.label ?? invite.status}
-                      </Badge>
-                    </td>
-                    {canManage ? (
-                      <td className="p-3">
-                        {invite.status === 'pending' ? (
-                          <RevokeInvitation
-                            orgSlug={ctx.organizationSlug}
-                            branchSlug={ctx.branchSlug}
-                            id={invite.id}
-                          />
-                        ) : null}
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </CardBody>
       </Card>
     ) : null}
