@@ -16,6 +16,12 @@ export type NavItem = {
    *  for a screen more than one role may open). Cosmetic only — the
    *  service and RLS still enforce access. */
   permission: Permission | Permission[];
+  /**
+   * Hidden unless the organization has at least one of these modules
+   * enabled. Omit for an item every vertical should see (e.g. it belongs to
+   * Core, not to a vertical at all).
+   */
+  modules?: string[];
 };
 
 export type ModuleDefinition = {
@@ -46,22 +52,29 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/branches', label: 'الفروع', icon: 'Store', permission: 'branch.manage' },
   { href: '/settings/members', label: 'الموظفون', icon: 'UserCog', permission: 'member.read' },
   { href: '/settings/roles', label: 'الصلاحيات', icon: 'ShieldCheck', permission: 'role.manage' },
-  // The Site Customizer: brand identity + the public website's own content
-  // (tagline/about/cover/hours/publish), consolidated onto one screen.
-  // Visible to whoever holds either half's permission, so a role with only
-  // settings.manage (no branding.manage) still sees the website content.
+  // The one website builder: brand identity + the public site's own content
+  // (tagline/about/cover/hours/publish) + the section editor, all reached
+  // from this single screen. One live site per organization — no separate
+  // "list of sites" to get lost in. Visible to whoever holds either half's
+  // permission, so a role with only settings.manage (no branding.manage)
+  // still sees the website content.
   {
-    href: '/settings/branding', label: 'الموقع والهوية', icon: 'Palette',
+    href: '/settings/branding', label: 'الموقع', icon: 'Globe',
     permission: ['branding.manage', 'settings.manage'],
+  },
+  // Custom domain management, standalone: a different concern (DNS/TLS
+  // verification) from editing the site itself.
+  {
+    href: '/settings/website/domains', label: 'النطاق', icon: 'Link2',
+    permission: ['branding.manage', 'settings.manage'],
+    modules: ['restaurant'],
   },
   { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
-  { href: '/settings/store', label: 'المتجر الإلكتروني', icon: 'Store', permission: 'settings.manage' },
-  // The Site Engine. Distinct from the Site Customizer above, which is the
-  // restaurant's single live-data site; this one is many sites per
-  // organization with their own pages. Gated on site.read, so it stays hidden
-  // from anyone the feature has not been granted to.
-  { href: '/settings/sites', label: 'المواقع', icon: 'LayoutTemplate', permission: 'site.read' },
+  // Retail's online store toggle — a naming collision with "site" in Arabic
+  // only ("store" vs "site"), unrelated to the website builder above. Shown
+  // only to retail-vertical organizations so a restaurant never sees it.
+  { href: '/settings/store', label: 'المتجر الإلكتروني', icon: 'Store', permission: 'settings.manage', modules: ['retail'] },
   { href: '/settings/audit', label: 'سجل النشاط', icon: 'ScrollText', permission: 'audit.read' },
 ];
 

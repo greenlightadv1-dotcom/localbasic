@@ -2825,168 +2825,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      site_pages: {
-        Row: {
-          id: string;
-          site_id: string;
-          title: string;
-          slug: string;
-          is_homepage: boolean;
-          sort_order: number;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          site_id: string;
-          title: string;
-          slug: string;
-          is_homepage?: boolean;
-          sort_order?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          site_id?: string;
-          title?: string;
-          slug?: string;
-          is_homepage?: boolean;
-          sort_order?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      site_revisions: {
-        Row: {
-          id: string;
-          site_id: string;
-          organization_id: string;
-          version: number;
-          snapshot: Json;
-          is_live: boolean;
-          published_at: string;
-          published_by: string | null;
-          note: string | null;
-        };
-        Insert: {
-          id?: string;
-          site_id: string;
-          organization_id: string;
-          version: number;
-          snapshot: Json;
-          is_live?: boolean;
-          published_at?: string;
-          published_by?: string | null;
-          note?: string | null;
-        };
-        Update: {
-          id?: string;
-          site_id?: string;
-          organization_id?: string;
-          version?: number;
-          snapshot?: Json;
-          is_live?: boolean;
-          published_at?: string;
-          published_by?: string | null;
-          note?: string | null;
-        };
-        Relationships: [];
-      };
-      site_sections: {
-        Row: {
-          id: string;
-          page_id: string;
-          section_type: string;
-          content: Json;
-          sort_order: number;
-          is_visible: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          page_id: string;
-          section_type: string;
-          content?: Json;
-          sort_order?: number;
-          is_visible?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          page_id?: string;
-          section_type?: string;
-          content?: Json;
-          sort_order?: number;
-          is_visible?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      site_settings: {
-        Row: {
-          id: string;
-          site_id: string;
-          settings: Json;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          site_id: string;
-          settings?: Json;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          site_id?: string;
-          settings?: Json;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      sites: {
-        Row: {
-          id: string;
-          organization_id: string;
-          created_by: string | null;
-          name: string;
-          slug: string;
-          template_id: string | null;
-          status: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          organization_id: string;
-          created_by?: string | null;
-          name: string;
-          slug: string;
-          template_id?: string | null;
-          status?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          organization_id?: string;
-          created_by?: string | null;
-          name?: string;
-          slug?: string;
-          template_id?: string | null;
-          status?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
       subscription_events: {
         Row: {
           id: number;
@@ -3276,13 +3114,6 @@ export type Database = {
       platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       platform_search_customers: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_detail: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_list: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_publish: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_revisions_list: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_rollback: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_theme_update: { Args: Record<string, unknown>; Returns: Json };
-      platform_site_unpublish: { Args: Record<string, unknown>; Returns: Json };
       platform_website_business_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_website_publish: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
@@ -3343,15 +3174,6 @@ export type Database = {
       retail_stock_transfer: { Args: Record<string, unknown>; Returns: Json };
       retail_store_catalog: { Args: Record<string, unknown>; Returns: Json };
       retail_store_context: { Args: Record<string, unknown>; Returns: Json };
-      site_page_create: { Args: Record<string, unknown>; Returns: Json };
-      site_public_page: { Args: Record<string, unknown>; Returns: Json };
-      site_page_delete: { Args: Record<string, unknown>; Returns: Json };
-      site_pages_reorder: { Args: Record<string, unknown>; Returns: Json };
-      site_provision: { Args: Record<string, unknown>; Returns: Json };
-      site_publish: { Args: Record<string, unknown>; Returns: Json };
-      site_rollback: { Args: Record<string, unknown>; Returns: Json };
-      site_sections_reorder: { Args: Record<string, unknown>; Returns: Json };
-      site_unpublish: { Args: Record<string, unknown>; Returns: Json };
       submit_public_lead: { Args: Record<string, unknown>; Returns: Json };
       treasury_account_balance: { Args: Record<string, unknown>; Returns: Json };
       write_platform_audit: { Args: Record<string, unknown>; Returns: Json };

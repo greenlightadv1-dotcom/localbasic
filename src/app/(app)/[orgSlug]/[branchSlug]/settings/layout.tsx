@@ -12,11 +12,13 @@ export default async function SettingsLayout({
 }) {
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
-  const allowed = SETTINGS_NAVIGATION.filter((item) =>
-    Array.isArray(item.permission)
+  const allowed = SETTINGS_NAVIGATION.filter((item) => {
+    const hasPermission = Array.isArray(item.permission)
       ? item.permission.some((p) => ctx.permissions.has(p))
-      : ctx.permissions.has(item.permission),
-  );
+      : ctx.permissions.has(item.permission);
+    const hasModule = !item.modules || item.modules.some((m) => ctx.enabledModules.includes(m));
+    return hasPermission && hasModule;
+  });
 
   return (
     <div className="space-y-5">

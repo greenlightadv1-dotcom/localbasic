@@ -60,8 +60,10 @@ export function AppShell({
     Array.isArray(permission)
       ? permission.some((p) => ctx.permissions.has(p))
       : ctx.permissions.has(permission);
+  const hasModule = (modules: NavItem['modules']) =>
+    !modules || modules.some((m) => ctx.enabledModules.includes(m));
   const allowed = (items: NavItem[]) =>
-    items.filter((i) => hasPermission(i.permission) && !featureGatedHrefs.has(i.href));
+    items.filter((i) => hasPermission(i.permission) && hasModule(i.modules) && !featureGatedHrefs.has(i.href));
 
   const coreNav = allowed(coreNavigationFor(ctx.enabledModules));
   const settingsNav = allowed(SETTINGS_NAVIGATION);

@@ -9,17 +9,16 @@ import { clientEnv } from '@/lib/env';
 import { Customizer } from './customizer';
 import { WebsiteContentSection } from './website-content';
 
-export const metadata = { title: 'الموقع والهوية' };
+export const metadata = { title: 'الموقع' };
 export const dynamic = 'force-dynamic';
 
 /**
- * The Site Customizer: one dashboard for everything a restaurant's public
- * presence is made of — brand identity (logo/colors/contact), the public
- * website's own content (tagline/about/cover/hours/publish), and a link out
- * to the Site Engine for anyone running multiple custom pages. This used to
- * be three separate settings screens (branding, website, and a link buried
- * inside website); they wrote to different tables then and still do — this
- * is a navigation and layout consolidation, not a schema merge.
+ * The website builder: one dashboard for everything a restaurant's public
+ * presence is made of — brand identity (logo/colors/contact) and the public
+ * website's own content (tagline/about/cover/hours/publish), with a direct
+ * link into the section editor. This used to be several separate settings
+ * screens; they write to different tables still — this is a navigation and
+ * layout consolidation, not a schema merge.
  */
 export default async function BrandingPage({
   params,
@@ -43,19 +42,11 @@ export default async function BrandingPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-bold text-fg">الموقع والهوية</h1>
-          <p className="text-sm text-muted">
-            الشعار والألوان ومحتوى الموقع كلها من هنا، وتُطبَّق مباشرة على صفحة الطلب والموقع الإلكتروني.
-          </p>
-        </div>
-        <Link
-          href={`/${params.orgSlug}/${params.branchSlug}/settings/sites`}
-          className="text-sm font-semibold text-primary hover:underline"
-        >
-          محتوى الصفحات (محرر الأقسام) ←
-        </Link>
+      <div>
+        <h1 className="text-lg font-bold text-fg">الموقع</h1>
+        <p className="text-sm text-muted">
+          الشعار والألوان ومحتوى الموقع كلها من هنا، وتُطبَّق مباشرة على صفحة الطلب والموقع الإلكتروني.
+        </p>
       </div>
 
       {searchParams.saved === '1' ? (
@@ -113,12 +104,6 @@ export default async function BrandingPage({
               <p className="break-all rounded bg-surface px-3 py-2 font-mono text-xs text-fg" dir="ltr">
                 {siteUrl}
               </p>
-              <Link
-                href={`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/website/domains`}
-                className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-line bg-elevated px-5 text-sm font-semibold text-fg hover:bg-surface"
-              >
-                النطاقات
-              </Link>
               <Link
                 href={`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/website/builder`}
                 className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-line bg-elevated px-5 text-sm font-semibold text-fg hover:bg-surface"
