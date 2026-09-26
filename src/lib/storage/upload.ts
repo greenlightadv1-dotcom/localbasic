@@ -4,12 +4,14 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 /**
  * Direct-to-Storage uploads, from the browser, under the signed-in member's
- * own session — no server route in the middle. RLS (0069_media_storage.sql)
- * is the only gate: a path's first segment names the organization, and the
- * INSERT/UPDATE/DELETE policies check the caller holds branding.manage,
- * site.manage or restaurant.menu.manage on THAT organization. Nothing here
- * re-checks that; a member the database would refuse gets the database's
- * error, not a client-side illusion of success.
+ * own session — no server route in the middle. RLS (0069/0072) is the only
+ * gate: a path's first segment names the organization, and the
+ * INSERT/UPDATE/DELETE policies check the caller is an ACTIVE member of
+ * THAT organization — not a specific feature permission, since uploading a
+ * file does not by itself attach its URL anywhere. Whichever screen calls
+ * this (menu, branding, a site section) re-checks its own permission
+ * (restaurant.menu.manage, branding.manage, site.manage, …) server-side
+ * before writing the resulting URL into the row it actually belongs to.
  */
 
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;

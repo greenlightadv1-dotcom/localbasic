@@ -64,11 +64,18 @@ export async function createMemberDirect(
 
   if (error || !data.user) {
     const already = /already.*registered|already.*exists/i.test(error?.message ?? '');
+    // "Invalid API key" from the Admin API means SUPABASE_SERVICE_ROLE_KEY
+    // itself is wrong for this project — a stale, rotated, or mistakenly
+    // truncated/whitespace-corrupted value in the deployment's environment
+    // variables — never something this request or its caller can fix.
+    const badKey = /invalid api key/i.test(error?.message ?? '');
     throw new AppError(
       'validation',
       already
         ? 'هذا البريد مسجّل بحساب بالفعل. استخدم "دعوة موظف" بدلًا من الإنشاء المباشر.'
-        : `تعذّر إنشاء الحساب: ${error?.message ?? 'خطأ غير معروف'}`,
+        : badKey
+          ? `تعذّر إنشاء الحساب: مفتاح ${SERVICE_ROLE_ENV} في إعدادات النشر غير صحيح أو منتهي. تحقّق منه في لوحة Supabase (Settings → API → service_role) وأعد ضبطه في متغيرات البيئة.`
+          : `تعذّر إنشاء الحساب: ${error?.message ?? 'خطأ غير معروف'}`,
     );
   }
 

@@ -7,10 +7,17 @@ import { z } from 'zod';
  * `serverEnv` is guarded by `server-only` at its call sites; the service-role
  * key lives there and must never be imported into a client component.
  */
+// .trim() everywhere a value is pasted into a dashboard (Vercel, etc.):
+// a trailing newline or space from a copy-paste is invisible in the UI but
+// turns a JWT-shaped secret into one that fails signature verification —
+// exactly the "Invalid API key" Supabase reports for a key it can parse but
+// not verify. Trimming a value that was already clean is a no-op.
+const trimmed = () => z.string().transform((v) => v.trim());
+
 const clientSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(20),
-  NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
+  NEXT_PUBLIC_SUPABASE_URL: trimmed().pipe(z.string().url()),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: trimmed().pipe(z.string().min(20)),
+  NEXT_PUBLIC_APP_URL: trimmed().pipe(z.string().url()).default('http://localhost:3000'),
   NEXT_PUBLIC_APP_NAME: z.string().default('LocalBasic'),
 });
 
@@ -18,7 +25,7 @@ const serverSchema = z.object({
   // Optional: only the admin client (background workers) needs it. The site
   // runs fine without it, and createSupabaseAdminClient() fails loudly if it
   // is ever called while unset.
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: trimmed().pipe(z.string().min(20)).optional(),
   // Optional break-glass: enables /api/admin-bootstrap, which mints a single
   // recovery link for the one platform-owner address without sending email.
   // Absent by default, and the route answers 404 without it.
