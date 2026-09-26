@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import {
   checkoutAction, sendCheckoutOtpAction, placeVerifiedOrderAction,
@@ -90,6 +90,32 @@ export function Storefront({
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
 
+  // Returning-guest convenience: a signed-out visitor's contact details are
+  // remembered locally so they never retype them on their next order — on
+  // this device only, and only ever a fallback under whatever the server
+  // already knows (a signed-in customer's real profile always wins, since
+  // `customerName` etc. arrive non-empty in that case and the cache read
+  // below is skipped). The keys are shared with the table-QR ordering flow
+  // (/p/[token]), so switching between the two on one phone still remembers
+  // the same name.
+  const [name, setName] = useState(customerName);
+  const [phone, setPhone] = useState(customerPhone);
+  const [email, setEmail] = useState(customerEmail);
+  useEffect(() => {
+    if (signedIn) return;
+    try {
+      if (!name) setName(localStorage.getItem('lb-guest-name') ?? '');
+      if (!phone) setPhone(localStorage.getItem('lb-guest-phone') ?? '');
+      if (!email) setEmail(localStorage.getItem('lb-guest-email') ?? '');
+    } catch {
+      // Private browsing or a blocked store: fields just start empty.
+    }
+    // Only ever runs once, on mount — deliberately not re-reading on every
+    // prop change, since it exists purely to fill in what the server sent
+    // empty for a signed-out visitor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // D4: a guest must verify a 6-digit email code before an order places; a
   // signed-in customer already has a verified email and skips straight to
   // checkoutAction, exactly the D3 path. `otpSent` gates which field the form
@@ -98,6 +124,16 @@ export function Storefront({
   // the button actually reaches.
   const [otpSent, setOtpSent] = useState(false);
   async function submit(prev: CheckoutState, formData: FormData): Promise<CheckoutState> {
+    if (!signedIn) {
+      try {
+        if (name) localStorage.setItem('lb-guest-name', name);
+        if (phone) localStorage.setItem('lb-guest-phone', phone);
+        if (email) localStorage.setItem('lb-guest-email', email);
+      } catch {
+        // Best-effort only — a blocked or full store just means these
+        // fields start empty again next visit, nothing else changes.
+      }
+    }
     if (signedIn) return checkoutAction(prev, formData);
     if (!otpSent) {
       const result = await sendCheckoutOtpAction(prev, formData);
@@ -474,12 +510,14 @@ export function Storefront({
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
-            <input name="customerName" required maxLength={120} defaultValue={customerName}
+            <input name="customerName" required maxLength={120} value={name}
+              onChange={(e) => setName(e.target.value)}
               className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-fg">رقم الهاتف</span>
-            <input name="customerPhone" required maxLength={32} dir="ltr" defaultValue={customerPhone}
+            <input name="customerPhone" required maxLength={32} dir="ltr" value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
@@ -492,7 +530,7 @@ export function Storefront({
               <span className="mb-1.5 block text-xs font-semibold text-fg">البريد الإلكتروني</span>
               <input
                 name="customerEmail" type="email" required maxLength={254} dir="ltr"
-                defaultValue={customerEmail} disabled={otpSent}
+                value={email} onChange={(e) => setEmail(e.target.value)} disabled={otpSent}
                 className="h-11 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none disabled:opacity-60"
               />
             </label>

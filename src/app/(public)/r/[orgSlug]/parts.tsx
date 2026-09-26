@@ -2,10 +2,9 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
 import {
-  formatMoney, WEEKDAYS_AR,
-  type Website, type PublicBranch, type MenuCategory, type OpeningDay,
+  WEEKDAYS_AR,
+  type Website, type PublicBranch, type OpeningDay,
 } from '@/modules/restaurant/website/service';
-import { FavoriteButton } from './account/forms';
 import {
   DEFAULT_THEME, type SectionConfig, type Theme,
 } from '@/modules/restaurant/website/builder-shared';
@@ -41,13 +40,23 @@ const BUTTON_RADIUS: Record<Theme['buttonStyle'], string> = {
  * stylesheet unvalidated.
  */
 export function brandStyle(site: Website, theme: Theme = DEFAULT_THEME): React.CSSProperties {
+  const primary = hexToRgb(theme.primaryColor ?? site.primaryColor);
+  const accent = hexToRgb(theme.accentColor ?? site.secondaryColor);
   const style: Record<string, string> = {
     // Tailwind reads these through rgb(var(--lb-*)), so a restaurant's own
     // palette flows into every token without a rebuild. A theme colour wins
     // over the branding colour when one is set.
-    ['--lb-primary']: hexToRgb(theme.primaryColor ?? site.primaryColor),
-    ['--lb-accent']: hexToRgb(theme.accentColor ?? site.secondaryColor),
+    ['--lb-primary']: primary,
+    ['--lb-accent']: accent,
     ['--lb-btn-radius']: BUTTON_RADIUS[theme.buttonStyle],
+    // The interactive ordering storefront (the 'menu' section, rendered
+    // inline here since 0076's unification) reads its own brand tokens under
+    // these names — set alongside the --lb-* ones rather than renamed, so
+    // neither the site builder's other sections nor the storefront's own
+    // standalone routes (/order/<org>/<branch>, custom domains) need to
+    // change what variable name they read.
+    ['--brand-primary']: primary,
+    ['--brand-secondary']: accent,
   };
   if (FONT_STACKS[theme.font]) style['fontFamily'] = FONT_STACKS[theme.font];
   return style as React.CSSProperties;
@@ -300,151 +309,6 @@ export function BranchPicker({
             );
           })}
         </ul>
-      </div>
-    </section>
-  );
-}
-
-export function Menu({
-  categories, site, orgSlug, branch, signedIn, favoriteIds, config = {},
-}: {
-  categories: MenuCategory[];
-  site: Website;
-  orgSlug: string;
-  branch: PublicBranch;
-  signedIn: boolean;
-  /** Which products this customer has already saved. Empty when signed out. */
-  favoriteIds: Set<string>;
-  /**
-   * Builder content. It decides the heading and whether prices are shown —
-   * never the prices themselves, which come from the authoritative menu and
-   * are re-read by the server at checkout regardless of anything here.
-   */
-  config?: SectionConfig;
-}) {
-  const heading = config.title || 'المنيو';
-  const showPrices = config.showPrices !== false;
-  if (categories.length === 0) {
-    return (
-      <section id="menu" className="border-b border-line py-14">
-        <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
-          <h2 className="mb-2 text-xl font-extrabold text-fg">{heading}</h2>
-          <p className="text-sm text-muted">لم يُضَف المنيو بعد.</p>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section id="menu" className="border-b border-line py-14">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <h2 className="mb-1 text-xl font-extrabold text-fg">{heading}</h2>
-        {config.subtitle ? (
-          <p className="mb-4 text-sm text-muted">{config.subtitle}</p>
-        ) : null}
-
-        {/* Category jump-links. A scrollable strip on a phone; wraps on wider
-            screens. Anchors rather than state, so it costs no JavaScript. */}
-        {categories.length > 1 ? (
-          <nav
-            aria-label="أقسام المنيو"
-            className="sticky top-16 z-30 -mx-4 mb-6 flex gap-2 overflow-x-auto border-y border-line bg-bg/95 px-4 py-2.5 backdrop-blur sm:mx-0 sm:rounded sm:border"
-          >
-            {categories.map((c) => (
-              <a
-                key={c.id ?? c.name}
-                href={`#cat-${c.id ?? 'other'}`}
-                className="whitespace-nowrap rounded px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-primary"
-              >
-                {c.name}
-              </a>
-            ))}
-          </nav>
-        ) : null}
-
-        <div className="space-y-10">
-          {categories.map((c) => (
-            <div key={c.id ?? c.name} id={`cat-${c.id ?? 'other'}`} className="scroll-mt-32">
-              <h3 className="mb-4 text-lg font-bold text-fg">{c.name}</h3>
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {c.products.map((p) => (
-                  <li
-                    key={p.productId}
-                    className="flex gap-3 rounded-lg border border-line bg-elevated p-3"
-                  >
-                    {p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        loading="lazy"
-                        className="h-20 w-20 shrink-0 rounded object-cover"
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-semibold text-fg">{p.name}</h4>
-                        {showPrices ? (
-                          <span className="shrink-0 font-bold text-fg">
-                            {p.variants.length > 1 ? 'من ' : ''}
-                            {formatMoney(p.fromPriceCents, site.currency)}
-                          </span>
-                        ) : null}
-                      </div>
-                      {p.description ? (
-                        <p className="mt-1 text-sm leading-relaxed text-muted">{p.description}</p>
-                      ) : null}
-                      {p.variants.length > 1 && showPrices ? (
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
-                          {p.variants.map((v) => (
-                            <li
-                              key={v.id}
-                              className="rounded bg-surface px-2 py-0.5 text-xs text-muted"
-                            >
-                              {v.name} · {formatMoney(v.priceCents, site.currency)}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {/* Offered only to someone who has somewhere to save it.
-                          An anonymous visitor keeps a menu with no JavaScript
-                          at all. */}
-                      {signedIn ? (
-                        <div className="mt-2">
-                          <FavoriteButton
-                            orgSlug={orgSlug}
-                            productId={p.productId}
-                            isFavorite={favoriteIds.has(p.productId)}
-                            from="menu"
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {branch.orderingEnabled ? (
-          <div className="mt-10 text-center">
-            <Link
-              href={`/order/${orgSlug}/${branch.slug}`}
-              className="inline-flex h-12 items-center justify-center rounded bg-primary px-8 text-base font-semibold text-primary-fg transition-colors hover:bg-primary/90"
-            >
-              اطلب من {branch.name}
-            </Link>
-            {branch.deliveryEnabled ? (
-              <p className="mt-2 text-sm text-muted">
-                التوصيل متاح — رسوم التوصيل {formatMoney(branch.deliveryFeeCents, site.currency)}
-              </p>
-            ) : null}
-            {branch.pickupEnabled && !branch.deliveryEnabled ? (
-              <p className="mt-2 text-sm text-muted">الاستلام من الفرع فقط.</p>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     </section>
   );

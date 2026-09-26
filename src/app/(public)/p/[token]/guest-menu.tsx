@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
-import { Minus, Plus, ShoppingBag, Check, X, Search } from 'lucide-react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Minus, Plus, ShoppingBag, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
@@ -55,8 +56,21 @@ export function GuestMenu({
   const [guestName, setGuestName] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<{ number: string; total: number } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  // Returning-guest convenience only: prefills the name field from whichever
+  // table this browser last ordered at (or the online storefront, since both
+  // share the same key). Never trusted for anything — the order still stores
+  // whatever the field holds at submit time, exactly like a first-time guest.
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('lb-guest-name');
+      if (cached) setGuestName(cached);
+    } catch {
+      // Private browsing or a blocked store: the field just starts empty.
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -145,41 +159,16 @@ export function GuestMenu({
         setError(result.error);
         return;
       }
-      setPlaced({ number: result.data.orderNumber, total: result.data.totalCents });
-      setCart([]);
-      setCartOpen(false);
+      try {
+        if (guestName) localStorage.setItem('lb-guest-name', guestName);
+      } catch {
+        // Best-effort convenience only — a blocked or full store just means
+        // the name field starts empty next visit, nothing else changes.
+      }
+      // Same tracking page and live realtime status an online order gets
+      // (0076) — the guest never sees a dead-end "order received" screen.
+      router.push(`/order/track/${result.data.statusToken}`);
     });
-  }
-
-  if (placed) {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-5 px-5 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-          <Check className="h-8 w-8 text-success" aria-hidden="true" />
-        </span>
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold">تم استلام طلبك</h1>
-          <p className="text-sm text-muted">
-            طاولة {context.tableName} · سيصلك الطلب قريبًا بإذن الله.
-          </p>
-        </div>
-        <dl className="w-full space-y-2 rounded-lg border border-line bg-elevated p-4 text-start">
-          <div className="flex justify-between">
-            <dt className="text-muted">رقم الطلب</dt>
-            <dd className="lb-numeric font-bold">#{placed.number}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted">الإجمالي</dt>
-            <dd className="lb-numeric font-bold">{formatMoney(placed.total, context.currency)}</dd>
-          </div>
-        </dl>
-        <p className="text-xs text-muted">الدفع عند الكاشير أو مع الكابتن.</p>
-        <Button variant="outline" block onClick={() => setPlaced(null)}>
-          اطلب المزيد
-        </Button>
-        {!context.whiteLabel && <PoweredBy className="mt-4" />}
-      </main>
-    );
   }
 
   return (

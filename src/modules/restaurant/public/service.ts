@@ -136,10 +136,18 @@ export async function placePublicOrder(input: {
   const row = data as unknown as {
     out_order_number: string;
     out_total_cents: number;
+    out_status_token: string;
   } | null;
   if (!row) throw new AppError('internal');
 
-  return { orderNumber: row.out_order_number, totalCents: row.out_total_cents };
+  // The same opaque, single-purpose capability token online orders mint
+  // (0037/0040/0076) — /order/track/[token] and its realtime status channel
+  // resolve this exactly the way they already resolve an online order's.
+  return {
+    orderNumber: row.out_order_number,
+    totalCents: row.out_total_cents,
+    statusToken: row.out_status_token,
+  };
 }
 
 export async function getPublicOrderStatus(token: string, orderNumber: string) {

@@ -71,7 +71,9 @@ export default async function TrackPage({ params }: { params: { token: string } 
         </div>
       </div>
 
-      <p className="mt-4 text-center text-xs text-muted">الدفع نقدًا عند الاستلام.</p>
+      <p className="mt-4 text-center text-xs text-muted">
+        {order.type === 'dine_in' ? 'الدفع عند الكاشير أو مع الكابتن.' : 'الدفع نقدًا عند الاستلام.'}
+      </p>
 
       {/* Optional, and offered after the order is already placed: an account
           is a convenience, never a step on the way to ordering. The link

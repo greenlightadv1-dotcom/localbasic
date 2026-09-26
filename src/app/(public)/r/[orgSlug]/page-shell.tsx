@@ -2,10 +2,13 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { clientEnv } from '@/lib/env';
 import {
-  getWebsite, getBranches, getMenu,
-  type Website, type PublicBranch, type MenuCategory,
+  getWebsite, getBranches,
+  type Website, type PublicBranch,
 } from '@/modules/restaurant/website/service';
-import { currentUser, getFavorites } from '@/modules/restaurant/account/service';
+import {
+  currentUser, getFavorites, getProfile, getAddresses,
+} from '@/modules/restaurant/account/service';
+import { getOnlineMenu, type MenuItem, type ModifierGroup } from '@/modules/restaurant/online/service';
 import { getPublishedLayout } from '@/modules/restaurant/website/builder';
 import {
   DEFAULT_SECTIONS, DEFAULT_THEME,
@@ -13,8 +16,9 @@ import {
 } from '@/modules/restaurant/website/builder-shared';
 import {
   brandStyle, backgroundClass, containerClass,
-  SiteHeader, Hero, About, BranchPicker, Menu, Location, Hours, Contact, Gallery, Cta, SiteFooter,
+  SiteHeader, Hero, About, BranchPicker, Location, Hours, Contact, Gallery, Cta, SiteFooter,
 } from './parts';
+import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
 
 /**
  * One implementation for both /r/<org> and /r/<org>/<branch>.
@@ -70,9 +74,14 @@ function renderSection(
     orgSlug: string;
     branch: PublicBranch;
     branches: PublicBranch[];
-    menu: MenuCategory[];
     signedIn: boolean;
     favoriteIds: Set<string>;
+    menuItems: MenuItem[];
+    modifierGroups: ModifierGroup[];
+    savedAddresses: { id: string; label: string; address: string; isDefault: boolean }[];
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
   },
 ) {
   const { config } = spec;
@@ -82,15 +91,30 @@ function renderSection(
     case 'about':
       return <About site={ctx.site} config={config} />;
     case 'menu':
+      // The one interactive section: the site builder's static, read-only
+      // menu display is replaced by the same category-browse + item-grid +
+      // floating-cart storefront /order/<org>/<branch> and a table's QR code
+      // (/p/[token]) both already use — one ordering experience, reached
+      // from every entry point, exactly as the custom-domain route's own
+      // comment already promised for the rest of this page ("no second
+      // ordering path"). config.title/subtitle from the builder still frame
+      // it; config.showPrices does not apply here, since a live storefront
+      // always shows what it will actually charge.
       return (
-        <Menu
-          categories={ctx.menu}
-          site={ctx.site}
+        <Storefront
           orgSlug={ctx.orgSlug}
-          branch={ctx.branch}
+          branchSlug={ctx.branch.slug}
+          items={ctx.menuItems}
+          modifierGroups={ctx.modifierGroups}
+          currency={ctx.site.currency}
+          pickupEnabled={ctx.branch.pickupEnabled}
+          deliveryEnabled={ctx.branch.deliveryEnabled}
+          savedAddresses={ctx.savedAddresses}
+          customerName={ctx.customerName}
+          customerPhone={ctx.customerPhone}
+          customerEmail={ctx.customerEmail}
           signedIn={ctx.signedIn}
-          favoriteIds={ctx.favoriteIds}
-          config={config}
+          favoriteProductIds={[...ctx.favoriteIds]}
         />
       );
     case 'gallery':
@@ -145,24 +169,44 @@ export async function RestaurantSite({
   // to a different branch than the one asked for.
   if (!branch) notFound();
 
-  const [menu, user, published] = await Promise.all([
-    getMenu(orgSlug, branch.slug),
+  const [onlineMenu, user, published] = await Promise.all([
+    getOnlineMenu({ orgSlug, branchSlug: branch.slug }).catch(() => ({ items: [], modifierGroups: [] })),
     currentUser(),
     draft ? Promise.resolve(null) : getPublishedLayout(orgSlug),
   ]);
 
-  // D3: the menu is identical whether or not anyone is signed in. A session
-  // adds a save button and an account link; it changes nothing about what the
-  // page is allowed to show, which is why the page stays public.
+  // D3/D4: the menu is identical whether or not anyone is signed in. A
+  // session adds saved addresses, favorites, prefilled contact details and an
+  // account link; it changes nothing about what the page is allowed to show,
+  // which is why the page stays public.
   const signedIn = Boolean(user);
-  const favoriteIds = new Set(
-    signedIn ? (await getFavorites(orgSlug)).map((f) => f.productId) : [],
-  );
+  const [favorites, profile, addresses] = signedIn
+    ? await Promise.all([getFavorites(orgSlug), getProfile(orgSlug), getAddresses(orgSlug)])
+    : [[], null, []];
+  const favoriteIds = new Set(favorites.map((f) => f.productId));
 
-  const sections: SectionSpec[] = draft?.sections ?? published?.sections ?? DEFAULT_SECTIONS;
+  let sections: SectionSpec[] = draft?.sections ?? published?.sections ?? DEFAULT_SECTIONS;
   const theme: Theme = draft?.theme ?? published?.theme ?? DEFAULT_THEME;
 
-  const ctx = { site, orgSlug, branch, branches, menu, signedIn, favoriteIds };
+  // Ordering is a platform guarantee, not a section a builder configuration
+  // can accidentally remove: every restaurant reaches it from this page,
+  // /order/<org>/<branch> and a table's QR code alike, so a layout that never
+  // added (or that deleted) a 'menu' section still gets one, appended last.
+  if (!sections.some((s) => s.type === 'menu')) {
+    sections = [...sections, { type: 'menu', config: {} }];
+  }
+
+  const ctx = {
+    site, orgSlug, branch, branches, signedIn, favoriteIds,
+    menuItems: onlineMenu.items,
+    modifierGroups: onlineMenu.modifierGroups,
+    savedAddresses: addresses.map((a) => ({
+      id: a.id, label: a.label, address: a.address, isDefault: a.isDefault,
+    })),
+    customerName: profile?.fullName ?? '',
+    customerPhone: profile?.phone ?? '',
+    customerEmail: profile?.email ?? '',
+  };
 
   return (
     <div style={brandStyle(site, theme)} className={`min-h-dvh ${backgroundClass(theme)}`}>
