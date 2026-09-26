@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
+import { ChevronDown } from 'lucide-react';
 import {
   checkoutAction, quoteCartAction, toggleFavoriteAction, type CheckoutState,
 } from '../../actions';
@@ -238,15 +239,31 @@ export function Storefront({
     return [...seen.entries()].map(([id, name]) => ({ id, name }));
   }, [items]);
 
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  // One accordion section per category, collapsed by default except the
+  // first — the pill-row filter this replaces showed every category's name
+  // at once but only one category's items; this shows every category's items
+  // are one tap away, with just the first section's worth of clutter on
+  // screen to start.
+  const itemsByCategory = useMemo(() => {
+    const m = new Map<string, MenuItem[]>();
+    for (const item of items) {
+      const key = item.categoryId ?? '__uncategorised__';
+      m.set(key, [...(m.get(key) ?? []), item]);
+    }
+    return m;
+  }, [items]);
 
-  const visibleItems = useMemo(
-    () =>
-      activeCategory === null
-        ? items
-        : items.filter((i) => (i.categoryId ?? '__uncategorised__') === activeCategory),
-    [items, activeCategory],
+  const [openCategories, setOpenCategories] = useState<Set<string>>(
+    () => new Set(categories[0] ? [categories[0].id] : []),
   );
+
+  function toggleCategory(id: string) {
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
@@ -278,122 +295,67 @@ export function Storefront({
       <section>
         <h2 className="mb-4 font-reem text-lg font-normal tracking-wide text-fg">المنيو</h2>
 
-        {categories.length > 1 && (
-          <div
-            role="tablist"
-            aria-label="تصنيفات المنيو"
-            className="mb-4 flex flex-wrap gap-2"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeCategory === null}
-              onClick={() => setActiveCategory(null)}
-              style={activeCategory === null ? { boxShadow: LAVECHI_GOLD_GLOW } : undefined}
-              className={cn(
-                'flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors',
-                activeCategory === null
-                  ? 'bg-[rgb(var(--brand-primary))] text-white'
-                  : 'border border-line text-muted hover:text-fg',
-              )}
-            >
-              الكل
-            </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={activeCategory === c.id}
-                onClick={() => setActiveCategory(c.id)}
-                style={activeCategory === c.id ? { boxShadow: LAVECHI_GOLD_GLOW } : undefined}
-                className={cn(
-                  'flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors',
-                  activeCategory === c.id
-                    ? 'bg-[rgb(var(--brand-primary))] text-white'
-                    : 'border border-line text-muted hover:text-fg',
-                )}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <ul
-          key={activeCategory ?? 'all'}
-          className="animate-fade-in grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3"
-        >
-          {visibleItems.map((item) => {
-            const groups = groupsByProduct.get(item.productId) ?? [];
-            return (
-              <li
-                key={item.variantId}
-                className="flex flex-col overflow-hidden rounded-[22px] border border-line bg-elevated shadow-[0_18px_44px_rgba(0,0,0,.2)] transition-shadow hover:shadow-md"
-              >
-                <div className="relative aspect-square w-full shrink-0 bg-surface">
-                  {item.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
-                    <img
-                      src={item.imageUrl}
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-muted/40">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                        className="h-10 w-10"
+        {categories.length > 1 ? (
+          <div className="space-y-2">
+            {categories.map((c) => {
+              const catItems = itemsByCategory.get(c.id) ?? [];
+              const isOpen = openCategories.has(c.id);
+              return (
+                <div
+                  key={c.id}
+                  className="overflow-hidden rounded-[16px] border border-line bg-elevated"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(c.id)}
+                    aria-expanded={isOpen}
+                    className="flex min-h-12 w-full items-center justify-between gap-2 px-4 py-3 text-start"
+                  >
+                    <span className="font-semibold text-fg">{c.name}</span>
+                    <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
+                      <span className="lb-numeric">{catItems.length}</span>
+                      <ChevronDown
+                        className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')}
                         aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm0 13 5-6 3 3 4-5 5 6"
+                      />
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <ul className="animate-fade-in space-y-2 border-t border-line p-2.5">
+                      {catItems.map((item) => (
+                        <MenuRow
+                          key={item.variantId}
+                          item={item}
+                          groups={groupsByProduct.get(item.productId) ?? []}
+                          currency={currency}
+                          onAdd={add}
+                          signedIn={signedIn}
+                          isFavorite={favorites.has(item.productId)}
+                          onToggleFavorite={() => toggleFavorite(item.productId)}
                         />
-                      </svg>
-                    </div>
-                  )}
-                  {signedIn && (
-                    <button
-                      type="button"
-                      onClick={() => toggleFavorite(item.productId)}
-                      aria-pressed={favorites.has(item.productId)}
-                      aria-label={favorites.has(item.productId) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-                      className={cn(
-                        'absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-bg/80 text-lg leading-none shadow-[0_18px_44px_rgba(0,0,0,.2)] backdrop-blur transition-colors',
-                        favorites.has(item.productId) ? 'text-danger' : 'text-muted/60 hover:text-danger',
-                      )}
-                    >
-                      {favorites.has(item.productId) ? '♥' : '♡'}
-                    </button>
+                      ))}
+                    </ul>
                   )}
                 </div>
-
-                <div className="flex flex-1 flex-col gap-1 p-3">
-                  <p className="line-clamp-1 font-semibold text-fg">
-                    {item.productName}
-                    {item.variantName !== 'default' ? (
-                      <span className="text-muted"> — {item.variantName}</span>
-                    ) : null}
-                  </p>
-                  {item.description ? (
-                    <p className="line-clamp-2 text-xs text-muted">{item.description}</p>
-                  ) : null}
-                  <span className="mt-auto pt-1 font-extrabold text-fg">
-                    {money(item.priceCents, currency)}
-                  </span>
-
-                  <AddControl item={item} groups={groups} currency={currency} onAdd={add} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })}
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <MenuRow
+                key={item.variantId}
+                item={item}
+                groups={groupsByProduct.get(item.productId) ?? []}
+                currency={currency}
+                onAdd={add}
+                signedIn={signedIn}
+                isFavorite={favorites.has(item.productId)}
+                onToggleFavorite={() => toggleFavorite(item.productId)}
+              />
+            ))}
+          </ul>
+        )}
       </section>
 
       <section
@@ -632,15 +594,47 @@ export function Storefront({
   );
 }
 
-/** Per-item modifier picker. Selection rules are re-checked on the server. */
-function AddControl({
-  item, groups, currency, onAdd,
+/** A small fallback icon for a variant with no photo — a plate outline. */
+function ItemThumbFallback() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      className="h-6 w-6"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm0 13 5-6 3 3 4-5 5 6"
+      />
+    </svg>
+  );
+}
+
+/**
+ * One menu item, as a compact strip row: a small thumbnail, name/description/
+ * price, and an add control — replacing the large square-image card grid this
+ * used to be. A row with no modifiers adds straight to the cart in one tap;
+ * one with modifiers expands the picker inline instead of opening anything
+ * else, so the strip stays scannable and only the item actually being
+ * customised grows.
+ */
+function MenuRow({
+  item, groups, currency, onAdd, signedIn, isFavorite, onToggleFavorite,
 }: {
   item: MenuItem;
   groups: ModifierGroup[];
   currency: string;
   onAdd: (item: MenuItem, modifierIds: string[]) => void;
+  signedIn: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }) {
+  const hasModifiers = groups.length > 0;
+  const [expanded, setExpanded] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
 
   function toggle(g: ModifierGroup, id: string) {
@@ -652,41 +646,112 @@ function AddControl({
     else if (mine.length < g.maxSelect) setChosen([...others, ...mine, id]);
   }
 
+  function handleAddClick() {
+    if (!hasModifiers) { onAdd(item, []); return; }
+    setExpanded((v) => !v);
+  }
+
+  function confirmAdd() {
+    onAdd(item, chosen);
+    setChosen([]);
+    setExpanded(false);
+  }
+
   return (
-    <div className="mt-2">
-      {groups.map((g) => (
-        <fieldset key={g.groupId} className="mb-2">
-          <legend className="mb-1 text-xs font-semibold text-muted">
-            {g.groupName}
-            {g.minSelect > 0 ? <span className="text-danger"> *</span> : null}
-          </legend>
-          <div className="flex flex-wrap gap-1.5">
-            {g.modifiers.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => toggle(g, m.id)}
-                className={cn(
-                  'rounded border px-2 py-1 text-xs',
-                  chosen.includes(m.id)
-                    ? 'border-[rgb(var(--brand-primary))] bg-[rgb(var(--brand-primary)/0.12)] text-[rgb(var(--brand-primary))]'
-                    : 'border-line text-muted',
-                )}
-              >
-                {m.name}
-                {m.priceCents > 0 ? ` +${money(m.priceCents, currency)}` : ''}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-      <button
-        type="button"
-        onClick={() => { onAdd(item, chosen); setChosen([]); }}
-        className="mt-1 flex h-9 w-full items-center justify-center gap-1 rounded-[13px] bg-[rgb(var(--brand-primary))] text-sm font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
-      >
-        <span aria-hidden="true">+</span> أضف للسلة
-      </button>
-    </div>
+    <li className="overflow-hidden rounded-[16px] border border-line bg-elevated">
+      <div className="flex items-center gap-3 p-2.5">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface text-muted/40">
+          {item.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
+            <img
+              src={item.imageUrl}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ItemThumbFallback />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-fg">
+            {item.productName}
+            {item.variantName !== 'default' ? (
+              <span className="text-muted"> — {item.variantName}</span>
+            ) : null}
+          </p>
+          {item.description ? (
+            <p className="truncate text-xs text-muted">{item.description}</p>
+          ) : null}
+          <span className="text-sm font-extrabold text-fg">
+            {money(item.priceCents, currency)}
+          </span>
+        </div>
+
+        {signedIn && (
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            aria-pressed={isFavorite}
+            aria-label={isFavorite ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center text-lg leading-none transition-colors',
+              isFavorite ? 'text-danger' : 'text-muted/60 hover:text-danger',
+            )}
+          >
+            {isFavorite ? '♥' : '♡'}
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={handleAddClick}
+          aria-expanded={hasModifiers ? expanded : undefined}
+          aria-label="أضف للسلة"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--brand-primary))] text-lg font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
+        >
+          {hasModifiers && expanded ? '−' : '+'}
+        </button>
+      </div>
+
+      {hasModifiers && expanded && (
+        <div className="border-t border-line p-3">
+          {groups.map((g) => (
+            <fieldset key={g.groupId} className="mb-2">
+              <legend className="mb-1 text-xs font-semibold text-muted">
+                {g.groupName}
+                {g.minSelect > 0 ? <span className="text-danger"> *</span> : null}
+              </legend>
+              <div className="flex flex-wrap gap-1.5">
+                {g.modifiers.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggle(g, m.id)}
+                    className={cn(
+                      'rounded border px-2 py-1 text-xs',
+                      chosen.includes(m.id)
+                        ? 'border-[rgb(var(--brand-primary))] bg-[rgb(var(--brand-primary)/0.12)] text-[rgb(var(--brand-primary))]'
+                        : 'border-line text-muted',
+                    )}
+                  >
+                    {m.name}
+                    {m.priceCents > 0 ? ` +${money(m.priceCents, currency)}` : ''}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <button
+            type="button"
+            onClick={confirmAdd}
+            className="mt-1 flex h-9 w-full items-center justify-center gap-1 rounded-[13px] bg-[rgb(var(--brand-primary))] text-sm font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
+          >
+            <span aria-hidden="true">+</span> أضف للسلة
+          </button>
+        </div>
+      )}
+    </li>
   );
 }

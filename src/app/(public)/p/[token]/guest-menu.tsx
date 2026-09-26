@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Minus, Plus, ShoppingBag, X, Search } from 'lucide-react';
+import { ChevronDown, ImageOff, Minus, Plus, ShoppingBag, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
@@ -101,6 +101,21 @@ export function GuestMenu({
       // Private browsing or a blocked store: the field just starts empty.
     }
   }, []);
+
+  // Categories start collapsed except the first — a screen with every
+  // category's items open at once is exactly the clutter this replaces.
+  // Searching overrides collapse entirely: a matching category always shows
+  // its matches, never buried behind a tap the search bar already implied.
+  const [openCategories, setOpenCategories] = useState<Set<string>>(
+    () => new Set(menu[0] ? [menu[0].id] : []),
+  );
+  function toggleCategory(id: string) {
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -261,32 +276,53 @@ export function GuestMenu({
       {filtered.length === 0 ? (
         <p className="px-4 py-16 text-center text-sm text-muted">لا توجد أصناف مطابقة.</p>
       ) : (
-        <div className="space-y-6 px-4 py-4">
-          {filtered.map((category) => (
-            <section key={category.id} aria-labelledby={`cat-${category.id}`}>
-              <h2 id={`cat-${category.id}`} className="mb-2 text-lg font-bold">
-                {category.name}
-              </h2>
+        <div className="space-y-3 px-4 py-4">
+          {filtered.map((category) => {
+            const isOpen = Boolean(search.trim()) || openCategories.has(category.id);
+            return (
+            <section
+              key={category.id}
+              className="overflow-hidden rounded-[18px] border border-line bg-elevated"
+              style={{ boxShadow: LAVECHI_CARD_SHADOW }}
+            >
+              <button
+                type="button"
+                onClick={() => toggleCategory(category.id)}
+                aria-expanded={isOpen}
+                aria-controls={`cat-${category.id}`}
+                className="flex min-h-12 w-full items-center justify-between gap-2 px-3 py-3 text-start"
+              >
+                <span className="text-base font-bold">{category.name}</span>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
+                  <span className="lb-numeric">{category.products.length}</span>
+                  <ChevronDown
+                    className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')}
+                    aria-hidden="true"
+                  />
+                </span>
+              </button>
+              {isOpen && (
+              <div id={`cat-${category.id}`} className="border-t border-line p-3 pt-2">
               {category.description && (
                 <p className="mb-2 text-sm text-muted">{category.description}</p>
               )}
               <ul className="space-y-2">
                 {category.products.map((product) => (
-                  <li
-                    key={product.id}
-                    className="rounded-[18px] border border-line bg-elevated p-3"
-                    style={{ boxShadow: LAVECHI_CARD_SHADOW }}
-                  >
+                  <li key={product.id} className="rounded-[13px] bg-surface p-2.5">
                     <div className="flex gap-3">
-                      {product.image_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={product.image_url}
-                          alt=""
-                          loading="lazy"
-                          className="h-20 w-20 shrink-0 rounded-[13px] object-cover"
-                        />
-                      )}
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-elevated text-muted/40">
+                        {product.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.image_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <ImageOff className="h-5 w-5" aria-hidden="true" />
+                        )}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold">{product.name}</p>
                         {product.description && (
@@ -322,8 +358,11 @@ export function GuestMenu({
                   </li>
                 ))}
               </ul>
+              </div>
+              )}
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
 
