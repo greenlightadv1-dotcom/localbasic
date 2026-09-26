@@ -56,8 +56,12 @@ export function AppShell({
     ...(ctx.kitchenDisplayEnabled ? [] : ['/kitchen']),
     ...(ctx.captainHallEnabled ? [] : ['/service']),
   ]);
+  const hasPermission = (permission: NavItem['permission']) =>
+    Array.isArray(permission)
+      ? permission.some((p) => ctx.permissions.has(p))
+      : ctx.permissions.has(permission);
   const allowed = (items: NavItem[]) =>
-    items.filter((i) => ctx.permissions.has(i.permission) && !featureGatedHrefs.has(i.href));
+    items.filter((i) => hasPermission(i.permission) && !featureGatedHrefs.has(i.href));
 
   const coreNav = allowed(coreNavigationFor(ctx.enabledModules));
   const settingsNav = allowed(SETTINGS_NAVIGATION);

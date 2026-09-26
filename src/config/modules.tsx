@@ -12,9 +12,10 @@ export type NavItem = {
   href: string;
   label: string;
   icon: string;
-  /** Hidden unless the member holds this permission. Cosmetic only — the
+  /** Hidden unless the member holds this permission (or any one of these,
+   *  for a screen more than one role may open). Cosmetic only — the
    *  service and RLS still enforce access. */
-  permission: Permission;
+  permission: Permission | Permission[];
 };
 
 export type ModuleDefinition = {
@@ -45,12 +46,18 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/branches', label: 'الفروع', icon: 'Store', permission: 'branch.manage' },
   { href: '/settings/members', label: 'الموظفون', icon: 'UserCog', permission: 'member.read' },
   { href: '/settings/roles', label: 'الصلاحيات', icon: 'ShieldCheck', permission: 'role.manage' },
-  { href: '/settings/branding', label: 'الهوية', icon: 'Palette', permission: 'branding.manage' },
+  // The Site Customizer: brand identity + the public website's own content
+  // (tagline/about/cover/hours/publish), consolidated onto one screen.
+  // Visible to whoever holds either half's permission, so a role with only
+  // settings.manage (no branding.manage) still sees the website content.
+  {
+    href: '/settings/branding', label: 'الموقع والهوية', icon: 'Palette',
+    permission: ['branding.manage', 'settings.manage'],
+  },
   { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
   { href: '/settings/store', label: 'المتجر الإلكتروني', icon: 'Store', permission: 'settings.manage' },
-  { href: '/settings/website', label: 'الموقع الإلكتروني', icon: 'Globe', permission: 'settings.manage' },
-  // The Site Engine. Distinct from /settings/website above, which is the
+  // The Site Engine. Distinct from the Site Customizer above, which is the
   // restaurant's single live-data site; this one is many sites per
   // organization with their own pages. Gated on site.read, so it stays hidden
   // from anyone the feature has not been granted to.

@@ -36,9 +36,11 @@ export async function saveWebsiteAction(
     return { error: error instanceof AppError ? error.message : 'تعذّر حفظ الإعدادات.' };
   }
 
-  revalidatePath(`/${orgSlug}/${branchSlug}/settings/website`);
+  // The form now lives on the unified Site Customizer (settings/branding),
+  // not its own settings/website screen.
+  revalidatePath(`/${orgSlug}/${branchSlug}/settings/branding`);
   // Revalidating remounts the form and drops the useFormState message, so the
   // confirmation travels in the URL instead. redirect() throws NEXT_REDIRECT
   // and must stay outside the try above.
-  redirect(`/${orgSlug}/${branchSlug}/settings/website?saved=1`);
+  redirect(`/${orgSlug}/${branchSlug}/settings/branding?saved=1`);
 }

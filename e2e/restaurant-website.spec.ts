@@ -212,17 +212,19 @@ test('the website works on a phone-sized viewport', async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test('an owner publishes the website from settings', async ({ page }) => {
+test('an owner publishes the website from the Site Customizer', async ({ page }) => {
   const { rows } = await DB.query("select id from auth.users where email = 'owner@demo.local'");
   await page.context().addCookies([
     { name: 'lb_local_user', value: rows[0].id, url: 'http://localhost:3000' },
   ]);
 
+  // The old settings/website URL redirects here rather than 404ing.
   await page.goto('/alhara/main/settings/website');
-  await expect(page.getByRole('heading', { name: 'الموقع الإلكتروني' })).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\/branding$/);
+  await expect(page.getByRole('heading', { name: 'محتوى الموقع الإلكتروني' })).toBeVisible();
 
   await page.getByLabel('الوصف المختصر').fill('مشاوي وأكل شامي أصيل');
-  await page.getByRole('button', { name: 'حفظ' }).click();
+  await page.getByRole('button', { name: 'حفظ محتوى الموقع' }).click();
   await expect(page.getByTestId('website-saved')).toBeVisible();
 
   await page.context().clearCookies();
@@ -230,11 +232,11 @@ test('an owner publishes the website from settings', async ({ page }) => {
   await expect(page.getByText('مشاوي وأكل شامي أصيل')).toBeVisible();
 });
 
-test('a member without settings.manage cannot open website settings', async ({ page }) => {
+test('a member without settings.manage or branding.manage cannot open the Site Customizer', async ({ page }) => {
   const { rows } = await DB.query("select id from auth.users where email = 'kitchen@demo.local'");
   await page.context().addCookies([
     { name: 'lb_local_user', value: rows[0].id, url: 'http://localhost:3000' },
   ]);
-  await page.goto('/alhara/main/settings/website');
+  await page.goto('/alhara/main/settings/branding');
   await expect(page.getByText('الصفحة غير موجودة')).toBeVisible();
 });
