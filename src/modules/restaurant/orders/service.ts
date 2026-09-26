@@ -276,7 +276,7 @@ export async function getOrder(ctx: TenantContext, orderId: string) {
         .in('order_item_id', itemIds)
     : { data: [] as { order_item_id: string; name: string; price_cents: number }[] };
 
-  const [{ data: table }, { data: invoice }] = await Promise.all([
+  const [{ data: table }, { data: invoice }, { data: delivery }] = await Promise.all([
     order.table_id
       ? supabase.from('restaurant_tables').select('name').eq('id', order.table_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -285,6 +285,13 @@ export async function getOrder(ctx: TenantContext, orderId: string) {
           .from('invoices')
           .select('id, number, paid_cents, total_cents, status')
           .eq('id', order.invoice_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    order.type === 'delivery'
+      ? supabase
+          .from('restaurant_order_deliveries')
+          .select('recipient_name, phone, city, area, address, landmark, notes')
+          .eq('order_id', orderId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
@@ -303,7 +310,7 @@ export async function getOrder(ctx: TenantContext, orderId: string) {
       .map((m) => ({ name: m.name, priceCents: m.price_cents })),
   }));
 
-  return { order, lines, tableName: table?.name ?? null, invoice };
+  return { order, lines, tableName: table?.name ?? null, invoice, delivery };
 }
 
 /**

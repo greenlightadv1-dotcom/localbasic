@@ -29,9 +29,16 @@ export default async function OrderDetailPage({
     throw error;
   }
 
-  const { order, lines, tableName, invoice } = data;
+  const { order, lines, tableName, invoice, delivery } = data;
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
   const status = order.status as OrderStatus;
+
+  const CHANNEL_LABELS: Record<string, string> = {
+    qr: 'من رمز QR', waiter: 'من الكابتن', cashier: 'من الكاشير', online: 'أونلاين',
+  };
+  const TYPE_LABELS: Record<string, string> = {
+    dine_in: 'صالة', takeaway: 'سفري', pickup: 'استلام', delivery: 'توصيل',
+  };
 
   const timeline = [
     { label: 'وصل الطلب', at: order.placed_at },
@@ -53,8 +60,8 @@ export default async function OrderDetailPage({
 
       <PageHeader
         title={`طلب #${order.number}`}
-        description={`${tableName ? `طاولة ${tableName}` : 'سفري'} · ${
-          order.channel === 'qr' ? 'من رمز QR' : order.channel === 'waiter' ? 'من الكابتن' : 'من الكاشير'
+        description={`${tableName ? `طاولة ${tableName}` : TYPE_LABELS[order.type] ?? order.type} · ${
+          CHANNEL_LABELS[order.channel] ?? order.channel
         }`}
         actions={<Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>}
       />
@@ -64,6 +71,62 @@ export default async function OrderDetailPage({
           <CardBody className="text-sm">
             <span className="font-semibold text-danger">سبب الإلغاء: </span>
             {order.cancel_reason}
+          </CardBody>
+        </Card>
+      )}
+
+      {(order.guest_name || order.guest_phone || delivery) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>العميل والتوصيل</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <dl className="space-y-2 text-sm">
+              {order.guest_name && (
+                <div className="flex justify-between">
+                  <dt className="text-muted">الاسم</dt>
+                  <dd className="font-medium">{order.guest_name}</dd>
+                </div>
+              )}
+              {order.guest_phone && (
+                <div className="flex justify-between">
+                  <dt className="text-muted">الهاتف</dt>
+                  <dd className="lb-numeric font-medium" dir="ltr">{order.guest_phone}</dd>
+                </div>
+              )}
+              {delivery && (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-muted">المستلم</dt>
+                    <dd className="font-medium">{delivery.recipient_name}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted">هاتف التوصيل</dt>
+                    <dd className="lb-numeric font-medium" dir="ltr">{delivery.phone}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="shrink-0 text-muted">العنوان</dt>
+                    <dd className="text-end font-medium">
+                      {delivery.address}
+                      {(delivery.area || delivery.city) && (
+                        <span className="block text-xs text-muted">
+                          {[delivery.area, delivery.city].filter(Boolean).join('، ')}
+                        </span>
+                      )}
+                      {delivery.landmark && (
+                        <span className="block text-xs text-muted">علامة مميزة: {delivery.landmark}</span>
+                      )}
+                    </dd>
+                  </div>
+                  {delivery.notes && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="shrink-0 text-muted">ملاحظات التوصيل</dt>
+                      <dd className="text-end font-medium">{delivery.notes}</dd>
+                    </div>
+                  )}
+                </>
+              )}
+            </dl>
           </CardBody>
         </Card>
       )}
