@@ -29,6 +29,8 @@ export function validateImageFile(file: File): string | null {
   return null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function uploadMedia(
   organizationId: string,
   purpose: MediaPurpose,
@@ -36,6 +38,16 @@ export async function uploadMedia(
 ): Promise<{ url: string; path: string }> {
   const invalid = validateImageFile(file);
   if (invalid) throw new Error(invalid);
+
+  // The path's first segment IS the RLS check (app.media_path_org reads it
+  // straight back out) — a blank or malformed organizationId would silently
+  // build a path no policy grants anyone, and Storage would report that as
+  // the same generic RLS violation this function exists partly to explain.
+  // Caught here, before the request, it is obviously a caller bug rather
+  // than another report of the Storage policy itself being wrong.
+  if (!UUID_RE.test(organizationId)) {
+    throw new Error('تعذّر رفع الصورة: معرّف المنشأة غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.');
+  }
 
   const supabase = createSupabaseBrowserClient();
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
@@ -46,7 +58,20 @@ export async function uploadMedia(
     upsert: false,
     contentType: file.type,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The RLS policies (0069/0072/0075) grant any ACTIVE organization member
+    // full access to their own org's folder. Reaching this message today
+    // almost always means the browser's session cookie is stale — expired or
+    // signed out in another tab — not that the policy itself refused an
+    // active member, so the fix on this side is to sign back in, not to
+    // retry the same request.
+    const isRls = /row-level security|row level security/i.test(error.message);
+    throw new Error(
+      isRls
+        ? 'تعذّر رفع الصورة: يبدو أن جلستك انتهت. أعد تحميل الصفحة وسجّل الدخول مرة أخرى.'
+        : error.message,
+    );
+  }
 
   const { data } = supabase.storage.from('media').getPublicUrl(path);
   return { url: data.publicUrl, path };

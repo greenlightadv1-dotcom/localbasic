@@ -15,7 +15,15 @@ import { removeMember } from '@/modules/core/members/remove';
 
 export const createMemberDirectAction = defineTenantAction({
   schema: z.object({
-    email: z.string().trim().email('أدخل بريدًا صحيحًا').max(200),
+    // Optional — see createMemberDirect() for why an omitted email is
+    // generated rather than required or rejected.
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(200)
+      .refine((v) => v === '' || z.string().email().safeParse(v).success, 'أدخل بريدًا صحيحًا')
+      .optional(),
     password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل').max(72),
     fullName: z.string().trim().min(2, 'الاسم مطلوب').max(120),
     roleIds: z.array(z.string().uuid()).max(20).default([]),

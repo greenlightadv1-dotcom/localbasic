@@ -17,12 +17,21 @@ const h = vi.hoisted(() => {
     hasPermission: true,
     provisioningAvailable: true,
     createUserError: null as { message: string } | null,
+    // Fails the FIRST createUser call only, then succeeds — simulates a
+    // generated placeholder colliding once before the retry picks a fresh one.
+    createUserErrorOnce: null as { message: string } | null,
     createdUserId: 'user-1',
     rpcError: null as { message: string } | null,
     rpcMemberId: 'member-1' as string | null,
   };
-  const calls: { createUser: number; deleteUser: string[]; rpc: { fn: string; args: Record<string, unknown> }[] } = {
+  const calls: {
+    createUser: number;
+    createUserEmails: string[];
+    deleteUser: string[];
+    rpc: { fn: string; args: Record<string, unknown> }[];
+  } = {
     createUser: 0,
+    createUserEmails: [],
     deleteUser: [],
     rpc: [],
   };
@@ -47,9 +56,13 @@ vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: () => ({
     auth: {
       admin: {
-        createUser: async () => {
+        createUser: async ({ email }: { email: string }) => {
           h.calls.createUser += 1;
+          h.calls.createUserEmails.push(email);
           if (h.state.createUserError) return { data: { user: null }, error: h.state.createUserError };
+          if (h.state.createUserErrorOnce && h.calls.createUser === 1) {
+            return { data: { user: null }, error: h.state.createUserErrorOnce };
+          }
           return { data: { user: { id: h.state.createdUserId } }, error: null };
         },
         deleteUser: async (id: string) => {
@@ -88,10 +101,12 @@ beforeEach(() => {
   h.state.hasPermission = true;
   h.state.provisioningAvailable = true;
   h.state.createUserError = null;
+  h.state.createUserErrorOnce = null;
   h.state.createdUserId = 'user-1';
   h.state.rpcError = null;
   h.state.rpcMemberId = 'member-1';
   h.calls.createUser = 0;
+  h.calls.createUserEmails = [];
   h.calls.deleteUser = [];
   h.calls.rpc = [];
 });
@@ -104,7 +119,7 @@ it('refuses before creating any account when the caller lacks member.manage', as
 
 it('creates the auth account and attaches it to the organization', async () => {
   const result = await createMemberDirect(CTX, VALID_INPUT);
-  expect(result).toEqual({ memberId: 'member-1' });
+  expect(result).toEqual({ memberId: 'member-1', email: 'cashier@test.local', generatedEmail: false });
   expect(h.calls.createUser).toBe(1);
   expect(h.calls.rpc).toEqual([
     {
@@ -127,6 +142,27 @@ it('turns a duplicate-email error into a message pointing at the invite flow', a
     message: expect.stringContaining('دعوة موظف'),
   });
   expect(h.calls.rpc).toHaveLength(0);
+});
+
+it('generates a unique login address when no email is given, without ever needing an invite', async () => {
+  const { email, ...rest } = VALID_INPUT;
+  const result = await createMemberDirect(CTX, { ...rest, email: '' });
+  expect(result.generatedEmail).toBe(true);
+  expect(result.email).toMatch(/^staff-.+@staff\.localbasic\.internal$/);
+  expect(h.calls.createUser).toBe(1);
+  expect(h.calls.createUserEmails[0]).toBe(result.email);
+  void email; // the fixture's real address is deliberately unused here
+});
+
+it('retries once under a fresh generated address if the first happens to collide', async () => {
+  h.state.createUserErrorOnce = { message: 'A user with this email address has already been registered' };
+  const { email, ...rest } = VALID_INPUT;
+  const result = await createMemberDirect(CTX, { ...rest, email: '' });
+  expect(result.generatedEmail).toBe(true);
+  expect(h.calls.createUser).toBe(2);
+  expect(h.calls.createUserEmails[0]).not.toBe(h.calls.createUserEmails[1]);
+  expect(result.email).toBe(h.calls.createUserEmails[1]);
+  void email;
 });
 
 it('deletes the just-created auth account when the workspace half fails', async () => {

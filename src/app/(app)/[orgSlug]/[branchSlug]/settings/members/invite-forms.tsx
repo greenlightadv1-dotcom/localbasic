@@ -41,7 +41,12 @@ export function CreateMemberDirectForm({
         },
       );
       if (!result.ok) { setError(result.error); return; }
-      setDone(email);
+      // The email shown here is what the employee actually logs in with — the
+      // typed address, or the one generated on the server when the field was
+      // left blank. Never the local `email` value on its own: that would show
+      // an empty string in exactly the case where the admin most needs to see
+      // what was generated to hand to the employee.
+      setDone(result.data.email);
       setRoleIds([]);
       router.refresh();
     });
@@ -61,8 +66,11 @@ export function CreateMemberDirectForm({
         <Field label="الاسم الكامل" required>
           {(p) => <Input {...p} name="fullName" required maxLength={120} />}
         </Field>
-        <Field label="البريد الإلكتروني" required>
-          {(p) => <Input {...p} name="email" type="email" dir="ltr" required maxLength={200} />}
+        <Field
+          label="البريد الإلكتروني (اختياري)"
+          hint="اتركه فارغًا لإنشاء بريد دخول تلقائي — سيظهر لك بعد الإنشاء لتسليمه للموظف."
+        >
+          {(p) => <Input {...p} name="email" type="email" dir="ltr" maxLength={200} />}
         </Field>
         <Field label="كلمة المرور" required>
           {(p) => (
