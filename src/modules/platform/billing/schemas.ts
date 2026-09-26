@@ -44,6 +44,27 @@ export const quoteInput = renewInput.pick({
   promoCode: true,
 });
 
+export const adjustDaysInput = z.object({
+  organizationId: z.string().uuid(),
+  deltaDays: z.coerce.number().int().refine((n) => n !== 0, 'أدخل رقمًا غير صفر'),
+  note: z.string().trim().max(500).optional().or(z.literal('')),
+});
+
+export const switchPlanInput = z.object({
+  organizationId: z.string().uuid(),
+  planId: z.string().uuid(),
+  billingPeriod: z.enum(BILLING_PERIODS),
+  paymentMethod: z.enum(PAYMENT_METHODS).default('cash'),
+  note: z.string().trim().max(500).optional().or(z.literal('')),
+});
+
+/** Shared by reset-data and delete: the operator must echo the customer_code
+ *  back exactly, so a mis-click in a long list cannot wipe the wrong customer. */
+export const confirmCustomerInput = z.object({
+  organizationId: z.string().uuid(),
+  confirmCustomerCode: z.string().trim().min(1, 'أدخل كود العميل للتأكيد'),
+});
+
 export const createWorkspaceInput = z.object({
   ownerEmail: z.string().email('بريد إلكتروني غير صحيح'),
   organizationName: z.string().trim().min(2).max(120),

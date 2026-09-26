@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   renewSubscription, quoteRenewal, createPromoCode, setPromoCodeActive,
+  adjustSubscriptionDays, switchPlan, resetOrganizationData, deleteOrganization,
 } from '@/modules/platform/billing/service';
 import { createLead, updateLead } from '@/modules/platform/leads/service';
 import { setServiceAvailability } from '@/modules/platform/services/service';
@@ -49,6 +50,82 @@ export async function renewAction(_prev: RenewState, formData: FormData): Promis
 
   revalidatePath('/admin', 'layout');
   return { ok: 'تم تسجيل التجديد والدفع النقدي.' };
+}
+
+export type SubscriptionOpsState = { error?: string; ok?: string } | undefined;
+
+export async function adjustDaysAction(
+  _prev: SubscriptionOpsState,
+  formData: FormData,
+): Promise<SubscriptionOpsState> {
+  try {
+    await adjustSubscriptionDays({
+      organizationId: String(formData.get('organizationId') ?? ''),
+      deltaDays: String(formData.get('deltaDays') ?? ''),
+      note: String(formData.get('note') ?? ''),
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر تعديل المدة.' };
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: 'تم تعديل عدد الأيام المتبقية.' };
+}
+
+export async function switchPlanAction(
+  _prev: SubscriptionOpsState,
+  formData: FormData,
+): Promise<SubscriptionOpsState> {
+  try {
+    await switchPlan({
+      organizationId: String(formData.get('organizationId') ?? ''),
+      planId: String(formData.get('planId') ?? ''),
+      billingPeriod: String(formData.get('billingPeriod') ?? ''),
+      paymentMethod: 'cash' as const,
+      note: String(formData.get('note') ?? ''),
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر تبديل الباقة.' };
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: 'تم تبديل الباقة وبدأت مدة جديدة من الآن، دون ترحيل الأيام المتبقية من الباقة السابقة.' };
+}
+
+export async function resetOrganizationDataAction(
+  _prev: SubscriptionOpsState,
+  formData: FormData,
+): Promise<SubscriptionOpsState> {
+  try {
+    await resetOrganizationData({
+      organizationId: String(formData.get('organizationId') ?? ''),
+      confirmCustomerCode: String(formData.get('confirmCustomerCode') ?? ''),
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر تصفير بيانات العميل.' };
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: 'تم تصفير بيانات العميل التشغيلية (الطلبات والفواتير والحسابات).' };
+}
+
+/**
+ * Deletes the workspace outright, so there is no customer page left to
+ * revalidate or return an ok message to — the only sane place to land is the
+ * customer list. redirect() throws NEXT_REDIRECT and must stay outside the
+ * try, or the catch below would swallow it and report a failure that didn't
+ * happen.
+ */
+export async function deleteOrganizationAction(
+  _prev: SubscriptionOpsState,
+  formData: FormData,
+): Promise<SubscriptionOpsState> {
+  try {
+    await deleteOrganization({
+      organizationId: String(formData.get('organizationId') ?? ''),
+      confirmCustomerCode: String(formData.get('confirmCustomerCode') ?? ''),
+    });
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر حذف العميل.' };
+  }
+  redirect('/admin/customers?deleted=1');
 }
 
 export type LeadState = { error?: string; ok?: string } | undefined;

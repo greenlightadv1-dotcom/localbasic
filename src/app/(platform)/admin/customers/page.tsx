@@ -15,7 +15,7 @@ export const generateMetadata = adminMetadata('العملاء');
 export default async function OrganizationsPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; deleted?: string };
 }) {
   const q = searchParams.q?.trim() ?? '';
   const orgs = await listOrganizations(q || undefined);
@@ -26,6 +26,12 @@ export default async function OrganizationsPage({
         title="العملاء"
         lead="ابحث بكود العميل، اسم المطعم، المعرّف، اسم المالك، بريده أو رقم الهاتف."
       />
+
+      {searchParams.deleted === '1' ? (
+        <p className="mb-4 rounded border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+          تم حذف مساحة العميل نهائيًا.
+        </p>
+      ) : null}
 
       {/* GET form: the search term lives in the URL, so a result list is
           shareable and the back button behaves. */}

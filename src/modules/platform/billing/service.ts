@@ -2,7 +2,10 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AppError } from '@/lib/errors';
-import { quoteInput, renewInput, createWorkspaceInput, promoCodeInput } from './schemas';
+import {
+  quoteInput, renewInput, createWorkspaceInput, promoCodeInput,
+  adjustDaysInput, switchPlanInput, confirmCustomerInput,
+} from './schemas';
 
 /**
  * Platform billing services.
@@ -559,6 +562,95 @@ export async function listPromoCodes() {
     .limit(200);
   if (error) throw error;
   return data ?? [];
+}
+
+/**
+ * Adjust the days left on the live term without a payment — a goodwill
+ * extension, or shortening a term that was granted by mistake. The database
+ * is the only place that computes the new period_end; this just forwards
+ * the four things the operator actually chooses.
+ */
+export async function adjustSubscriptionDays(input: unknown): Promise<void> {
+  await requirePlatformAdmin();
+  const parsed = adjustDaysInput.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError('validation', parsed.error.issues[0]?.message ?? 'بيانات غير صالحة');
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('platform_adjust_subscription_days', {
+    p_organization_id: parsed.data.organizationId,
+    p_delta_days: parsed.data.deltaDays,
+    p_note: parsed.data.note || null,
+  });
+  if (error) throw new AppError('validation', error.message);
+}
+
+/**
+ * Switch plan starting fresh from now — discarding whatever was left on the
+ * old term, unlike renewSubscription() which extends it. This is what "wipe
+ * and replace the old subscription and its remaining days" means in the
+ * database: platform_switch_plan() always sets period_start = now().
+ */
+export async function switchPlan(input: unknown): Promise<number> {
+  await requirePlatformAdmin();
+  const parsed = switchPlanInput.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError('validation', parsed.error.issues[0]?.message ?? 'بيانات غير صالحة');
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('platform_switch_plan', {
+    p_organization_id: parsed.data.organizationId,
+    p_plan_id: parsed.data.planId,
+    p_billing_period: parsed.data.billingPeriod,
+    p_payment_method: parsed.data.paymentMethod,
+    p_note: parsed.data.note || null,
+  });
+  if (error) throw new AppError('validation', error.message);
+  return data as number;
+}
+
+/**
+ * Wipe a customer's transactional data — orders, invoices, payments, stock
+ * movements, end-customer accounts — while keeping their setup (menu,
+ * branding, site, staff, subscription) untouched. Irreversible, so the
+ * database itself re-checks that the caller is a platform *owner* and that
+ * the customer_code they echoed back matches.
+ */
+export async function resetOrganizationData(input: unknown): Promise<void> {
+  await requirePlatformAdmin();
+  const parsed = confirmCustomerInput.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError('validation', parsed.error.issues[0]?.message ?? 'بيانات غير صالحة');
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('platform_reset_organization_data', {
+    p_organization_id: parsed.data.organizationId,
+    p_confirm_customer_code: parsed.data.confirmCustomerCode,
+  });
+  if (error) throw new AppError('validation', error.message);
+}
+
+/**
+ * Delete a customer's workspace outright. Every tenant table cascades from
+ * organizations(id) — see 0070 — so this one RPC is the entire deletion.
+ * Irreversible; gated the same way as resetOrganizationData().
+ */
+export async function deleteOrganization(input: unknown): Promise<void> {
+  await requirePlatformAdmin();
+  const parsed = confirmCustomerInput.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError('validation', parsed.error.issues[0]?.message ?? 'بيانات غير صالحة');
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('platform_delete_organization', {
+    p_organization_id: parsed.data.organizationId,
+    p_confirm_customer_code: parsed.data.confirmCustomerCode,
+  });
+  if (error) throw new AppError('validation', error.message);
 }
 
 /**

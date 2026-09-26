@@ -3202,12 +3202,16 @@ export type Database = {
       platform_customer_branches: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_domains: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_modules: { Args: Record<string, unknown>; Returns: Json };
+      platform_adjust_subscription_days: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_dashboard_stats: { Args: Record<string, unknown>; Returns: Json };
+      platform_delete_organization: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
       platform_find_user_by_email: { Args: Record<string, unknown>; Returns: Json };
       platform_onboard_customer: { Args: Record<string, unknown>; Returns: Json };
       platform_quote_renewal: { Args: Record<string, unknown>; Returns: Json };
+      platform_reset_organization_data: { Args: Record<string, unknown>; Returns: Json };
+      platform_switch_plan: { Args: Record<string, unknown>; Returns: Json };
       platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
       platform_search_customers: { Args: Record<string, unknown>; Returns: Json };

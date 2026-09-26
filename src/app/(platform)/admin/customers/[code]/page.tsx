@@ -9,6 +9,8 @@ import {
   formatDate, periodLabel, money,
 } from '../../ui';
 import { RenewForm } from './renew-form';
+import { AdjustDaysForm, SwitchPlanForm } from './subscription-ops-form';
+import { DangerZone } from './danger-zone';
 
 import { getPlatformContext } from '@/modules/platform/admin/context';
 
@@ -68,6 +70,7 @@ export default async function CustomerProfilePage({
   searchParams: { created?: string };
 }) {
   const code = decodeURIComponent(params.code);
+  const platformCtx = await getPlatformContext();
   const org = await getOrganizationByCode(code);
   if (!org) notFound();
   const justCreated = searchParams.created === '1';
@@ -285,6 +288,34 @@ export default async function CustomerProfilePage({
           </span>
         </h2>
         <RenewForm organizationId={org.id} plans={plans} currentPlanId={currentPlanId} />
+      </Panel>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Panel>
+          <h2 className="border-b border-line px-5 py-3 text-sm font-bold text-fg">
+            تعديل المدة المتبقية
+            <span className="ms-2 font-normal text-muted">بدون دفع</span>
+          </h2>
+          <AdjustDaysForm organizationId={org.id} />
+        </Panel>
+
+        <Panel>
+          <h2 className="border-b border-line px-5 py-3 text-sm font-bold text-fg">
+            تبديل الباقة (يلغي المتبقي)
+          </h2>
+          <SwitchPlanForm organizationId={org.id} plans={plans} currentPlanId={currentPlanId} />
+        </Panel>
+      </div>
+
+      <Panel className="mt-6 border-danger/30">
+        <h2 className="border-b border-danger/30 bg-danger/5 px-5 py-3 text-sm font-bold text-danger">
+          منطقة الخطر
+        </h2>
+        <DangerZone
+          organizationId={org.id}
+          customerCode={org.customerCode}
+          isOwner={platformCtx?.role === 'owner'}
+        />
       </Panel>
 
       <Panel className="mt-6">
