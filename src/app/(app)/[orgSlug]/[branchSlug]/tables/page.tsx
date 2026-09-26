@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { listFloor, listSections } from '@/modules/restaurant/tables/service';
+import { listStations } from '@/modules/restaurant/stations/service';
 import { PageHeader } from '@/components/patterns/page-header';
 import { TablesManager } from './tables-manager';
+import { StationsManager } from './stations-manager';
 
 export const metadata = { title: 'الطاولات' };
 
@@ -14,7 +16,11 @@ export default async function TablesPage({
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!can(ctx, 'restaurant.table.read')) notFound();
 
-  const [floor, sections] = await Promise.all([listFloor(ctx), listSections(ctx)]);
+  const [floor, sections, stations] = await Promise.all([
+    listFloor(ctx),
+    listSections(ctx),
+    listStations(ctx),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -29,6 +35,12 @@ export default async function TablesPage({
         canManage={can(ctx, 'restaurant.table.manage')}
         canSetStatus={can(ctx, 'restaurant.table.status')}
         basePath={`/${ctx.organizationSlug}/${ctx.branchSlug}`}
+        organizationSlug={ctx.organizationSlug}
+        branchSlug={ctx.branchSlug}
+      />
+      <StationsManager
+        stations={stations}
+        canManage={can(ctx, 'restaurant.table.manage')}
         organizationSlug={ctx.organizationSlug}
         branchSlug={ctx.branchSlug}
       />

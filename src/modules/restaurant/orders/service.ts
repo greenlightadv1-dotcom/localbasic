@@ -365,6 +365,15 @@ export async function setOrderStatus(
 
   if (error?.code === '42501') throw new AppError('forbidden');
   if (error) throw mapOrderError(error, 'setOrderStatus');
+
+  // Confirmation is the moment staff commit to making the order, which is
+  // when a kitchen or bar ticket actually needs to print. A printer being
+  // offline never fails the status change itself — printConfirmedOrder()
+  // swallows and logs its own failures.
+  if (status === 'confirmed') {
+    const { printConfirmedOrder } = await import('@/modules/restaurant/printing/service');
+    await printConfirmedOrder(ctx, orderId);
+  }
 }
 
 export type PaymentResult = {

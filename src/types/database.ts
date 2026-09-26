@@ -1236,6 +1236,7 @@ export type Database = {
           image_url: string | null;
           sort_order: number;
           is_active: boolean;
+          default_station_kind: string;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -1248,6 +1249,7 @@ export type Database = {
           image_url?: string | null;
           sort_order?: number;
           is_active?: boolean;
+          default_station_kind?: string;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -1260,6 +1262,7 @@ export type Database = {
           image_url?: string | null;
           sort_order?: number;
           is_active?: boolean;
+          default_station_kind?: string;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -1461,6 +1464,8 @@ export type Database = {
           line_total_cents: number;
           note: string | null;
           position: number;
+          station_id: string | null;
+          station_kind: string | null;
           created_at: string;
         };
         Insert: {
@@ -1477,6 +1482,8 @@ export type Database = {
           line_total_cents: number;
           note?: string | null;
           position?: number;
+          station_id?: string | null;
+          station_kind?: string | null;
           created_at?: string;
         };
         Update: {
@@ -1493,6 +1500,8 @@ export type Database = {
           line_total_cents?: number;
           note?: string | null;
           position?: number;
+          station_id?: string | null;
+          station_kind?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -1612,6 +1621,7 @@ export type Database = {
           sort_order: number;
           is_active: boolean;
           is_best_seller: boolean;
+          station_id: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -1629,6 +1639,7 @@ export type Database = {
           sort_order?: number;
           is_active?: boolean;
           is_best_seller?: boolean;
+          station_id?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -1646,6 +1657,7 @@ export type Database = {
           sort_order?: number;
           is_active?: boolean;
           is_best_seller?: boolean;
+          station_id?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -1728,6 +1740,51 @@ export type Database = {
           name?: string;
           sort_order?: number;
           is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      restaurant_stations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          name: string;
+          kind: string;
+          printer_ip: string | null;
+          printer_port: number;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          branch_id: string;
+          name: string;
+          kind: string;
+          printer_ip?: string | null;
+          printer_port?: number;
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          branch_id?: string;
+          name?: string;
+          kind?: string;
+          printer_ip?: string | null;
+          printer_port?: number;
+          is_active?: boolean;
+          sort_order?: number;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -3250,6 +3307,7 @@ export type Database = {
       restaurant_public_context: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_menu: { Args: Record<string, unknown>; Returns: Json };
       restaurant_public_order_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_set_order_item_station: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_best_sellers: { Args: Record<string, unknown>; Returns: Json };

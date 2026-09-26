@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { ImageUpload } from '@/components/patterns/image-upload';
 import { formatMoney } from '@/lib/money';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
+import type { Station } from '@/modules/restaurant/stations/service';
 import {
   createMenuCategoryAction,
   createMenuProductAction,
@@ -20,7 +21,11 @@ import {
   toggleBestSellerAction,
   setProductImageAction,
   setAvailabilityAction,
+  setProductStationAction,
+  setCategoryStationAction,
 } from '../restaurant-actions';
+
+const STATION_KIND_LABELS: Record<string, string> = { kitchen: 'مطبخ', bar: 'بار' };
 
 type VariantDraft = { key: number; name: string; price: string };
 type GroupDraft = {
@@ -34,6 +39,7 @@ type GroupDraft = {
 export function MenuManager({
   menu,
   categories,
+  stations,
   currency,
   canManage,
   organizationId,
@@ -41,7 +47,8 @@ export function MenuManager({
   branchSlug,
 }: {
   menu: MenuItem[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; default_station_kind: string }[];
+  stations: Station[];
   currency: string;
   canManage: boolean;
   organizationId: string;
@@ -64,6 +71,7 @@ export function MenuManager({
       const result = await createMenuCategoryAction(scope, {
         name: formData.get('name'),
         sortOrder: formData.get('sortOrder') || 0,
+        defaultStationKind: formData.get('defaultStationKind') || 'kitchen',
       });
       if (!result.ok) {
         toast.error(result.error);
@@ -84,6 +92,7 @@ export function MenuManager({
         imageUrl: newItemImage,
         taxRatePercent: formData.get('taxRatePercent') || 0,
         prepMinutes: formData.get('prepMinutes') || 0,
+        stationId: formData.get('stationId') || null,
         variants: variants.map((v) => ({ name: v.name || 'default', priceCents: v.price || '0' })),
         modifierGroups: groups.map((g) => ({
           name: g.name,
@@ -160,6 +169,13 @@ export function MenuManager({
                   </label>
                   <Input id="cat-name" name="name" placeholder="مثال: مشروبات ساخنة" required maxLength={120} />
                 </div>
+                <label htmlFor="cat-station" className="sr-only">
+                  التوجيه الافتراضي
+                </label>
+                <Select id="cat-station" name="defaultStationKind" defaultValue="kitchen" className="w-28">
+                  <option value="kitchen">مطبخ</option>
+                  <option value="bar">بار</option>
+                </Select>
                 <input type="hidden" name="sortOrder" value={categories.length} />
                 <Button type="submit" disabled={isPending}>
                   إضافة
@@ -168,8 +184,33 @@ export function MenuManager({
               {categories.length > 0 && (
                 <ul className="mt-3 flex flex-wrap gap-1.5">
                   {categories.map((c) => (
-                    <li key={c.id}>
+                    <li key={c.id} className="flex items-center gap-1">
                       <Badge>{c.name}</Badge>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          title="تبديل توجيه هذا التصنيف بين المطبخ والبار"
+                          disabled={isPending}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const next = c.default_station_kind === 'bar' ? 'kitchen' : 'bar';
+                              const result = await setCategoryStationAction(scope, {
+                                id: c.id,
+                                defaultStationKind: next,
+                              });
+                              if (!result.ok) { toast.error(result.error); return; }
+                              router.refresh();
+                            })
+                          }
+                          className="text-xs text-muted underline decoration-dotted hover:text-fg"
+                        >
+                          {STATION_KIND_LABELS[c.default_station_kind] ?? c.default_station_kind}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted">
+                          {STATION_KIND_LABELS[c.default_station_kind] ?? c.default_station_kind}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -222,6 +263,18 @@ export function MenuManager({
                 </Field>
                 <Field label="زمن التحضير (دقائق)">
                   {(p) => <Input {...p} name="prepMinutes" type="number" min={0} max={600} defaultValue="0" dir="ltr" />}
+                </Field>
+                <Field label="المحطة" hint="اتركه تلقائيًا ليتّبع توجيه التصنيف (مطبخ/بار)">
+                  {(p) => (
+                    <Select {...p} name="stationId" defaultValue="">
+                      <option value="">تلقائي حسب التصنيف</option>
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({STATION_KIND_LABELS[s.kind] ?? s.kind})
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="الوصف">
@@ -600,7 +653,7 @@ export function MenuManager({
                   </tr>
                   {expandedImageId === item.id && (
                     <tr className="border-b border-line bg-surface last:border-0">
-                      <td colSpan={canManage ? 6 : 4} className="p-3">
+                      <td colSpan={canManage ? 6 : 4} className="space-y-3 p-3">
                         <ImageUpload
                           organizationId={organizationId}
                           purpose="product"
@@ -609,6 +662,34 @@ export function MenuManager({
                           label={`صورة ${item.name}`}
                           aspectClassName="aspect-square"
                         />
+                        {canManage && (
+                          <label className="block max-w-xs">
+                            <span className="mb-1.5 block text-xs font-semibold text-fg">
+                              محطة التحضير
+                            </span>
+                            <Select
+                              defaultValue={item.stationId ?? ''}
+                              disabled={isPending}
+                              onChange={(e) =>
+                                startTransition(async () => {
+                                  const result = await setProductStationAction(scope, {
+                                    productId: item.id,
+                                    stationId: e.target.value || null,
+                                  });
+                                  if (!result.ok) { toast.error(result.error); return; }
+                                  router.refresh();
+                                })
+                              }
+                            >
+                              <option value="">تلقائي حسب التصنيف</option>
+                              {stations.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} ({STATION_KIND_LABELS[s.kind] ?? s.kind})
+                                </option>
+                              ))}
+                            </Select>
+                          </label>
+                        )}
                       </td>
                     </tr>
                   )}

@@ -22,6 +22,8 @@ export type MenuItem = {
   prepMinutes: number;
   isActive: boolean;
   isBestSeller: boolean;
+  /** null = auto-routed from the category's default_station_kind. */
+  stationId: string | null;
   variants: MenuVariant[];
   modifierGroupCount: number;
 };
@@ -38,7 +40,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     supabase
       .from('restaurant_products')
       .select(
-        'id, name, description, image_url, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order',
+        'id, name, description, image_url, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order, station_id',
       )
       .eq('organization_id', ctx.organizationId)
       .is('deleted_at', null)
@@ -93,6 +95,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     prepMinutes: product.prep_minutes,
     isActive: product.is_active,
     isBestSeller: product.is_best_seller,
+    stationId: product.station_id,
     variants: (variants ?? [])
       .filter((v) => v.product_id === product.id)
       .map((v) => ({
@@ -109,7 +112,7 @@ export async function listCategories(ctx: TenantContext) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from('restaurant_categories')
-    .select('id, name, description, image_url, sort_order, is_active')
+    .select('id, name, description, image_url, sort_order, is_active, default_station_kind')
     .eq('organization_id', ctx.organizationId)
     .order('sort_order')
     .order('name');
@@ -119,7 +122,13 @@ export async function listCategories(ctx: TenantContext) {
 
 export async function createCategory(
   ctx: TenantContext,
-  input: { name: string; description?: string; imageUrl?: string | null; sortOrder: number },
+  input: {
+    name: string;
+    description?: string;
+    imageUrl?: string | null;
+    sortOrder: number;
+    defaultStationKind?: 'kitchen' | 'bar';
+  },
 ) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
@@ -130,12 +139,43 @@ export async function createCategory(
       description: input.description ?? null,
       image_url: input.imageUrl ?? null,
       sort_order: input.sortOrder,
+      default_station_kind: input.defaultStationKind ?? 'kitchen',
       created_by: ctx.userId,
     })
     .select('id')
     .single();
   if (error) throw toAppError(error, 'createCategory');
   return data;
+}
+
+/** Which prep station a category routes to by default, unless a product overrides it. */
+export async function setCategoryStationKind(
+  ctx: TenantContext,
+  categoryId: string,
+  kind: 'kitchen' | 'bar',
+) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_categories')
+    .update({ default_station_kind: kind })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', categoryId);
+  if (error) throw toAppError(error, 'setCategoryStationKind');
+}
+
+/** An explicit per-product override; null returns it to the category's default. */
+export async function setProductStation(
+  ctx: TenantContext,
+  productId: string,
+  stationId: string | null,
+) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from('restaurant_products')
+    .update({ station_id: stationId })
+    .eq('organization_id', ctx.organizationId)
+    .eq('id', productId);
+  if (error) throw toAppError(error, 'setProductStation');
 }
 
 /** Sets or clears a category's photo. */
@@ -187,6 +227,7 @@ export async function createMenuProduct(ctx: TenantContext, input: MenuProductIn
       image_url: input.imageUrl ?? null,
       tax_rate_bp: Math.round(input.taxRatePercent * 100),
       prep_minutes: input.prepMinutes,
+      station_id: input.stationId ?? null,
       created_by: ctx.userId,
     })
     .select('id')

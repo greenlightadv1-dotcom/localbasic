@@ -12,6 +12,8 @@ import {
   toggleBestSellerSchema,
   setAvailabilitySchema,
   setImageSchema,
+  setCategoryStationSchema,
+  setProductStationSchema,
 } from '@/modules/restaurant/menu/schemas';
 import {
   createCategory,
@@ -21,7 +23,16 @@ import {
   setProductImage,
   setCategoryImage,
   setBranchAvailability,
+  setCategoryStationKind,
+  setProductStation,
 } from '@/modules/restaurant/menu/service';
+import { stationSchema, stationIdSchema, stationActiveSchema } from '@/modules/restaurant/stations/schemas';
+import {
+  createStation,
+  setStationActive,
+  deleteStation,
+  setOrderItemStation,
+} from '@/modules/restaurant/stations/service';
 import {
   sectionSchema,
   tableSchema,
@@ -120,6 +131,26 @@ export const setCategoryImageAction = defineTenantAction({
   },
 });
 
+export const setCategoryStationAction = defineTenantAction({
+  schema: setCategoryStationSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await setCategoryStationKind(ctx, input.id, input.defaultStationKind);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu');
+    return { ok: true };
+  },
+});
+
+export const setProductStationAction = defineTenantAction({
+  schema: setProductStationSchema,
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await setProductStation(ctx, input.productId, input.stationId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/kitchen');
+    return { ok: true };
+  },
+});
+
 /**
  * Marking a dish off at this branch. The kitchen can do this as well as a
  * manager — they are the ones who know the fridge is empty.
@@ -204,6 +235,53 @@ export const deleteTableAction = defineTenantAction({
   handler: async ({ ctx, input }) => {
     await deleteTable(ctx, input.tableId);
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/service', '/cashier');
+    return { ok: true };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Kitchen/bar stations — branch infrastructure, gated the same as tables.
+// ---------------------------------------------------------------------------
+export const createStationAction = defineTenantAction({
+  schema: stationSchema,
+  permission: 'restaurant.table.manage',
+  handler: async ({ ctx, input }) => {
+    const result = await createStation(ctx, {
+      ...input,
+      printerIp: input.printerIp || undefined,
+    });
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/menu', '/kitchen');
+    return result;
+  },
+});
+
+export const setStationActiveAction = defineTenantAction({
+  schema: stationActiveSchema,
+  permission: 'restaurant.table.manage',
+  handler: async ({ ctx, input }) => {
+    await setStationActive(ctx, input.stationId, input.isActive);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/menu', '/kitchen');
+    return { ok: true };
+  },
+});
+
+export const deleteStationAction = defineTenantAction({
+  schema: stationIdSchema,
+  permission: 'restaurant.table.manage',
+  handler: async ({ ctx, input }) => {
+    await deleteStation(ctx, input.stationId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/tables', '/menu', '/kitchen');
+    return { ok: true };
+  },
+});
+
+/** Manual cashier override: send one order item's ticket to a different station. */
+export const setOrderItemStationAction = defineTenantAction({
+  schema: z.object({ orderItemId: z.string().uuid(), stationId: z.string().uuid() }),
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await setOrderItemStation(ctx, input.orderItemId, input.stationId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/kitchen', '/orders');
     return { ok: true };
   },
 });

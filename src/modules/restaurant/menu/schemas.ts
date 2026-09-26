@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const STATION_KINDS = ['kitchen', 'bar'] as const;
+export type StationKind = (typeof STATION_KINDS)[number];
+
 /** Accepts "12.50" or 1250-style input and stores integer minor units. */
 export const priceInput = z
   .union([z.string(), z.number()])
@@ -16,6 +19,12 @@ export const categorySchema = z.object({
   description: z.string().trim().max(500).optional(),
   imageUrl: z.string().trim().url().max(2000).nullable().optional(),
   sortOrder: z.coerce.number().int().min(0).default(0),
+  defaultStationKind: z.enum(STATION_KINDS).default('kitchen'),
+});
+
+export const setCategoryStationSchema = z.object({
+  id: z.string().uuid(),
+  defaultStationKind: z.enum(STATION_KINDS),
 });
 
 export const setImageSchema = z.object({
@@ -30,6 +39,8 @@ export const menuProductSchema = z.object({
   imageUrl: z.string().trim().url().max(2000).nullable().optional(),
   taxRatePercent: z.coerce.number().min(0).max(100).default(0),
   prepMinutes: z.coerce.number().int().min(0).max(600).default(0),
+  /** null = auto-route from the category's default_station_kind. */
+  stationId: z.string().uuid().nullable().optional(),
   variants: z
     .array(
       z.object({
@@ -64,6 +75,11 @@ export const toggleProductSchema = z.object({
 export const toggleBestSellerSchema = z.object({
   productId: z.string().uuid(),
   isBestSeller: z.coerce.boolean(),
+});
+
+export const setProductStationSchema = z.object({
+  productId: z.string().uuid(),
+  stationId: z.string().uuid().nullable(),
 });
 
 export const setAvailabilitySchema = z.object({

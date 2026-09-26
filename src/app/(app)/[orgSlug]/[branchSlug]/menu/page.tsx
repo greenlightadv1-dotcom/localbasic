@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { listMenu, listCategories } from '@/modules/restaurant/menu/service';
+import { listStations } from '@/modules/restaurant/stations/service';
 import { PageHeader } from '@/components/patterns/page-header';
 import { MenuManager } from './menu-manager';
 
@@ -14,7 +15,11 @@ export default async function MenuPage({
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!can(ctx, 'restaurant.menu.read')) notFound();
 
-  const [menu, categories] = await Promise.all([listMenu(ctx), listCategories(ctx)]);
+  const [menu, categories, stations] = await Promise.all([
+    listMenu(ctx),
+    listCategories(ctx),
+    listStations(ctx),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -25,6 +30,7 @@ export default async function MenuPage({
       <MenuManager
         menu={menu}
         categories={categories}
+        stations={stations}
         currency={ctx.currency}
         canManage={can(ctx, 'restaurant.menu.manage')}
         organizationId={ctx.organizationId}
