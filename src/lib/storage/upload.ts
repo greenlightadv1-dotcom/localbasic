@@ -1,35 +1,36 @@
 'use client';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { createMediaUploadTicket, deleteMediaAction } from './actions';
+import { MAX_UPLOAD_BYTES, MEDIA_PURPOSES, validateImageFile, type MediaPurpose } from './media';
 
 /**
  * Direct-to-Storage uploads, from the browser, under the signed-in member's
- * own session — no server route in the middle. RLS (0069/0072) is the only
- * gate: a path's first segment names the organization, and the
- * INSERT/UPDATE/DELETE policies check the caller is an ACTIVE member of
- * THAT organization — not a specific feature permission, since uploading a
- * file does not by itself attach its URL anywhere. Whichever screen calls
- * this (menu, branding, a site section) re-checks its own permission
- * (restaurant.menu.manage, branding.manage, site.manage, …) server-side
- * before writing the resulting URL into the row it actually belongs to.
+ * own session.
+ *
+ * The file bytes never pass through this application's server: a small
+ * Server Action (createMediaUploadTicket, src/lib/storage/actions.ts) mints a
+ * short-lived signed upload URL there, where the httpOnly session cookie is
+ * actually readable, and Storage RLS (0069/0072/0075) is the real gate — any
+ * ACTIVE member of the organization named by the path, not a specific
+ * feature permission, since uploading a file does not by itself attach its
+ * URL anywhere. Whichever screen calls this (menu, branding, a site section)
+ * re-checks its own permission (restaurant.menu.manage, branding.manage, …)
+ * server-side before writing the resulting URL into the row it actually
+ * belongs to.
+ *
+ * Why not call `.storage.upload()` straight from the browser client, the way
+ * this used to work: that client manages its session via document.cookie,
+ * which this app's auth cookies are deliberately NOT readable from (httpOnly
+ * — src/lib/supabase/server.ts). A direct browser upload therefore always
+ * reaches Storage looking anonymous, RLS correctly refuses it, and the
+ * result reads as "your session expired" even for an active member. Minting
+ * the ticket server-side (where the cookie IS readable) fixes that without
+ * giving up either the httpOnly session or the direct-to-Storage transfer
+ * large images need.
  */
 
-export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
-
-export type MediaPurpose = 'logo' | 'banner' | 'product' | 'category' | 'bundle';
-
-export function validateImageFile(file: File): string | null {
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return 'الصيغة غير مدعومة. استخدم JPG أو PNG أو WEBP أو GIF.';
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return 'حجم الملف أكبر من 8 ميجابايت.';
-  }
-  return null;
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export { MAX_UPLOAD_BYTES, MEDIA_PURPOSES, validateImageFile, type MediaPurpose };
 
 export async function uploadMedia(
   organizationId: string,
@@ -39,39 +40,24 @@ export async function uploadMedia(
   const invalid = validateImageFile(file);
   if (invalid) throw new Error(invalid);
 
-  // The path's first segment IS the RLS check (app.media_path_org reads it
-  // straight back out) — a blank or malformed organizationId would silently
-  // build a path no policy grants anyone, and Storage would report that as
-  // the same generic RLS violation this function exists partly to explain.
-  // Caught here, before the request, it is obviously a caller bug rather
-  // than another report of the Storage policy itself being wrong.
-  if (!UUID_RE.test(organizationId)) {
-    throw new Error('تعذّر رفع الصورة: معرّف المنشأة غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+
+  const ticket = await createMediaUploadTicket({ organizationId, purpose, ext });
+  if (!ticket.ok) {
+    throw new Error(
+      ticket.code === 'unauthenticated'
+        ? 'تعذّر رفع الصورة: يبدو أن جلستك انتهت. أعد تحميل الصفحة وسجّل الدخول مرة أخرى.'
+        : ticket.error,
+    );
   }
 
   const supabase = createSupabaseBrowserClient();
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  const path = `${organizationId}/${purpose}/${crypto.randomUUID()}.${ext}`;
+  const { path, token } = ticket.data;
 
-  const { error } = await supabase.storage.from('media').upload(path, file, {
-    cacheControl: '31536000',
-    upsert: false,
-    contentType: file.type,
-  });
-  if (error) {
-    // The RLS policies (0069/0072/0075) grant any ACTIVE organization member
-    // full access to their own org's folder. Reaching this message today
-    // almost always means the browser's session cookie is stale — expired or
-    // signed out in another tab — not that the policy itself refused an
-    // active member, so the fix on this side is to sign back in, not to
-    // retry the same request.
-    const isRls = /row-level security|row level security/i.test(error.message);
-    throw new Error(
-      isRls
-        ? 'تعذّر رفع الصورة: يبدو أن جلستك انتهت. أعد تحميل الصفحة وسجّل الدخول مرة أخرى.'
-        : error.message,
-    );
-  }
+  const { error } = await supabase.storage
+    .from('media')
+    .uploadToSignedUrl(path, token, file, { contentType: file.type });
+  if (error) throw new Error(`تعذّر رفع الصورة: ${error.message}`);
 
   const { data } = supabase.storage.from('media').getPublicUrl(path);
   return { url: data.publicUrl, path };
@@ -89,6 +75,5 @@ export async function deleteMediaByUrl(url: string): Promise<void> {
   const at = url.indexOf(marker);
   if (at === -1) return;
   const path = decodeURIComponent(url.slice(at + marker.length));
-  const supabase = createSupabaseBrowserClient();
-  await supabase.storage.from('media').remove([path]);
+  await deleteMediaAction({ path });
 }

@@ -62,6 +62,11 @@ export const RATE_LIMITS = {
   // would refuse real orders. Still a real cap — a script cannot sit on the
   // endpoint — and stock is protected by the ledger regardless.
   storeCheckout: { limit: 30, windowMs: 10 * 60_000 },
+  // Minting a signed Storage upload ticket / deleting an old file — no file
+  // bytes cross this limit, only the small per-call round trip, so it can
+  // afford to be generous (a product-image screen can fire many in one
+  // session) while still capping a runaway client.
+  mediaUpload: { limit: 60, windowMs: 10 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 export function checkRateLimit(key: string, rule: RateLimitRule): { ok: boolean; retryAfterMs: number } {
