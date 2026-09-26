@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
+import { addFavorite, removeFavorite } from '@/modules/restaurant/account/service';
 import { AppError } from '@/lib/errors';
 
 export type CheckoutState = { error?: string } | undefined;
@@ -99,6 +100,29 @@ export async function editOrderAction(
   }
   revalidatePath(`/order/track/${token}`);
   return { ok: 'تم تعديل الطلب.' };
+}
+
+/**
+ * Toggle a favorite from the ordering screen itself, not the account area.
+ *
+ * Deliberately does not redirect: the storefront is a client component with
+ * live cart state, and a full navigation here would throw that cart away.
+ * A signed-out guest is never routed here — the heart button only renders
+ * for a signed-in customer — but a stale or foreign productId still just
+ * silently does nothing, the same as the account-area version.
+ */
+export async function toggleFavoriteAction(input: {
+  orgSlug: string;
+  productId: string;
+  on: boolean;
+}): Promise<{ ok: boolean }> {
+  try {
+    if (input.on) await addFavorite({ orgSlug: input.orgSlug, productId: input.productId });
+    else await removeFavorite({ orgSlug: input.orgSlug, productId: input.productId });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** Re-price a cart from the menu. Used by the cart UI; never trusted from it. */

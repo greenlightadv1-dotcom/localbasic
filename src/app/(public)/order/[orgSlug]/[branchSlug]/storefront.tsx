@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { checkoutAction, quoteCartAction, type CheckoutState } from '../../actions';
+import { checkoutAction, quoteCartAction, toggleFavoriteAction, type CheckoutState } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
 import { cn } from '@/lib/cn';
@@ -45,6 +45,8 @@ export function Storefront({
   savedAddresses = [],
   customerName = '',
   customerPhone = '',
+  signedIn = false,
+  favoriteProductIds = [],
 }: {
   orgSlug: string;
   branchSlug: string;
@@ -61,6 +63,10 @@ export function Storefront({
   savedAddresses?: { id: string; label: string; address: string; isDefault: boolean }[];
   customerName?: string;
   customerPhone?: string;
+  /** Whether a customer account is signed in. The heart toggle only ever
+   *  renders for one — a guest has no favorites row to toggle. */
+  signedIn?: boolean;
+  favoriteProductIds?: string[];
 }) {
   // Only the options the branch actually offers. The server refuses anything
   // else regardless, so this is presentation, not enforcement.
@@ -174,6 +180,29 @@ export function Storefront({
 
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
+  // Optimistic: the heart flips immediately, and the write happens in the
+  // background. If it fails, the toggle is silently reverted — no error
+  // banner over something this low-stakes.
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set(favoriteProductIds));
+
+  function toggleFavorite(productId: string) {
+    const wasOn = favorites.has(productId);
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (wasOn) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    void toggleFavoriteAction({ orgSlug, productId, on: !wasOn }).then((res) => {
+      if (!res.ok) {
+        setFavorites((prev) => {
+          const next = new Set(prev);
+          if (wasOn) next.add(productId); else next.delete(productId);
+          return next;
+        });
+      }
+    });
+  }
+
   return (
     <div className="grid gap-8 pb-24 lg:grid-cols-[1.4fr_1fr] lg:pb-0">
       <section>
@@ -183,7 +212,7 @@ export function Storefront({
           <div
             role="tablist"
             aria-label="تصنيفات المنيو"
-            className="mb-4 flex gap-2 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="mb-4 flex flex-wrap gap-2"
           >
             <button
               type="button"
@@ -236,9 +265,25 @@ export function Storefront({
                       <p className="mt-0.5 text-sm text-muted">{item.description}</p>
                     ) : null}
                   </div>
-                  <span className="shrink-0 font-bold text-fg">
-                    {money(item.priceCents, currency)}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {signedIn && (
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(item.productId)}
+                        aria-pressed={favorites.has(item.productId)}
+                        aria-label={favorites.has(item.productId) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                        className={cn(
+                          'flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-colors',
+                          favorites.has(item.productId) ? 'text-danger' : 'text-muted/50 hover:text-danger',
+                        )}
+                      >
+                        {favorites.has(item.productId) ? '♥' : '♡'}
+                      </button>
+                    )}
+                    <span className="font-bold text-fg">
+                      {money(item.priceCents, currency)}
+                    </span>
+                  </div>
                 </div>
 
                 <AddControl item={item} groups={groups} currency={currency} onAdd={add} />

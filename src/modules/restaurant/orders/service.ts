@@ -53,6 +53,12 @@ export async function listOrders(
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
+    // An online order's own customer still has customer_edit_until to change
+    // their mind or cancel — see 0036/0040. Staff must not see it, let alone
+    // start cooking it, until that window has actually elapsed; a dine-in or
+    // cashier order has no such column set, so this only ever hides online
+    // orders still inside their own grace period.
+    .or(`channel.neq.online,customer_edit_until.is.null,customer_edit_until.lte.${new Date().toISOString()}`)
     // NEWEST first in the query, oldest first in the result — see below.
     .order('placed_at', { ascending: false })
     .limit(Math.min(options.limit ?? 100, 300));

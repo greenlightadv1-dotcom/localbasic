@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
-import { currentUser, getAddresses, getProfile } from '@/modules/restaurant/account/service';
+import { currentUser, getAddresses, getProfile, getFavorites } from '@/modules/restaurant/account/service';
 import { hexToRgbChannels } from '@/lib/color';
 import { Storefront } from './storefront';
 
@@ -41,9 +41,13 @@ export default async function OrderPage({
   // requires an account, and nothing below changes what the server will
   // accept — only what the form starts out holding.
   const user = await currentUser();
-  const [profile, addresses] = user
-    ? await Promise.all([getProfile(params.orgSlug), getAddresses(params.orgSlug)])
-    : [null, []];
+  const [profile, addresses, favorites] = user
+    ? await Promise.all([
+        getProfile(params.orgSlug),
+        getAddresses(params.orgSlug),
+        getFavorites(params.orgSlug),
+      ])
+    : [null, [], []];
 
   // The restaurant's own colors, not LocalBasic's — see 0068. Scoped as CSS
   // variables on this page's own root, exactly the way the Site Engine
@@ -87,6 +91,8 @@ export default async function OrderPage({
         }))}
         customerName={profile?.fullName ?? ''}
         customerPhone={profile?.phone ?? ''}
+        signedIn={Boolean(user)}
+        favoriteProductIds={favorites.map((f) => f.productId)}
       />
     </div>
   );
