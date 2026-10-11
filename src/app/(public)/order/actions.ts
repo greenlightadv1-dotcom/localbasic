@@ -3,7 +3,6 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
-import { addFavorite, removeFavorite } from '@/modules/restaurant/account/service';
 import { AppError } from '@/lib/errors';
 import {
   startGuestVerification, guestDeviceTrusted,
@@ -16,7 +15,6 @@ function checkoutInputFromForm(formData: FormData) {
   const orgSlug = String(formData.get('orgSlug') ?? '');
   const branchSlug = String(formData.get('branchSlug') ?? '');
   const fulfillment = String(formData.get('fulfillment') ?? 'pickup');
-  const savedAddressId = String(formData.get('savedAddressId') ?? '');
 
   const items = JSON.parse(String(formData.get('items') ?? '[]'));
   const latitude = formData.get('latitude');
@@ -34,12 +32,8 @@ function checkoutInputFromForm(formData: FormData) {
     deviceId: String(formData.get('deviceId') ?? '') || undefined,
     latitude: latitude ? Number(latitude) : undefined,
     longitude: longitude ? Number(longitude) : undefined,
-    // D3: an id only. The address that reaches the order is read from the
-    // database under the signed-in customer's own row; a guest sends none
-    // and this stays undefined, leaving the D1 path exactly as it was.
-    ...(savedAddressId ? { savedAddressId } : {}),
     address:
-      fulfillment === 'delivery' && !savedAddressId
+      fulfillment === 'delivery'
         ? {
             address: String(formData.get('address') ?? ''),
             city: String(formData.get('city') ?? ''),
@@ -51,12 +45,10 @@ function checkoutInputFromForm(formData: FormData) {
 }
 
 /**
- * Checkout for an already-authenticated customer.
- *
- * Reached only from the signed-in path in the storefront (0078): a
- * signed-out visitor is redirected to sign in/sign up — phone + OTP — before
- * this action is ever reachable, so there is no separate guest checkout path
- * to keep in step with this one.
+ * Checkout for a guest: a phone number and this browser's device id
+ * (checked against WhatsApp-verified devices in the storefront before this
+ * action ever fires) are the only identity involved — no account, no
+ * password, no SMS OTP.
  */
 export async function checkoutAction(
   _prev: CheckoutState,
@@ -116,29 +108,6 @@ export async function editOrderAction(
   }
   revalidatePath(`/order/track/${token}`);
   return { ok: 'تم تعديل الطلب.' };
-}
-
-/**
- * Toggle a favorite from the ordering screen itself, not the account area.
- *
- * Deliberately does not redirect: the storefront is a client component with
- * live cart state, and a full navigation here would throw that cart away.
- * A signed-out guest is never routed here — the heart button only renders
- * for a signed-in customer — but a stale or foreign productId still just
- * silently does nothing, the same as the account-area version.
- */
-export async function toggleFavoriteAction(input: {
-  orgSlug: string;
-  productId: string;
-  on: boolean;
-}): Promise<{ ok: boolean }> {
-  try {
-    if (input.on) await addFavorite({ orgSlug: input.orgSlug, productId: input.productId });
-    else await removeFavorite({ orgSlug: input.orgSlug, productId: input.productId });
-    return { ok: true };
-  } catch {
-    return { ok: false };
-  }
 }
 
 /** Re-price a cart from the menu. Used by the cart UI; never trusted from it. */

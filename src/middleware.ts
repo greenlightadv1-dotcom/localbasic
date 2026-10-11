@@ -18,7 +18,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
  * branch, a QR token names its link — so they work unchanged on a custom
  * domain and must not be rewritten into the website subtree.
  */
-const HOST_NEUTRAL_PREFIXES = ['/_next', '/api', '/order', '/p/', '/r/', '/account/join'];
+const HOST_NEUTRAL_PREFIXES = ['/_next', '/api', '/order', '/p/', '/r/'];
 
 /**
  * Is this request arriving on one of LocalBasic's own addresses?

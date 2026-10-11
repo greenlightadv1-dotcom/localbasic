@@ -145,13 +145,11 @@ function Mark({ site, className, animated = false }: { site: Website; className?
 }
 
 export function SiteHeader({
-  site, orgSlug, branch, signedIn, theme = DEFAULT_THEME,
+  site, orgSlug, branch, theme = DEFAULT_THEME,
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
-  /** Drives the account link only. Authorisation is never a rendered state. */
-  signedIn: boolean;
   theme?: Theme;
 }) {
   const orderHref = branch ? `/order/${orgSlug}/${branch.slug}` : null;
@@ -186,12 +184,6 @@ export function SiteHeader({
           >
             أين نحن
           </a>
-          <Link
-            href={signedIn ? `/r/${orgSlug}/account` : `/r/${orgSlug}/account/sign-in`}
-            className="rounded px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg"
-          >
-            {signedIn ? 'حسابي' : 'تسجيل الدخول'}
-          </Link>
           {canOrder && orderHref ? (
             <Link
               href={orderHref}
@@ -207,15 +199,11 @@ export function SiteHeader({
 }
 
 export function Hero({
-  site, orgSlug, branch, signedIn, config = {},
+  site, orgSlug, branch, config = {},
 }: {
   site: Website;
   orgSlug: string;
   branch: PublicBranch | null;
-  /** Gates the order button (0078): a signed-out visitor goes to sign-in/
-   *  sign-up first, carrying the order page as `next`, rather than straight
-   *  to the storefront. */
-  signedIn: boolean;
   /** Builder content. Empty for a restaurant on the default layout. */
   config?: SectionConfig;
 }) {
@@ -225,11 +213,7 @@ export function Hero({
   const heroImage = config.imageUrl || site.heroUrl;
   const heading = config.title || site.organizationName;
   const tagline = config.subtitle ?? site.tagline;
-  const orderHref = branch
-    ? signedIn
-      ? `/order/${orgSlug}/${branch.slug}`
-      : `/r/${orgSlug}/account/sign-in?next=${encodeURIComponent(`/order/${orgSlug}/${branch.slug}`)}`
-    : null;
+  const orderHref = branch ? `/order/${orgSlug}/${branch.slug}` : null;
 
   return (
     <section className="relative overflow-hidden border-b border-line">

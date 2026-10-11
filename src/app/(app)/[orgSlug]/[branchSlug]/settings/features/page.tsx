@@ -47,6 +47,7 @@ export default async function FeaturesPage({
         initialLatitude={geofence.latitude}
         initialLongitude={geofence.longitude}
         initialRadiusM={geofence.radiusM}
+        initialServiceCities={geofence.serviceCities}
       />
     </div>
   );

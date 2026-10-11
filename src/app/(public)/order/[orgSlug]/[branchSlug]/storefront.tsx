@@ -1,17 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { useFormState } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import {
-  checkoutAction, quoteCartAction, toggleFavoriteAction, checkGuestDeviceAction,
+  checkoutAction, quoteCartAction, checkGuestDeviceAction,
   startGuestVerificationAction, type CheckoutState,
 } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
 import { cn } from '@/lib/cn';
-import { LAVECHI_GOLD_GLOW } from '@/modules/restaurant/website/lavechi-theme';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
@@ -25,6 +23,11 @@ function money(cents: number, currency: string) {
 
 /**
  * Guest storefront.
+ *
+ * No account, no password, no SMS OTP — a phone number plus this browser's
+ * device id is the only identity involved, exactly like the table-QR flow
+ * (/p/[token]). A first-time (device, phone) pair sees the WhatsApp
+ * verification step before checkout completes; a recognised one skips it.
  *
  * The cart lives here, in the browser, and is never persisted as a priced
  * thing: the numbers shown come from quoteCartAction, which re-reads the menu
@@ -40,11 +43,6 @@ export function Storefront({
   currency,
   pickupEnabled,
   deliveryEnabled,
-  savedAddresses = [],
-  customerName = '',
-  customerPhone = '',
-  signedIn = false,
-  favoriteProductIds = [],
 }: {
   orgSlug: string;
   branchSlug: string;
@@ -54,23 +52,6 @@ export function Storefront({
   currency: string;
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
-  /**
-   * D3. Empty for a guest, which leaves this component on exactly the D1 path.
-   * The text shown here is a label; the address that reaches the order is read
-   * from the database by id, under the caller's own customer row.
-   */
-  savedAddresses?: { id: string; label: string; address: string; isDefault: boolean }[];
-  customerName?: string;
-  customerPhone?: string;
-  /**
-   * Whether a customer account is signed in. The heart toggle only ever
-   * renders for one — a guest has no favorites row to toggle. Checkout
-   * itself is gated on it (0078): a signed-out visitor still browses and
-   * builds a cart, but placing the order redirects to sign-in/sign-up
-   * first, with the cart preserved across that round trip.
-   */
-  signedIn?: boolean;
-  favoriteProductIds?: string[];
 }) {
   // Only the options the branch actually offers. The server refuses anything
   // else regardless, so this is presentation, not enforcement.
@@ -86,66 +67,20 @@ export function Storefront({
   // above `lg:`, where the panel is always visible in its own column.
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
-  const router = useRouter();
 
-  // Returning-guest convenience: a signed-out visitor's name/phone are
-  // remembered locally so they are not retyped on the next visit — on this
-  // device only, and only ever a fallback under whatever the server already
-  // knows (a signed-in customer's real profile always wins, since
-  // `customerName`/`customerPhone` arrive non-empty in that case). The keys
-  // are shared with the table-QR ordering flow (/p/[token]).
-  const [name, setName] = useState(customerName);
-  const [phone, setPhone] = useState(customerPhone);
+  // A returning guest's name/phone are remembered locally so they are not
+  // retyped on the next visit — on this device only. The keys are shared
+  // with the table-QR ordering flow (/p/[token]).
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   useEffect(() => {
-    if (signedIn) return;
     try {
-      if (!name) setName(localStorage.getItem('lb-guest-name') ?? '');
-      if (!phone) setPhone(localStorage.getItem('lb-guest-phone') ?? '');
+      setName(localStorage.getItem('lb-guest-name') ?? '');
+      setPhone(localStorage.getItem('lb-guest-phone') ?? '');
     } catch {
       // Private browsing or a blocked store: fields just start empty.
     }
-    // Only ever runs once, on mount — deliberately not re-reading on every
-    // prop change, since it exists purely to fill in what the server sent
-    // empty for a signed-out visitor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Checkout is gated on having an account (0078). A signed-out visitor still
-  // browses and builds a full cart; the cart is what would otherwise be lost
-  // sending them off to sign in, so it is stashed here and restored once they
-  // are back — signed in, on this exact page — rather than requiring the
-  // trip to remember nothing.
-  const cartStorageKey = `lb-cart:${orgSlug}:${branchSlug}`;
-  useEffect(() => {
-    if (!signedIn) return;
-    try {
-      const saved = localStorage.getItem(cartStorageKey);
-      if (!saved) return;
-      const restored = JSON.parse(saved) as { lines: Line[]; fulfillment: Fulfillment };
-      if (Array.isArray(restored.lines) && restored.lines.length > 0) {
-        setLines(restored.lines);
-        if (restored.fulfillment) setFulfillment(restored.fulfillment);
-        repriceWith(restored.lines, restored.fulfillment ?? fulfillment);
-      }
-      localStorage.removeItem(cartStorageKey);
-    } catch {
-      // A corrupt or blocked store just means starting with an empty cart.
-    }
-    // Only ever runs once, right after landing back here signed in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn]);
-
-  function goToSignIn() {
-    try {
-      if (lines.length > 0) {
-        localStorage.setItem(cartStorageKey, JSON.stringify({ lines, fulfillment }));
-      }
-    } catch {
-      // Best-effort only — worst case the cart is empty when they return.
-    }
-    const next = `/order/${orgSlug}/${branchSlug}`;
-    router.push(`/r/${orgSlug}/account/sign-in?next=${encodeURIComponent(next)}`);
-  }
 
   const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
@@ -221,11 +156,6 @@ export function Storefront({
   // and has to be unguessable. The retail storefront already generates it this
   // way; this one did not.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
-
-  // '' means "type a new address". Pre-selects the customer's default.
-  const [savedAddressId, setSavedAddressId] = useState(
-    () => savedAddresses.find((a) => a.isDefault)?.id ?? savedAddresses[0]?.id ?? '',
-  );
 
   const groupsByProduct = useMemo(() => {
     const m = new Map<string, ModifierGroup[]>();
@@ -325,29 +255,6 @@ export function Storefront({
 
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
-  // Optimistic: the heart flips immediately, and the write happens in the
-  // background. If it fails, the toggle is silently reverted — no error
-  // banner over something this low-stakes.
-  const [favorites, setFavorites] = useState<Set<string>>(() => new Set(favoriteProductIds));
-
-  function toggleFavorite(productId: string) {
-    const wasOn = favorites.has(productId);
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (wasOn) next.delete(productId); else next.add(productId);
-      return next;
-    });
-    void toggleFavoriteAction({ orgSlug, productId, on: !wasOn }).then((res) => {
-      if (!res.ok) {
-        setFavorites((prev) => {
-          const next = new Set(prev);
-          if (wasOn) next.add(productId); else next.delete(productId);
-          return next;
-        });
-      }
-    });
-  }
-
   return (
     <div className="grid gap-8 pb-24 lg:grid-cols-[1.4fr_1fr] lg:pb-0">
       <section>
@@ -387,9 +294,6 @@ export function Storefront({
                           groups={groupsByProduct.get(item.productId) ?? []}
                           currency={currency}
                           onAdd={add}
-                          signedIn={signedIn}
-                          isFavorite={favorites.has(item.productId)}
-                          onToggleFavorite={() => toggleFavorite(item.productId)}
                         />
                       ))}
                     </ul>
@@ -407,9 +311,6 @@ export function Storefront({
                 groups={groupsByProduct.get(item.productId) ?? []}
                 currency={currency}
                 onAdd={add}
-                signedIn={signedIn}
-                isFavorite={favorites.has(item.productId)}
-                onToggleFavorite={() => toggleFavorite(item.productId)}
               />
             ))}
           </ul>
@@ -518,35 +419,12 @@ export function Storefront({
           </div>
         </div>
 
-        {!signedIn ? (
-          // Checkout is gated on an account (0078) — a signed-out visitor
-          // still builds a full cart, but placing the order needs a phone
-          // number to place it under. goToSignIn() stashes the cart first,
-          // so it is exactly as it was when they come back signed in.
-          <div className="mt-4 rounded-[18px] border border-line bg-elevated p-4 text-center">
-            <p className="mb-3 text-sm text-muted">
-              سجّل الدخول لإتمام الطلب — رقم هاتفك هو حسابك.
-            </p>
-            <button
-              type="button"
-              onClick={goToSignIn}
-              disabled={lines.length === 0}
-              style={{ boxShadow: lines.length > 0 ? LAVECHI_GOLD_GLOW : undefined }}
-              className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
-            >
-              تسجيل الدخول لإتمام الطلب
-            </button>
-          </div>
-        ) : (
         <form ref={formRef} onSubmit={handleSubmit} className="mt-4 space-y-3">
           <input type="hidden" name="orgSlug" value={orgSlug} />
           <input type="hidden" name="branchSlug" value={branchSlug} />
           <input type="hidden" name="fulfillment" value={fulfillment} />
           <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
           <input type="hidden" name="items" value={JSON.stringify(lines)} />
-          {fulfillment === 'delivery' && savedAddressId ? (
-            <input type="hidden" name="savedAddressId" value={savedAddressId} />
-          ) : null}
 
           {state?.error ? (
             <p className="rounded-[13px] border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -567,25 +445,7 @@ export function Storefront({
               className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
-          {fulfillment === 'delivery' && savedAddresses.length > 0 ? (
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-fg">عنوان التوصيل</span>
-              <select
-                value={savedAddressId}
-                onChange={(e) => setSavedAddressId(e.target.value)}
-                className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none"
-              >
-                {savedAddresses.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label} — {a.address}
-                  </option>
-                ))}
-                <option value="">عنوان جديد…</option>
-              </select>
-            </label>
-          ) : null}
-
-          {fulfillment === 'delivery' && !savedAddressId ? (
+          {fulfillment === 'delivery' ? (
             <>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-fg">العنوان</span>
@@ -640,7 +500,6 @@ export function Storefront({
             الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
           </p>
         </form>
-        )}
       </section>
 
       {/* Mobile only: a sticky bottom bar standing in for the cart panel,
@@ -696,15 +555,12 @@ function ItemThumbFallback() {
  * customised grows.
  */
 function MenuRow({
-  item, groups, currency, onAdd, signedIn, isFavorite, onToggleFavorite,
+  item, groups, currency, onAdd,
 }: {
   item: MenuItem;
   groups: ModifierGroup[];
   currency: string;
   onAdd: (item: MenuItem, modifierIds: string[]) => void;
-  signedIn: boolean;
-  isFavorite: boolean;
-  onToggleFavorite: () => void;
 }) {
   const hasModifiers = groups.length > 0;
   const [expanded, setExpanded] = useState(false);
@@ -761,21 +617,6 @@ function MenuRow({
             {money(item.priceCents, currency)}
           </span>
         </div>
-
-        {signedIn && (
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            aria-pressed={isFavorite}
-            aria-label={isFavorite ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-            className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center text-lg leading-none transition-colors',
-              isFavorite ? 'text-danger' : 'text-muted/60 hover:text-danger',
-            )}
-          >
-            {isFavorite ? '♥' : '♡'}
-          </button>
-        )}
 
         <button
           type="button"

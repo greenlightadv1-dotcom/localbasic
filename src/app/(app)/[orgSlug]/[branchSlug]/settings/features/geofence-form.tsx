@@ -19,15 +19,18 @@ export function GeofenceForm({
   initialLatitude,
   initialLongitude,
   initialRadiusM,
+  initialServiceCities,
 }: {
   scope: { organizationSlug: string; branchSlug: string };
   initialLatitude: number | null;
   initialLongitude: number | null;
   initialRadiusM: number;
+  initialServiceCities: string[];
 }) {
   const [latitude, setLatitude] = useState(initialLatitude?.toString() ?? '');
   const [longitude, setLongitude] = useState(initialLongitude?.toString() ?? '');
   const [radiusM, setRadiusM] = useState(String(initialRadiusM));
+  const [serviceCities, setServiceCities] = useState(initialServiceCities.join('، '));
   const [isPending, startTransition] = useTransition();
   const [locating, setLocating] = useState(false);
   const toast = useToast();
@@ -47,25 +50,26 @@ export function GeofenceForm({
   function save() {
     startTransition(async () => {
       const result = await saveGeofenceAction(scope, {
-        latitude, longitude, radiusM, scope: 'branch',
+        latitude, longitude, radiusM, serviceCities, scope: 'branch',
       });
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success('تم حفظ موقع الفرع');
+      toast.success('تم حفظ موقع الفرع ونطاق التوصيل');
     });
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>موقع الفرع (للتحقق من الطلبات)</CardTitle>
+        <CardTitle>موقع المطعم ونطاق التوصيل</CardTitle>
       </CardHeader>
       <CardBody className="space-y-3">
         <p className="text-sm text-muted">
           يُستخدم للتأكد أن طلب الطاولة (QR) يصل من داخل المطعم فعليًا، وللإشارة في طلبات
-          التوصيل والاستلام إذا كان العميل بعيدًا. بدون ضبط الموقع لا يُطبَّق أي تحقق.
+          التوصيل والاستلام إذا كان العميل بعيدًا أو خارج مدن الخدمة. بدون ضبط الموقع لا يُطبَّق
+          أي تحقق.
         </p>
         <Button type="button" variant="outline" onClick={useCurrentLocation} disabled={locating}>
           {locating ? 'جارٍ تحديد الموقع…' : 'استخدم موقعي الحالي'}
@@ -83,6 +87,17 @@ export function GeofenceForm({
         <label className="block">
           <span className="mb-1 block text-xs font-medium">نطاق القبول (متر)</span>
           <Input dir="ltr" value={radiusM} onChange={(e) => setRadiusM(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium">مدن/مناطق الخدمة (التوصيل)</span>
+          <Input
+            value={serviceCities}
+            onChange={(e) => setServiceCities(e.target.value)}
+            placeholder="مثال: القاهرة، الجيزة"
+          />
+          <span className="mt-1 block text-xs text-muted">
+            افصل بين المدن بفاصلة. اتركه فارغًا لقبول كل المدن.
+          </span>
         </label>
         <Button type="button" onClick={save} disabled={isPending || !latitude || !longitude}>
           {isPending ? 'جارٍ الحفظ…' : 'حفظ'}

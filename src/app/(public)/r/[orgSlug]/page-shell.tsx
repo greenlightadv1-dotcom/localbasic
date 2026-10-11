@@ -5,9 +5,6 @@ import {
   getWebsite, getBranches,
   type Website, type PublicBranch,
 } from '@/modules/restaurant/website/service';
-import {
-  currentUser, getFavorites, getProfile, getAddresses,
-} from '@/modules/restaurant/account/service';
 import { getOnlineMenu, type MenuItem, type ModifierGroup } from '@/modules/restaurant/online/service';
 import { getPublishedLayout } from '@/modules/restaurant/website/builder';
 import {
@@ -74,13 +71,8 @@ function renderSection(
     orgSlug: string;
     branch: PublicBranch;
     branches: PublicBranch[];
-    signedIn: boolean;
-    favoriteIds: Set<string>;
     menuItems: MenuItem[];
     modifierGroups: ModifierGroup[];
-    savedAddresses: { id: string; label: string; address: string; isDefault: boolean }[];
-    customerName: string;
-    customerPhone: string;
   },
 ) {
   const { config } = spec;
@@ -89,7 +81,7 @@ function renderSection(
       return (
         <Hero
           site={ctx.site} orgSlug={ctx.orgSlug} branch={ctx.branch}
-          signedIn={ctx.signedIn} config={config}
+          config={config}
         />
       );
     case 'about':
@@ -114,11 +106,6 @@ function renderSection(
           currency={ctx.site.currency}
           pickupEnabled={ctx.branch.pickupEnabled}
           deliveryEnabled={ctx.branch.deliveryEnabled}
-          savedAddresses={ctx.savedAddresses}
-          customerName={ctx.customerName}
-          customerPhone={ctx.customerPhone}
-          signedIn={ctx.signedIn}
-          favoriteProductIds={[...ctx.favoriteIds]}
         />
       );
     case 'gallery':
@@ -173,21 +160,10 @@ export async function RestaurantSite({
   // to a different branch than the one asked for.
   if (!branch) notFound();
 
-  const [onlineMenu, user, published] = await Promise.all([
+  const [onlineMenu, published] = await Promise.all([
     getOnlineMenu({ orgSlug, branchSlug: branch.slug }).catch(() => ({ items: [], modifierGroups: [] })),
-    currentUser(),
     draft ? Promise.resolve(null) : getPublishedLayout(orgSlug),
   ]);
-
-  // D3/D4: the menu is identical whether or not anyone is signed in. A
-  // session adds saved addresses, favorites, prefilled contact details and an
-  // account link; it changes nothing about what the page is allowed to show,
-  // which is why the page stays public.
-  const signedIn = Boolean(user);
-  const [favorites, profile, addresses] = signedIn
-    ? await Promise.all([getFavorites(orgSlug), getProfile(orgSlug), getAddresses(orgSlug)])
-    : [[], null, []];
-  const favoriteIds = new Set(favorites.map((f) => f.productId));
 
   let sections: SectionSpec[] = draft?.sections ?? published?.sections ?? DEFAULT_SECTIONS;
   const theme: Theme = draft?.theme ?? published?.theme ?? DEFAULT_THEME;
@@ -201,19 +177,14 @@ export async function RestaurantSite({
   }
 
   const ctx = {
-    site, orgSlug, branch, branches, signedIn, favoriteIds,
+    site, orgSlug, branch, branches,
     menuItems: onlineMenu.items,
     modifierGroups: onlineMenu.modifierGroups,
-    savedAddresses: addresses.map((a) => ({
-      id: a.id, label: a.label, address: a.address, isDefault: a.isDefault,
-    })),
-    customerName: profile?.fullName ?? '',
-    customerPhone: profile?.phone ?? '',
   };
 
   return (
     <div style={brandStyle(site, theme)} className={`min-h-dvh ${backgroundClass(theme)}`}>
-      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} signedIn={signedIn} theme={theme} />
+      <SiteHeader site={site} orgSlug={orgSlug} branch={branch} theme={theme} />
       <main className={`mx-auto ${containerClass(theme)}`}>
         {/* The branch picker is structural rather than a section: a multi-branch
             restaurant must always be able to switch, whatever its layout. */}

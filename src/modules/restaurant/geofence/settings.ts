@@ -19,6 +19,8 @@ export type GeofenceSettings = {
   latitude: number | null;
   longitude: number | null;
   radiusM: number;
+  /** Delivery service area, by city name. Empty means every city is accepted. */
+  serviceCities: string[];
   overriddenAtBranch: boolean;
 };
 
@@ -29,6 +31,10 @@ export const geofenceInput = z.object({
   // stop's own multiplier — small enough to mean something, large enough to
   // survive ordinary GPS drift at a street-level location.
   radiusM: z.coerce.number().int().min(50).max(100_000),
+  // Comma-separated in the form, split/trimmed here. Advisory only, like the
+  // radius itself: a delivery order from outside this list is never
+  // blocked, only flagged for the cashier (requirement: "service city/region").
+  serviceCities: z.string().trim().max(500).optional().default(''),
 });
 
 export async function getGeofenceSettings(ctx: TenantContext): Promise<GeofenceSettings> {
@@ -44,12 +50,13 @@ export async function getGeofenceSettings(ctx: TenantContext): Promise<GeofenceS
   const branchRow = rows.find((r) => r.branch_id === ctx.branchId);
   const orgRow = rows.find((r) => r.branch_id === null);
   const row = branchRow ?? orgRow;
-  const value = row?.value as { lat?: number; lng?: number; radiusM?: number } | undefined;
+  const value = row?.value as { lat?: number; lng?: number; radiusM?: number; cities?: string[] } | undefined;
 
   return {
     latitude: value?.lat ?? null,
     longitude: value?.lng ?? null,
     radiusM: value?.radiusM ?? 300,
+    serviceCities: value?.cities ?? [],
     overriddenAtBranch: Boolean(branchRow),
   };
 }
@@ -67,7 +74,11 @@ export async function saveGeofenceSettings(
   }
   const v = parsed.data;
   const branchId = scope === 'branch' ? ctx.branchId : null;
-  const value = { lat: v.latitude, lng: v.longitude, radiusM: v.radiusM };
+  const cities = v.serviceCities
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const value = { lat: v.latitude, lng: v.longitude, radiusM: v.radiusM, cities };
 
   const supabase = createSupabaseServerClient();
   const base = supabase
