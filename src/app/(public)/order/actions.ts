@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
 import { addFavorite, removeFavorite } from '@/modules/restaurant/account/service';
 import { AppError } from '@/lib/errors';
+import {
+  startGuestVerification, guestDeviceTrusted,
+} from '@/modules/restaurant/guest-verification/service';
 
 export type CheckoutState = { error?: string } | undefined;
 
@@ -16,6 +19,8 @@ function checkoutInputFromForm(formData: FormData) {
   const savedAddressId = String(formData.get('savedAddressId') ?? '');
 
   const items = JSON.parse(String(formData.get('items') ?? '[]'));
+  const latitude = formData.get('latitude');
+  const longitude = formData.get('longitude');
 
   return {
     orgSlug,
@@ -26,6 +31,9 @@ function checkoutInputFromForm(formData: FormData) {
     customerPhone: String(formData.get('customerPhone') ?? ''),
     note: String(formData.get('note') ?? ''),
     idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
+    deviceId: String(formData.get('deviceId') ?? '') || undefined,
+    latitude: latitude ? Number(latitude) : undefined,
+    longitude: longitude ? Number(longitude) : undefined,
     // D3: an id only. The address that reaches the order is read from the
     // database under the signed-in customer's own row; a guest sends none
     // and this stays undefined, leaving the D1 path exactly as it was.
@@ -144,5 +152,33 @@ export async function quoteCartAction(input: {
     return { quote: await quoteCart(input) };
   } catch (error) {
     return { error: error instanceof AppError ? error.message : 'تعذّر تسعير السلة.' };
+  }
+}
+
+/** Is this device already recognised for this phone at this storefront? */
+export async function checkGuestDeviceAction(input: {
+  orgSlug: string;
+  branchSlug: string;
+  deviceId: string;
+  phone: string;
+}): Promise<{ trusted: boolean }> {
+  const trusted = await guestDeviceTrusted(input.orgSlug, input.branchSlug, input.deviceId, input.phone);
+  return { trusted };
+}
+
+/** Issues the WhatsApp verification code for a first-time device. */
+export async function startGuestVerificationAction(input: {
+  orgSlug: string;
+  branchSlug: string;
+  deviceId: string;
+  phone: string;
+}) {
+  try {
+    return {
+      ok: true as const,
+      data: await startGuestVerification(input.orgSlug, input.branchSlug, input.deviceId, input.phone),
+    };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر إرسال رمز التحقق.' };
   }
 }

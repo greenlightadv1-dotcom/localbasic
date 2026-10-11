@@ -19,7 +19,11 @@ import type {
   PublicProduct,
   PublicVariant,
 } from '@/modules/restaurant/public/service';
-import { placeGuestOrderAction } from './actions';
+import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
+import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
+import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
+import { placeGuestOrderAction, checkGuestDeviceAction, startGuestVerificationAction } from './actions';
 
 /** A bottom sheet: springs up from off-screen, slides back down on close. */
 function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
@@ -84,21 +88,31 @@ export function GuestMenu({
   );
   const [chosen, setChosen] = useState<Record<string, string[]>>({});
   const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [deviceId, setDeviceId] = useState('');
+  // null: no verification needed yet. Set once a first-time device/phone
+  // pair triggers the WhatsApp step; cleared once the order is placed.
+  const [verification, setVerification] = useState<{ code: string; whatsappUrl: string | null } | null>(null);
+  const [checkingDevice, setCheckingDevice] = useState(false);
   const router = useRouter();
 
-  // Returning-guest convenience only: prefills the name field from whichever
-  // table this browser last ordered at (or the online storefront, since both
-  // share the same key). Never trusted for anything — the order still stores
-  // whatever the field holds at submit time, exactly like a first-time guest.
+  // Returning-guest convenience only: prefills the name/phone fields from
+  // whichever table this browser last ordered at (or the online storefront,
+  // since both share the same keys). Never trusted for anything — the order
+  // still stores whatever the fields hold at submit time, exactly like a
+  // first-time guest.
   useEffect(() => {
+    setDeviceId(getDeviceId());
     try {
-      const cached = localStorage.getItem('lb-guest-name');
-      if (cached) setGuestName(cached);
+      const cachedName = localStorage.getItem('lb-guest-name');
+      if (cachedName) setGuestName(cachedName);
+      const cachedPhone = localStorage.getItem('lb-guest-phone');
+      if (cachedPhone) setGuestPhone(cachedPhone);
     } catch {
-      // Private browsing or a blocked store: the field just starts empty.
+      // Private browsing or a blocked store: the fields just start empty.
     }
   }, []);
 
@@ -185,34 +199,71 @@ export function GuestMenu({
     setError(null);
   }
 
+  async function placeOrder() {
+    const location = await getBrowserLocation();
+    const result = await placeGuestOrderAction({
+      token,
+      items: cart.map((l) => ({
+        variantId: l.variant.id,
+        quantity: l.quantity,
+        modifierIds: l.modifiers.map((m) => m.id),
+      })),
+      guestName: guestName || undefined,
+      guestPhone: guestPhone || undefined,
+      note: note || undefined,
+      deviceId: deviceId || undefined,
+      latitude: location?.latitude,
+      longitude: location?.longitude,
+    });
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    try {
+      if (guestName) localStorage.setItem('lb-guest-name', guestName);
+      if (guestPhone) localStorage.setItem('lb-guest-phone', guestPhone);
+    } catch {
+      // Best-effort convenience only — a blocked or full store just means
+      // the fields start empty next visit, nothing else changes.
+    }
+    setVerification(null);
+    // Same tracking page and live realtime status an online order gets
+    // (0076) — the guest never sees a dead-end "order received" screen.
+    router.push(`/order/track/${result.data.statusToken}`);
+  }
+
+  /**
+   * A phone number is the only thing worth verifying — a guest who leaves it
+   * blank just orders anonymously, exactly like before. With one, a device
+   * this organization has not already verified sees the WhatsApp step first;
+   * a recognised device skips straight to placing the order.
+   */
   function submit() {
     if (cart.length === 0) return;
     setError(null);
+    const phone = guestPhone.trim();
+    if (!phone || !deviceId) {
+      startTransition(placeOrder);
+      return;
+    }
+    setCheckingDevice(true);
     startTransition(async () => {
-      const result = await placeGuestOrderAction({
-        token,
-        items: cart.map((l) => ({
-          variantId: l.variant.id,
-          quantity: l.quantity,
-          modifierIds: l.modifiers.map((m) => m.id),
-        })),
-        guestName: guestName || undefined,
-        note: note || undefined,
-      });
-
-      if (!result.ok) {
-        setError(result.error);
+      const { trusted } = await checkGuestDeviceAction({ token, deviceId, phone });
+      setCheckingDevice(false);
+      if (trusted) {
+        await placeOrder();
         return;
       }
-      try {
-        if (guestName) localStorage.setItem('lb-guest-name', guestName);
-      } catch {
-        // Best-effort convenience only — a blocked or full store just means
-        // the name field starts empty next visit, nothing else changes.
+      const started = await startGuestVerificationAction({ token, deviceId, phone });
+      if (!started.ok) {
+        setError(started.error);
+        return;
       }
-      // Same tracking page and live realtime status an online order gets
-      // (0076) — the guest never sees a dead-end "order received" screen.
-      router.push(`/order/track/${result.data.statusToken}`);
+      setVerification({
+        code: started.data.code,
+        whatsappUrl: buildWhatsAppVerifyUrl(started.data.whatsapp, started.data.code, context.organizationName),
+      });
     });
   }
 
@@ -399,7 +450,7 @@ export function GuestMenu({
               </button>
             </div>
 
-            {error && <Alert tone="danger" className="mb-3">{error}</Alert>}
+            {error && !verification && <Alert tone="danger" className="mb-3">{error}</Alert>}
 
             <ul className="space-y-2">
               {cart.map((line) => (
@@ -477,6 +528,18 @@ export function GuestMenu({
                 />
               </div>
               <div>
+                <label htmlFor="guest-phone" className="mb-1 block text-sm font-medium">
+                  رقم الهاتف (اختياري — للتحقق فقط)
+                </label>
+                <Input
+                  id="guest-phone"
+                  dir="ltr"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  maxLength={32}
+                />
+              </div>
+              <div>
                 <label htmlFor="guest-note" className="mb-1 block text-sm font-medium">
                   ملاحظات (اختياري)
                 </label>
@@ -497,9 +560,20 @@ export function GuestMenu({
                 الإجمالي النهائي يُحتسب من المطعم وقد يشمل الضريبة والخدمة.
               </p>
 
-              <Button size="touch" block disabled={isPending} onClick={submit}>
-                {isPending ? 'جارٍ الإرسال…' : 'إرسال الطلب'}
-              </Button>
+              {verification ? (
+                <GuestVerifySheet
+                  code={verification.code}
+                  whatsappUrl={verification.whatsappUrl}
+                  pending={isPending}
+                  error={error}
+                  onContinue={() => startTransition(placeOrder)}
+                  onCancel={() => setVerification(null)}
+                />
+              ) : (
+                <Button size="touch" block disabled={isPending || checkingDevice} onClick={submit}>
+                  {isPending || checkingDevice ? 'جارٍ الإرسال…' : 'إرسال الطلب'}
+                </Button>
+              )}
             </div>
           </Sheet>
         )}

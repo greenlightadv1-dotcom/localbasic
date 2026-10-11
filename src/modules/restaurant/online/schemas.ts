@@ -67,6 +67,11 @@ export const checkoutInput = storefront
     // attempt is recognised. It is only a deduplication handle: it grants
     // nothing and is not a capability.
     idempotencyKey: z.string().trim().min(8).max(64),
+    // Device trust + geofencing (0081). Optional for the same reason as the
+    // QR flow: a browser without geolocation or storage still checks out.
+    deviceId: z.string().trim().min(8).max(128).optional(),
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
   })
   .refine(
     (v) => v.fulfillment !== 'delivery' || v.address != null || v.savedAddressId != null,

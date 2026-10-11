@@ -232,6 +232,9 @@ export async function placeOnlineOrder(input: unknown): Promise<PlacedOrder> {
     p_customer_name: v.customerName,
     p_customer_phone: v.customerPhone,
     p_idempotency_key: v.idempotencyKey,
+    p_device_id: v.deviceId ?? null,
+    p_latitude: v.latitude ?? null,
+    p_longitude: v.longitude ?? null,
     p_address: v.address
       ? {
           recipient_name: v.address.recipientName || null,

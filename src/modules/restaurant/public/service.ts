@@ -110,6 +110,9 @@ export async function placePublicOrder(input: {
   guestName?: string;
   guestPhone?: string;
   note?: string;
+  deviceId?: string;
+  latitude?: number;
+  longitude?: number;
 }) {
   const supabase = createSupabaseServerClient();
 
@@ -125,6 +128,9 @@ export async function placePublicOrder(input: {
       p_guest_name: input.guestName ?? null,
       p_guest_phone: input.guestPhone ?? null,
       p_note: input.note ?? null,
+      p_device_id: input.deviceId ?? null,
+      p_latitude: input.latitude ?? null,
+      p_longitude: input.longitude ?? null,
     })
     .single();
 
@@ -172,6 +178,9 @@ function publicMessage(message: string): string {
   if (message.includes('not available at this branch')) return 'أحد الأصناف غير متاح حاليًا.';
   if (message.includes('unknown or unavailable')) return 'أحد الأصناف لم يعد متاحًا.';
   if (message.includes('too many open orders')) return 'يوجد طلبات مفتوحة كثيرة على هذه الطاولة.';
+  if (message.includes('do not appear to be at the restaurant')) {
+    return 'يبدو أنك لست داخل المطعم. تأكد من تفعيل الموقع وحاول مرة أخرى وأنت في المطعم.';
+  }
   if (message.includes('invalid selection for group')) return 'أكمل الاختيارات المطلوبة.';
   return 'تعذّر إرسال الطلب. حاول مرة أخرى.';
 }

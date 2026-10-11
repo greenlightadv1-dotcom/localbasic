@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
+import { getGeofenceSettings } from '@/modules/restaurant/geofence/settings';
 import { FeatureToggle } from './toggle';
+import { GeofenceForm } from './geofence-form';
 
 export const metadata = { title: 'الخدمات التشغيلية' };
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,7 @@ export default async function FeaturesPage({
   if (!ctx.enabledModules.includes('restaurant')) notFound();
 
   const scope = { organizationSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug };
+  const geofence = await getGeofenceSettings(ctx);
 
   return (
     <div className="space-y-4">
@@ -38,6 +41,12 @@ export default async function FeaturesPage({
         title="خدمة الكابتن والصالة"
         description="شاشة الصالة لمتابعة الطاولات والطلبات من الكابتن. عند الإيقاف يعمل الفرع بنظام كاشير فقط."
         initialEnabled={ctx.captainHallEnabled}
+      />
+      <GeofenceForm
+        scope={scope}
+        initialLatitude={geofence.latitude}
+        initialLongitude={geofence.longitude}
+        initialRadiusM={geofence.radiusM}
       />
     </div>
   );

@@ -61,6 +61,7 @@ import {
   payOrderSchema,
 } from '@/modules/restaurant/orders/schemas';
 import { createOrder, setOrderStatus, payOrder } from '@/modules/restaurant/orders/service';
+import { verifyGuestOrder } from '@/modules/restaurant/guest-verification/service';
 
 /**
  * Every restaurant mutation. Each declares the permission it needs; the action
@@ -346,6 +347,22 @@ export const setOrderStatusAction = defineTenantAction({
       '/service',
       '/tables',
     );
+    return { ok: true };
+  },
+});
+
+/**
+ * The cashier's own WhatsApp check: "I read our WhatsApp and this really is
+ * them." No code is submitted here — there is nothing to check it against
+ * other than the cashier's own judgement, which is the point of making this
+ * a review step rather than an automated one.
+ */
+export const verifyGuestOrderAction = defineTenantAction({
+  schema: z.object({ orderId: z.string().uuid() }),
+  permission: 'restaurant.order.update',
+  handler: async ({ ctx, input }) => {
+    await verifyGuestOrder(ctx, input.orderId);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/cashier');
     return { ok: true };
   },
 });

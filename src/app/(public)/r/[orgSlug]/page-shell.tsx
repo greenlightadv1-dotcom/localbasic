@@ -108,6 +108,7 @@ function renderSection(
         <Storefront
           orgSlug={ctx.orgSlug}
           branchSlug={ctx.branch.slug}
+          organizationName={ctx.site.organizationName}
           items={ctx.menuItems}
           modifierGroups={ctx.modifierGroups}
           currency={ctx.site.currency}

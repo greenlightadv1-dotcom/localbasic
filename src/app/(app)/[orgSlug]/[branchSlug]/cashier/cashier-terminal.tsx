@@ -18,7 +18,9 @@ import type { MenuItem } from '@/modules/restaurant/menu/service';
 import type { FloorTable } from '@/modules/restaurant/tables/service';
 import type { CashierOrder } from '@/modules/restaurant/orders/service';
 import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas';
-import { createOrderAction, payOrderAction, setOrderStatusAction } from '../restaurant-actions';
+import {
+  createOrderAction, payOrderAction, setOrderStatusAction, verifyGuestOrderAction,
+} from '../restaurant-actions';
 
 const CHANNEL_LABELS: Record<string, string> = {
   qr: 'رمز QR', waiter: 'الكابتن', cashier: 'الكاشير', online: 'أونلاين',
@@ -107,6 +109,9 @@ export function CashierTerminal({
   const [cancelling, setCancelling] = useState<CashierOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  // An unverified guest's order that the cashier just tapped "dispatch" on —
+  // held here for one extra confirm step rather than sent straight through.
+  const [dispatching, setDispatching] = useState<CashierOrder | null>(null);
 
   // New orders (an online guest, a QR table, another till) and status
   // changes both land on this branch's restaurant_orders rows. Realtime
@@ -252,7 +257,21 @@ export function CashierTerminal({
     });
   }
 
+  /**
+   * The single-click dispatch to the kitchen/bar boards (0080's station
+   * routing already decides which one). A device this organization has not
+   * verified over WhatsApp gets one extra stop — see dispatchOrder below —
+   * rather than going straight through.
+   */
   function confirmOrder(order: CashierOrder) {
+    if (!order.guestVerified) {
+      setDispatching(order);
+      return;
+    }
+    dispatchOrder(order);
+  }
+
+  function dispatchOrder(order: CashierOrder) {
     startTransition(async () => {
       const result = await setOrderStatusAction(
         { organizationSlug, branchSlug },
@@ -263,6 +282,34 @@ export function CashierTerminal({
         return;
       }
       toast.success('تم تأكيد الطلب وإرساله للمطبخ');
+      router.refresh();
+    });
+  }
+
+  /** The cashier's own check, confirmed: "I read our WhatsApp, this is them." */
+  function dispatchAfterVerifying() {
+    if (!dispatching) return;
+    const order = dispatching;
+    startTransition(async () => {
+      const verified = await verifyGuestOrderAction({ organizationSlug, branchSlug }, { orderId: order.id });
+      if (!verified.ok) {
+        toast.error(verified.error);
+        return;
+      }
+      setDispatching(null);
+      dispatchOrder(order);
+    });
+  }
+
+  /** Mark a device verified without dispatching yet — for reviewing ahead of the till. */
+  function verifyOnly(order: CashierOrder) {
+    startTransition(async () => {
+      const result = await verifyGuestOrderAction({ organizationSlug, branchSlug }, { orderId: order.id });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success('تم التحقق من العميل');
       router.refresh();
     });
   }
@@ -426,6 +473,25 @@ export function CashierTerminal({
                               <span className="lb-numeric text-muted"> — {order.guestPhone}</span>
                             )}
                           </p>
+                        )}
+                        {(order.channel === 'qr' || order.channel === 'online') && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {!order.guestVerified && (
+                              <>
+                                <Badge tone="warn">جهاز جديد — غير مُتحقَّق منه</Badge>
+                                <Button size="sm" variant="outline" onClick={() => verifyOnly(order)} disabled={isPending}>
+                                  تأكيد عبر واتساب
+                                </Button>
+                              </>
+                            )}
+                            {order.locationStatus === 'inside' && <Badge tone="success">📍 داخل المطعم</Badge>}
+                            {order.locationStatus === 'nearby' && (
+                              <Badge tone="info">📍 قريب ({order.locationDistanceM} م)</Badge>
+                            )}
+                            {order.locationStatus === 'far' && (
+                              <Badge tone="danger">📍 بعيد عن الموقع ({order.locationDistanceM} م)</Badge>
+                            )}
+                          </div>
                         )}
                         {order.delivery && (
                           <div className="rounded border border-line bg-elevated p-2">
@@ -820,6 +886,17 @@ export function CashierTerminal({
           )}
         </div>
       </ConfirmDialog>
+
+      {/* Dispatch an unverified guest's order — the mandatory review stop */}
+      <ConfirmDialog
+        open={dispatching !== null}
+        title={`إرسال الطلب #${dispatching?.number ?? ''} للمطبخ`}
+        description="هذا الطلب من جهاز لم يتحقق منه المطعم بعد. تأكد من استلام رمز التحقق على واتساب المطعم قبل المتابعة."
+        confirmLabel="تحقّقت، أرسل الطلب"
+        busy={isPending}
+        onCancel={() => setDispatching(null)}
+        onConfirm={dispatchAfterVerifying}
+      />
 
       {/* Cancel */}
       <ConfirmDialog

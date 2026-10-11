@@ -984,6 +984,7 @@ export type Database = {
           locale: string;
           created_at: string;
           updated_at: string;
+          email: string | null;
         };
         Insert: {
           id: string;
@@ -993,6 +994,7 @@ export type Database = {
           locale?: string;
           created_at?: string;
           updated_at?: string;
+          email?: string | null;
         };
         Update: {
           id?: string;
@@ -1002,6 +1004,7 @@ export type Database = {
           locale?: string;
           created_at?: string;
           updated_at?: string;
+          email?: string | null;
         };
         Relationships: [];
       };
@@ -1227,6 +1230,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_bundles: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          description: string | null;
+          image_url: string | null;
+          price_cents: number;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          description?: string | null;
+          image_url?: string | null;
+          price_cents: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          name?: string;
+          description?: string | null;
+          image_url?: string | null;
+          price_cents?: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
       restaurant_categories: {
         Row: {
           id: string;
@@ -1236,10 +1284,10 @@ export type Database = {
           image_url: string | null;
           sort_order: number;
           is_active: boolean;
-          default_station_kind: string;
           created_at: string;
           updated_at: string;
           created_by: string | null;
+          default_station_kind: string;
         };
         Insert: {
           id?: string;
@@ -1249,10 +1297,10 @@ export type Database = {
           image_url?: string | null;
           sort_order?: number;
           is_active?: boolean;
-          default_station_kind?: string;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+          default_station_kind?: string;
         };
         Update: {
           id?: string;
@@ -1262,10 +1310,10 @@ export type Database = {
           image_url?: string | null;
           sort_order?: number;
           is_active?: boolean;
-          default_station_kind?: string;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+          default_station_kind?: string;
         };
         Relationships: [];
       };
@@ -1290,6 +1338,48 @@ export type Database = {
           customer_id?: string;
           product_id?: string;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      restaurant_guest_devices: {
+        Row: {
+          id: string;
+          organization_id: string;
+          device_id: string;
+          phone: string;
+          verification_code: string | null;
+          code_expires_at: string | null;
+          attempts: number;
+          verified_at: string | null;
+          last_order_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          device_id: string;
+          phone: string;
+          verification_code?: string | null;
+          code_expires_at?: string | null;
+          attempts?: number;
+          verified_at?: string | null;
+          last_order_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          device_id?: string;
+          phone?: string;
+          verification_code?: string | null;
+          code_expires_at?: string | null;
+          attempts?: number;
+          verified_at?: string | null;
+          last_order_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -1464,9 +1554,9 @@ export type Database = {
           line_total_cents: number;
           note: string | null;
           position: number;
+          created_at: string;
           station_id: string | null;
           station_kind: string | null;
-          created_at: string;
         };
         Insert: {
           id?: string;
@@ -1482,9 +1572,9 @@ export type Database = {
           line_total_cents: number;
           note?: string | null;
           position?: number;
+          created_at?: string;
           station_id?: string | null;
           station_kind?: string | null;
-          created_at?: string;
         };
         Update: {
           id?: string;
@@ -1500,9 +1590,9 @@ export type Database = {
           line_total_cents?: number;
           note?: string | null;
           position?: number;
+          created_at?: string;
           station_id?: string | null;
           station_kind?: string | null;
-          created_at?: string;
         };
         Relationships: [];
       };
@@ -1539,6 +1629,12 @@ export type Database = {
           customer_edit_until: string | null;
           delivery_fee_cents: number;
           idempotency_key: string | null;
+          device_id: string | null;
+          guest_verified: boolean;
+          customer_latitude: number | null;
+          customer_longitude: number | null;
+          location_distance_m: number | null;
+          location_status: string;
         };
         Insert: {
           id?: string;
@@ -1572,6 +1668,12 @@ export type Database = {
           customer_edit_until?: string | null;
           delivery_fee_cents?: number;
           idempotency_key?: string | null;
+          device_id?: string | null;
+          guest_verified?: boolean;
+          customer_latitude?: number | null;
+          customer_longitude?: number | null;
+          location_distance_m?: number | null;
+          location_status?: string;
         };
         Update: {
           id?: string;
@@ -1605,6 +1707,12 @@ export type Database = {
           customer_edit_until?: string | null;
           delivery_fee_cents?: number;
           idempotency_key?: string | null;
+          device_id?: string | null;
+          guest_verified?: boolean;
+          customer_latitude?: number | null;
+          customer_longitude?: number | null;
+          location_distance_m?: number | null;
+          location_status?: string;
         };
         Relationships: [];
       };
@@ -1620,12 +1728,12 @@ export type Database = {
           prep_minutes: number;
           sort_order: number;
           is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          deleted_at: string | null;
           is_best_seller: boolean;
           station_id: string | null;
-          created_at: string;
-          updated_at: string;
-          created_by: string | null;
-          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1638,12 +1746,12 @@ export type Database = {
           prep_minutes?: number;
           sort_order?: number;
           is_active?: boolean;
-          is_best_seller?: boolean;
-          station_id?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
           deleted_at?: string | null;
+          is_best_seller?: boolean;
+          station_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1656,57 +1764,12 @@ export type Database = {
           prep_minutes?: number;
           sort_order?: number;
           is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
           is_best_seller?: boolean;
           station_id?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          created_by?: string | null;
-          deleted_at?: string | null;
-        };
-        Relationships: [];
-      };
-      restaurant_bundles: {
-        Row: {
-          id: string;
-          organization_id: string;
-          name: string;
-          description: string | null;
-          image_url: string | null;
-          price_cents: number;
-          sort_order: number;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-          created_by: string | null;
-          deleted_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          organization_id: string;
-          name: string;
-          description?: string | null;
-          image_url?: string | null;
-          price_cents: number;
-          sort_order?: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-          created_by?: string | null;
-          deleted_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          organization_id?: string;
-          name?: string;
-          description?: string | null;
-          image_url?: string | null;
-          price_cents?: number;
-          sort_order?: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-          created_by?: string | null;
-          deleted_at?: string | null;
         };
         Relationships: [];
       };
@@ -3090,6 +3153,7 @@ export type Database = {
       notification_mark_failed: { Args: Record<string, unknown>; Returns: Json };
       notification_mark_sent: { Args: Record<string, unknown>; Returns: Json };
       notification_queue_stats: { Args: Record<string, unknown>; Returns: Json };
+      platform_adjust_subscription_days: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_grant: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_list: { Args: Record<string, unknown>; Returns: Json };
       platform_admin_revoke: { Args: Record<string, unknown>; Returns: Json };
@@ -3101,20 +3165,19 @@ export type Database = {
       platform_customer_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_role_catalog: { Args: Record<string, unknown>; Returns: Json };
       platform_customer_staff: { Args: Record<string, unknown>; Returns: Json };
-      platform_adjust_subscription_days: { Args: Record<string, unknown>; Returns: Json };
-      platform_grant_staff_role: { Args: Record<string, unknown>; Returns: Json };
-      platform_revoke_staff_role: { Args: Record<string, unknown>; Returns: Json };
       platform_dashboard_stats: { Args: Record<string, unknown>; Returns: Json };
       platform_delete_organization: { Args: Record<string, unknown>; Returns: Json };
       platform_expiring_subscriptions: { Args: Record<string, unknown>; Returns: Json };
       platform_find_user_by_email: { Args: Record<string, unknown>; Returns: Json };
+      platform_grant_staff_role: { Args: Record<string, unknown>; Returns: Json };
       platform_onboard_customer: { Args: Record<string, unknown>; Returns: Json };
       platform_quote_renewal: { Args: Record<string, unknown>; Returns: Json };
-      platform_reset_organization_data: { Args: Record<string, unknown>; Returns: Json };
-      platform_switch_plan: { Args: Record<string, unknown>; Returns: Json };
       platform_recent_activity: { Args: Record<string, unknown>; Returns: Json };
       platform_renew_subscription: { Args: Record<string, unknown>; Returns: Json };
+      platform_reset_organization_data: { Args: Record<string, unknown>; Returns: Json };
+      platform_revoke_staff_role: { Args: Record<string, unknown>; Returns: Json };
       platform_search_customers: { Args: Record<string, unknown>; Returns: Json };
+      platform_switch_plan: { Args: Record<string, unknown>; Returns: Json };
       platform_website_business_profile: { Args: Record<string, unknown>; Returns: Json };
       platform_website_publish: { Args: Record<string, unknown>; Returns: Json };
       provision_workspace: { Args: Record<string, unknown>; Returns: Json };
@@ -3128,6 +3191,11 @@ export type Database = {
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_guest_device_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_guest_device_status_by_token: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_guest_verification_start: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_guest_verification_start_by_token: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_guest_verify_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_issue_table_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_cancel_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_edit_order: { Args: Record<string, unknown>; Returns: Json };

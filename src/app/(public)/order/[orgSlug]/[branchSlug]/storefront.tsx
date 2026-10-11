@@ -1,34 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormState } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import {
-  checkoutAction, quoteCartAction, toggleFavoriteAction, type CheckoutState,
+  checkoutAction, quoteCartAction, toggleFavoriteAction, checkGuestDeviceAction,
+  startGuestVerificationAction, type CheckoutState,
 } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
 import { cn } from '@/lib/cn';
 import { LAVECHI_GOLD_GLOW } from '@/modules/restaurant/website/lavechi-theme';
+import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
+import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
+import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 
 type Line = { variantId: string; quantity: number; modifierIds: string[]; note?: string };
 
 function money(cents: number, currency: string) {
   return `${(cents / 100).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ${currency}`;
-}
-
-function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
-    >
-      {pending ? pendingLabel : label}
-    </button>
-  );
 }
 
 /**
@@ -42,6 +34,7 @@ function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }
 export function Storefront({
   orgSlug,
   branchSlug,
+  organizationName,
   items,
   modifierGroups,
   currency,
@@ -55,6 +48,7 @@ export function Storefront({
 }: {
   orgSlug: string;
   branchSlug: string;
+  organizationName: string;
   items: MenuItem[];
   modifierGroups: ModifierGroup[];
   currency: string;
@@ -154,6 +148,70 @@ export function Storefront({
   }
 
   const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [deviceId, setDeviceId] = useState('');
+  const [checkingDevice, setCheckingDevice] = useState(false);
+  // handleSubmit calls `action` directly (never through a native form submit,
+  // since the device/verification check has to run first), so useFormStatus
+  // in <Submit> would never see it — this tracks pending ourselves instead.
+  const [isSubmitting, startSubmitTransition] = useTransition();
+  const [verification, setVerification] = useState<{ code: string; whatsappUrl: string | null } | null>(null);
+  // Stashed for the verification sheet's own "continue" button, which has no
+  // submit event of its own to build a fresh FormData from.
+  const pendingSubmitData = useRef<FormData | null>(null);
+
+  useEffect(() => {
+    setDeviceId(getDeviceId());
+  }, []);
+
+  /**
+   * A phone number is the only thing worth verifying. A recognised device
+   * (requirement: bypass automatically) submits straight away; a first-time
+   * device/phone pair sees the WhatsApp step before the form actually goes
+   * to the server — preventDefault always runs so the browser never
+   * double-submits once that check comes back.
+   */
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = formRef.current;
+    if (!form) return;
+    const data = new FormData(form);
+    const location = await getBrowserLocation();
+    if (location) {
+      data.set('latitude', String(location.latitude));
+      data.set('longitude', String(location.longitude));
+    }
+    data.set('deviceId', deviceId);
+
+    const submittedPhone = phone.trim();
+    if (!submittedPhone || !deviceId) {
+      startSubmitTransition(() => action(data));
+      return;
+    }
+    setCheckingDevice(true);
+    const { trusted } = await checkGuestDeviceAction({ orgSlug, branchSlug, deviceId, phone: submittedPhone });
+    setCheckingDevice(false);
+    if (trusted) {
+      startSubmitTransition(() => action(data));
+      return;
+    }
+    const started = await startGuestVerificationAction({ orgSlug, branchSlug, deviceId, phone: submittedPhone });
+    if (!started.ok) {
+      setVerification(null);
+      return;
+    }
+    setVerification({
+      code: started.data.code,
+      whatsappUrl: buildWhatsAppVerifyUrl(started.data.whatsapp, started.data.code, organizationName),
+    });
+    pendingSubmitData.current = data;
+  }
+
+  function continueAfterVerification() {
+    const data = pendingSubmitData.current;
+    setVerification(null);
+    if (data) startSubmitTransition(() => action(data));
+  }
 
   // One key per checkout attempt, so a double-click or a retry is recognised
   // server-side as the same attempt rather than a second order.
@@ -480,7 +538,7 @@ export function Storefront({
             </button>
           </div>
         ) : (
-        <form action={action} className="mt-4 space-y-3">
+        <form ref={formRef} onSubmit={handleSubmit} className="mt-4 space-y-3">
           <input type="hidden" name="orgSlug" value={orgSlug} />
           <input type="hidden" name="branchSlug" value={branchSlug} />
           <input type="hidden" name="fulfillment" value={fulfillment} />
@@ -560,8 +618,23 @@ export function Storefront({
               className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
           </label>
 
-          {lines.length > 0 ? (
-            <Submit label="تأكيد الطلب (الدفع نقدًا)" pendingLabel="جارٍ إرسال الطلب…" />
+          {verification ? (
+            <GuestVerifySheet
+              code={verification.code}
+              whatsappUrl={verification.whatsappUrl}
+              pending={false}
+              error={null}
+              onContinue={continueAfterVerification}
+              onCancel={() => setVerification(null)}
+            />
+          ) : lines.length > 0 ? (
+            <button
+              type="submit"
+              disabled={isSubmitting || checkingDevice}
+              className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
+            >
+              {checkingDevice ? 'جارٍ التحقق…' : isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
+            </button>
           ) : null}
           <p className="text-center text-xs text-muted">
             الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.

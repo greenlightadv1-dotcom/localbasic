@@ -54,6 +54,12 @@ export const publicOrderSchema = z.object({
   guestName: z.string().trim().max(80).optional(),
   guestPhone: z.string().trim().max(30).optional(),
   note: z.string().trim().max(300).optional(),
+  // Device trust + geofencing (0081). All optional: a browser that blocked
+  // geolocation, or denied localStorage, still gets to place an order — it
+  // just will not be "recognised" or location-checked.
+  deviceId: z.string().trim().min(8).max(128).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {

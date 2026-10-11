@@ -32,6 +32,16 @@ export type OrderSummary = {
   note: string | null;
   placedAt: string;
   invoiceId: string | null;
+  /**
+   * Cashier-review signals (0081): whether this guest's device/phone is one
+   * this organization has already verified over WhatsApp, and how its
+   * reported location compared to the branch at the moment of placing the
+   * order. 'unknown' means nothing to flag — either a staff-created order,
+   * or a branch that has not configured geofencing.
+   */
+  guestVerified: boolean;
+  locationStatus: 'inside' | 'nearby' | 'far' | 'unknown';
+  locationDistanceM: number | null;
 };
 
 const ACTIVE: OrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'served'];
@@ -50,7 +60,7 @@ export async function listOrders(
   let query = supabase
     .from('restaurant_orders')
     .select(
-      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id',
+      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id, guest_verified, location_status, location_distance_m',
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
@@ -120,6 +130,9 @@ export async function listOrders(
     note: o.note,
     placedAt: o.placed_at,
     invoiceId: o.invoice_id,
+    guestVerified: o.guest_verified,
+    locationStatus: o.location_status as OrderSummary['locationStatus'],
+    locationDistanceM: o.location_distance_m,
   }));
 }
 
