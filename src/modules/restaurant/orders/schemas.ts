@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const ORDER_STATUSES = [
+  'pending_verification',
   'new',
   'confirmed',
   'preparing',
@@ -63,6 +64,7 @@ export const publicOrderSchema = z.object({
 });
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending_verification: 'بانتظار تحقق واتساب',
   new: 'جديد',
   confirmed: 'مؤكد',
   preparing: 'تحت التحضير',
@@ -74,6 +76,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const STATUS_TONES: Record<OrderStatus, 'neutral' | 'info' | 'warn' | 'success' | 'danger'> =
   {
+    pending_verification: 'danger',
     new: 'warn',
     confirmed: 'info',
     preparing: 'info',

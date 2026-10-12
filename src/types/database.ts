@@ -1635,6 +1635,8 @@ export type Database = {
           customer_longitude: number | null;
           location_distance_m: number | null;
           location_status: string;
+          verification_code: string | null;
+          verification_code_expires_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1674,6 +1676,8 @@ export type Database = {
           customer_longitude?: number | null;
           location_distance_m?: number | null;
           location_status?: string;
+          verification_code?: string | null;
+          verification_code_expires_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1713,6 +1717,8 @@ export type Database = {
           customer_longitude?: number | null;
           location_distance_m?: number | null;
           location_status?: string;
+          verification_code?: string | null;
+          verification_code_expires_at?: string | null;
         };
         Relationships: [];
       };
@@ -3204,6 +3210,7 @@ export type Database = {
       restaurant_online_order_items: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_storefront: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_order_verification_info: { Args: Record<string, unknown>; Returns: Json };
       restaurant_pay_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_place_online_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_place_public_order: { Args: Record<string, unknown>; Returns: Json };
@@ -3221,6 +3228,7 @@ export type Database = {
       restaurant_website_menu: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_publish: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_unpublish: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_whatsapp_verify_webhook: { Args: Record<string, unknown>; Returns: Json };
       retail_create_return: { Args: Record<string, unknown>; Returns: Json };
       retail_create_sale: { Args: Record<string, unknown>; Returns: Json };
       retail_order_cancel: { Args: Record<string, unknown>; Returns: Json };

@@ -23,7 +23,8 @@ import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
-import { placeGuestOrderAction, checkGuestDeviceAction, startGuestVerificationAction } from './actions';
+import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
+import { placeGuestOrderAction, getOrderVerificationInfoAction } from './actions';
 
 /** A bottom sheet: springs up from off-screen, slides back down on close. */
 function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
@@ -93,11 +94,16 @@ export function GuestMenu({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [deviceId, setDeviceId] = useState('');
-  // null: no verification needed yet. Set once a first-time device/phone
-  // pair triggers the WhatsApp step; cleared once the order is placed.
-  const [verification, setVerification] = useState<{ code: string; whatsappUrl: string | null } | null>(null);
-  const [checkingDevice, setCheckingDevice] = useState(false);
+  // null: order not placed yet, or already verified and on its way to
+  // tracking. Set once a placed order comes back 'pending_verification' —
+  // cleared the moment realtime (or a manual recheck) reports it's past that.
+  const [verification, setVerification] = useState<{ token: string; code: string; whatsappUrl: string | null } | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const router = useRouter();
+
+  useOrderStatusBroadcast(verification?.token ?? null, (status) => {
+    if (status !== 'pending_verification') router.push(`/order/track/${verification!.token}`);
+  });
 
   // Returning-guest convenience only: prefills the name/phone fields from
   // whichever table this browser last ordered at (or the online storefront,
@@ -199,71 +205,69 @@ export function GuestMenu({
     setError(null);
   }
 
-  async function placeOrder() {
-    const location = await getBrowserLocation();
-    const result = await placeGuestOrderAction({
-      token,
-      items: cart.map((l) => ({
-        variantId: l.variant.id,
-        quantity: l.quantity,
-        modifierIds: l.modifiers.map((m) => m.id),
-      })),
-      guestName: guestName || undefined,
-      guestPhone: guestPhone || undefined,
-      note: note || undefined,
-      deviceId: deviceId || undefined,
-      latitude: location?.latitude,
-      longitude: location?.longitude,
-    });
-
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    try {
-      if (guestName) localStorage.setItem('lb-guest-name', guestName);
-      if (guestPhone) localStorage.setItem('lb-guest-phone', guestPhone);
-    } catch {
-      // Best-effort convenience only — a blocked or full store just means
-      // the fields start empty next visit, nothing else changes.
-    }
-    setVerification(null);
-    // Same tracking page and live realtime status an online order gets
-    // (0076) — the guest never sees a dead-end "order received" screen.
-    router.push(`/order/track/${result.data.statusToken}`);
-  }
-
   /**
-   * A phone number is the only thing worth verifying — a guest who leaves it
-   * blank just orders anonymously, exactly like before. With one, a device
-   * this organization has not already verified sees the WhatsApp step first;
-   * a recognised device skips straight to placing the order.
+   * The order always gets placed — a phone-less guest or an already-trusted
+   * device/phone pair just starts at 'new' server-side. Only a first-time
+   * device+phone pair comes back 'pending_verification', in which case the
+   * WhatsApp sheet takes over and realtime (or a manual recheck) advances
+   * from there.
    */
   function submit() {
     if (cart.length === 0) return;
     setError(null);
-    const phone = guestPhone.trim();
-    if (!phone || !deviceId) {
-      startTransition(placeOrder);
-      return;
-    }
-    setCheckingDevice(true);
     startTransition(async () => {
-      const { trusted } = await checkGuestDeviceAction({ token, deviceId, phone });
-      setCheckingDevice(false);
-      if (trusted) {
-        await placeOrder();
-        return;
-      }
-      const started = await startGuestVerificationAction({ token, deviceId, phone });
-      if (!started.ok) {
-        setError(started.error);
-        return;
-      }
-      setVerification({
-        code: started.data.code,
-        whatsappUrl: buildWhatsAppVerifyUrl(started.data.whatsapp, started.data.code, context.organizationName),
+      const location = await getBrowserLocation();
+      const result = await placeGuestOrderAction({
+        token,
+        items: cart.map((l) => ({
+          variantId: l.variant.id,
+          quantity: l.quantity,
+          modifierIds: l.modifiers.map((m) => m.id),
+        })),
+        guestName: guestName || undefined,
+        guestPhone: guestPhone || undefined,
+        note: note || undefined,
+        deviceId: deviceId || undefined,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
       });
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      try {
+        if (guestName) localStorage.setItem('lb-guest-name', guestName);
+        if (guestPhone) localStorage.setItem('lb-guest-phone', guestPhone);
+      } catch {
+        // Best-effort convenience only — a blocked or full store just means
+        // the fields start empty next visit, nothing else changes.
+      }
+
+      const info = await getOrderVerificationInfoAction(result.data.statusToken);
+      if (info.ok && info.data.status === 'pending_verification' && info.data.code) {
+        setVerification({
+          token: result.data.statusToken,
+          code: info.data.code,
+          whatsappUrl: buildWhatsAppVerifyUrl(info.data.whatsapp, info.data.code),
+        });
+        return;
+      }
+      // Same tracking page and live realtime status an online order gets
+      // (0076) — the guest never sees a dead-end "order received" screen.
+      router.push(`/order/track/${result.data.statusToken}`);
+    });
+  }
+
+  function recheckVerification() {
+    if (!verification) return;
+    setCheckingStatus(true);
+    startTransition(async () => {
+      const info = await getOrderVerificationInfoAction(verification.token);
+      setCheckingStatus(false);
+      if (info.ok && info.data.status !== 'pending_verification') {
+        router.push(`/order/track/${verification.token}`);
+      }
     });
   }
 
@@ -564,14 +568,13 @@ export function GuestMenu({
                 <GuestVerifySheet
                   code={verification.code}
                   whatsappUrl={verification.whatsappUrl}
-                  pending={isPending}
-                  error={error}
-                  onContinue={() => startTransition(placeOrder)}
-                  onCancel={() => setVerification(null)}
+                  checking={checkingStatus}
+                  error={null}
+                  onRecheck={recheckVerification}
                 />
               ) : (
-                <Button size="touch" block disabled={isPending || checkingDevice} onClick={submit}>
-                  {isPending || checkingDevice ? 'جارٍ الإرسال…' : 'إرسال الطلب'}
+                <Button size="touch" block disabled={isPending} onClick={submit}>
+                  {isPending ? 'جارٍ الإرسال…' : 'إرسال الطلب'}
                 </Button>
               )}
             </div>

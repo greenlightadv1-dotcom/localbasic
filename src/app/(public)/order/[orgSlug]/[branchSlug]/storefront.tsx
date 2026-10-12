@@ -1,12 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { useFormState } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
-import {
-  checkoutAction, quoteCartAction, checkGuestDeviceAction,
-  startGuestVerificationAction, type CheckoutState,
-} from '../../actions';
+import { checkoutAction, quoteCartAction, getOrderVerificationInfoAction } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
 import { cn } from '@/lib/cn';
@@ -14,6 +11,7 @@ import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
+import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 
 type Line = { variantId: string; quantity: number; modifierIds: string[]; note?: string };
 
@@ -37,7 +35,6 @@ function money(cents: number, currency: string) {
 export function Storefront({
   orgSlug,
   branchSlug,
-  organizationName,
   items,
   modifierGroups,
   currency,
@@ -46,7 +43,6 @@ export function Storefront({
 }: {
   orgSlug: string;
   branchSlug: string;
-  organizationName: string;
   items: MenuItem[];
   modifierGroups: ModifierGroup[];
   currency: string;
@@ -82,34 +78,41 @@ export function Storefront({
     }
   }, []);
 
-  const [state, action] = useFormState<CheckoutState, FormData>(checkoutAction, undefined);
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [deviceId, setDeviceId] = useState('');
-  const [checkingDevice, setCheckingDevice] = useState(false);
-  // handleSubmit calls `action` directly (never through a native form submit,
-  // since the device/verification check has to run first), so useFormStatus
-  // in <Submit> would never see it — this tracks pending ourselves instead.
   const [isSubmitting, startSubmitTransition] = useTransition();
-  const [verification, setVerification] = useState<{ code: string; whatsappUrl: string | null } | null>(null);
-  // Stashed for the verification sheet's own "continue" button, which has no
-  // submit event of its own to build a fresh FormData from.
-  const pendingSubmitData = useRef<FormData | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  // Set once the order exists and is still 'pending_verification' — its
+  // presence is what switches the panel from the cart form to the WhatsApp
+  // sheet. token is kept alongside it so the realtime subscription and the
+  // eventual redirect both have it.
+  const [verification, setVerification] = useState<
+    { token: string; code: string; whatsappUrl: string | null } | null
+  >(null);
 
   useEffect(() => {
     setDeviceId(getDeviceId());
   }, []);
 
+  // The gateway webhook (0086) advances a verified order to 'new' from the
+  // outside; this is what notices without the customer doing anything.
+  useOrderStatusBroadcast(verification?.token ?? null, (status) => {
+    if (status === 'new') router.push(`/order/track/${verification!.token}`);
+  });
+
   /**
-   * A phone number is the only thing worth verifying. A recognised device
-   * (requirement: bypass automatically) submits straight away; a first-time
-   * device/phone pair sees the WhatsApp step before the form actually goes
-   * to the server — preventDefault always runs so the browser never
-   * double-submits once that check comes back.
+   * The order is always created — device/phone verification never blocks
+   * checkout, it only decides whether the server starts the order at 'new'
+   * or 'pending_verification'. Read that back by the token checkout just
+   * returned and either go straight to tracking or show the WhatsApp step.
    */
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = formRef.current;
     if (!form) return;
+    setOrderError(null);
     const data = new FormData(form);
     const location = await getBrowserLocation();
     if (location) {
@@ -118,34 +121,35 @@ export function Storefront({
     }
     data.set('deviceId', deviceId);
 
-    const submittedPhone = phone.trim();
-    if (!submittedPhone || !deviceId) {
-      startSubmitTransition(() => action(data));
-      return;
-    }
-    setCheckingDevice(true);
-    const { trusted } = await checkGuestDeviceAction({ orgSlug, branchSlug, deviceId, phone: submittedPhone });
-    setCheckingDevice(false);
-    if (trusted) {
-      startSubmitTransition(() => action(data));
-      return;
-    }
-    const started = await startGuestVerificationAction({ orgSlug, branchSlug, deviceId, phone: submittedPhone });
-    if (!started.ok) {
-      setVerification(null);
-      return;
-    }
-    setVerification({
-      code: started.data.code,
-      whatsappUrl: buildWhatsAppVerifyUrl(started.data.whatsapp, started.data.code, organizationName),
+    startSubmitTransition(async () => {
+      const placed = await checkoutAction(data);
+      if (!placed.ok) {
+        setOrderError(placed.error);
+        return;
+      }
+      const info = await getOrderVerificationInfoAction(placed.data.token);
+      if (info.ok && info.data.status === 'pending_verification' && info.data.code) {
+        setVerification({
+          token: placed.data.token,
+          code: info.data.code,
+          whatsappUrl: buildWhatsAppVerifyUrl(info.data.whatsapp, info.data.code),
+        });
+        return;
+      }
+      router.push(`/order/track/${placed.data.token}`);
     });
-    pendingSubmitData.current = data;
   }
 
-  function continueAfterVerification() {
-    const data = pendingSubmitData.current;
-    setVerification(null);
-    if (data) startSubmitTransition(() => action(data));
+  function recheckVerification() {
+    if (!verification) return;
+    setCheckingStatus(true);
+    startSubmitTransition(async () => {
+      const info = await getOrderVerificationInfoAction(verification.token);
+      setCheckingStatus(false);
+      if (info.ok && info.data.status !== 'pending_verification') {
+        router.push(`/order/track/${verification.token}`);
+      }
+    });
   }
 
   // One key per checkout attempt, so a double-click or a retry is recognised
@@ -426,9 +430,9 @@ export function Storefront({
           <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
           <input type="hidden" name="items" value={JSON.stringify(lines)} />
 
-          {state?.error ? (
+          {orderError ? (
             <p className="rounded-[13px] border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {state.error}
+              {orderError}
             </p>
           ) : null}
 
@@ -482,18 +486,17 @@ export function Storefront({
             <GuestVerifySheet
               code={verification.code}
               whatsappUrl={verification.whatsappUrl}
-              pending={false}
+              checking={checkingStatus}
               error={null}
-              onContinue={continueAfterVerification}
-              onCancel={() => setVerification(null)}
+              onRecheck={recheckVerification}
             />
           ) : lines.length > 0 ? (
             <button
               type="submit"
-              disabled={isSubmitting || checkingDevice}
+              disabled={isSubmitting}
               className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
             >
-              {checkingDevice ? 'جارٍ التحقق…' : isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
+              {isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
             </button>
           ) : null}
           <p className="text-center text-xs text-muted">

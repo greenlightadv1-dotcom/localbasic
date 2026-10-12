@@ -44,7 +44,7 @@ export type OrderSummary = {
   locationDistanceM: number | null;
 };
 
-const ACTIVE: OrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'served'];
+const ACTIVE: OrderStatus[] = ['pending_verification', 'new', 'confirmed', 'preparing', 'ready', 'served'];
 
 /**
  * Orders for this branch. `statuses` narrows the list for each surface: the

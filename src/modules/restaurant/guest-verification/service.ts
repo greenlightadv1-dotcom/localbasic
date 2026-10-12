@@ -1,78 +1,15 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { AppError, toAppError } from '@/lib/errors';
+import { toAppError } from '@/lib/errors';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { requirePermission } from '@/modules/core/tenancy/context';
-
-export type VerificationStart = { code: string; whatsapp: string | null; expiresAt: string };
-
-/** QR/in-store: resolved through the same public_links token the menu itself uses. */
-export async function startGuestVerificationByToken(
-  token: string,
-  deviceId: string,
-  phone: string,
-): Promise<VerificationStart> {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .rpc('restaurant_guest_verification_start_by_token', {
-      p_token: token, p_device_id: deviceId, p_phone: phone,
-    })
-    .single();
-  if (error) throw new AppError('validation', 'تعذّر إرسال رمز التحقق.');
-  const row = data as unknown as { out_code: string; out_whatsapp: string | null; out_expires_at: string };
-  return { code: row.out_code, whatsapp: row.out_whatsapp, expiresAt: row.out_expires_at };
-}
-
-export async function guestDeviceTrustedByToken(
-  token: string,
-  deviceId: string,
-  phone: string,
-): Promise<boolean> {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('restaurant_guest_device_status_by_token', {
-    p_token: token, p_device_id: deviceId, p_phone: phone,
-  });
-  if (error) return false;
-  return Boolean(data);
-}
-
-/** Online storefront: resolved through the org/branch slug pair, like checkout itself. */
-export async function startGuestVerification(
-  orgSlug: string,
-  branchSlug: string,
-  deviceId: string,
-  phone: string,
-): Promise<VerificationStart> {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .rpc('restaurant_guest_verification_start', {
-      p_org_slug: orgSlug, p_branch_slug: branchSlug, p_device_id: deviceId, p_phone: phone,
-    })
-    .single();
-  if (error) throw new AppError('validation', 'تعذّر إرسال رمز التحقق.');
-  const row = data as unknown as { out_code: string; out_whatsapp: string | null; out_expires_at: string };
-  return { code: row.out_code, whatsapp: row.out_whatsapp, expiresAt: row.out_expires_at };
-}
-
-export async function guestDeviceTrusted(
-  orgSlug: string,
-  branchSlug: string,
-  deviceId: string,
-  phone: string,
-): Promise<boolean> {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('restaurant_guest_device_status', {
-    p_org_slug: orgSlug, p_branch_slug: branchSlug, p_device_id: deviceId, p_phone: phone,
-  });
-  if (error) return false;
-  return Boolean(data);
-}
 
 /**
  * The cashier's own step: "I checked our WhatsApp and this is really them."
  * Flips both the order and the device/phone pair, so every later order from
  * this same device is recognised automatically (requirement: bypass on a
- * recognised device).
+ * recognised device). Also the manual fallback for the automated webhook
+ * below, if the gateway never calls it (down, misrouted message, etc).
  */
 export async function verifyGuestOrder(ctx: TenantContext, orderId: string): Promise<void> {
   requirePermission(ctx, 'restaurant.order.update');
@@ -81,4 +18,57 @@ export async function verifyGuestOrder(ctx: TenantContext, orderId: string): Pro
     p_org: ctx.organizationId, p_order: orderId,
   });
   if (error) throw toAppError(error, 'verifyGuestOrder');
+}
+
+export type OrderVerificationInfo = {
+  status: string;
+  code: string | null;
+  whatsapp: string | null;
+  expiresAt: string | null;
+};
+
+/**
+ * What the checkout page shows while an order sits at 'pending_verification':
+ * the same code and WhatsApp number the order was created with, read back by
+ * its own tracking token — no device id or phone needed, since the token
+ * already is the capability.
+ */
+export async function getOrderVerificationInfo(token: string): Promise<OrderVerificationInfo> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .rpc('restaurant_order_verification_info', { p_token: token })
+    .single();
+  if (error) throw toAppError(error, 'getOrderVerificationInfo');
+  const row = data as unknown as {
+    out_status: string; out_code: string | null; out_whatsapp: string | null; out_expires_at: string | null;
+  };
+  return {
+    status: row.out_status,
+    code: row.out_code,
+    whatsapp: row.out_whatsapp,
+    expiresAt: row.out_expires_at,
+  };
+}
+
+/**
+ * The webhook's own call (0086): given what the gateway reported — the
+ * branch code embedded in the message, the code itself, and the sender's
+ * phone — finds the matching pending order, flips it to 'new', and trusts
+ * the device. Never throws on "no match": that is simply out_matched=false,
+ * the ordinary outcome for a stray or unrelated WhatsApp message.
+ */
+export async function verifyFromWhatsAppWebhook(
+  branchCode: string,
+  code: string,
+  phone: string,
+): Promise<{ matched: boolean; orderNumber: string | null }> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .rpc('restaurant_whatsapp_verify_webhook', {
+      p_branch_code: branchCode, p_code: code, p_phone: phone,
+    })
+    .single();
+  if (error) throw toAppError(error, 'verifyFromWhatsAppWebhook');
+  const row = data as unknown as { out_matched: boolean; out_order_number: string | null };
+  return { matched: row.out_matched, orderNumber: row.out_order_number };
 }

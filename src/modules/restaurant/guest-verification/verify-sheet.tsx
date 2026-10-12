@@ -1,32 +1,37 @@
 'use client';
 
 /**
- * Shared by both guest checkouts (QR and online) — same copy, same shape,
- * because it is the same requirement in both places: a first-time device
- * must prove the phone number before the order is handed to the cashier as
- * "verified". A recognised device never sees this at all.
+ * Shared by both guest checkouts (QR and online) — same copy, same shape.
+ *
+ * The order already exists by the time this renders (0086): it is sitting at
+ * 'pending_verification', not waiting to be created. Tapping the WhatsApp
+ * link and sending the message is enough — the gateway webhook advances the
+ * order automatically, and the parent component's realtime subscription on
+ * this same order is what notices and moves on. "تحقق الآن" is the manual
+ * fallback for when that round trip does not land (gateway hiccup, a closed
+ * tab that missed the broadcast): it just re-reads the order's current
+ * status instead of waiting on the socket.
  */
 export function GuestVerifySheet({
   code,
   whatsappUrl,
-  pending,
+  checking,
   error,
-  onContinue,
-  onCancel,
+  onRecheck,
 }: {
   code: string;
   whatsappUrl: string | null;
-  pending: boolean;
+  checking: boolean;
   error: string | null;
-  onContinue: () => void;
-  onCancel: () => void;
+  onRecheck: () => void;
 }) {
   return (
     <div className="space-y-3 rounded-[18px] border border-line bg-elevated p-4">
       <p className="text-sm font-semibold text-fg">تأكيد رقم الهاتف</p>
       <p className="text-sm text-muted">
-        هذه أول مرة تطلب فيها من هذا الجهاز. لمنع الطلبات الوهمية، أرسل رمز التحقق عبر واتساب
-        إلى المطعم — طلباتك القادمة من هذا الجهاز لن تحتاج هذه الخطوة مرة أخرى.
+        هذه أول مرة تطلب فيها من هذا الجهاز. اضغط الزر لفتح واتساب وإرسال الرمز إلى المطعم —
+        سيُرسل طلبك للمراجعة تلقائيًا بمجرد وصول الرسالة. طلباتك القادمة من هذا الجهاز لن
+        تحتاج هذه الخطوة مرة أخرى.
       </p>
       <p className="rounded-[13px] border border-line bg-surface p-3 text-center font-reem text-2xl tracking-[0.3em] text-fg">
         {code}
@@ -44,16 +49,17 @@ export function GuestVerifySheet({
         <p className="text-sm text-danger">لم يضبط المطعم رقم واتساب بعد.</p>
       )}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
+      <p className="flex items-center justify-center gap-2 text-xs text-muted" aria-live="polite">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
+        في انتظار التحقق…
+      </p>
       <button
         type="button"
-        onClick={onContinue}
-        disabled={pending}
+        onClick={onRecheck}
+        disabled={checking}
         className="h-11 w-full rounded-[13px] border border-line text-sm font-semibold text-fg disabled:opacity-50"
       >
-        {pending ? 'جارٍ الإرسال…' : 'أرسلت الرمز، أكمل الطلب'}
-      </button>
-      <button type="button" onClick={onCancel} className="w-full text-center text-xs text-muted">
-        إلغاء
+        {checking ? 'جارٍ التحقق…' : 'تحقق الآن'}
       </button>
     </div>
   );

@@ -61,7 +61,6 @@ export default async function OrderPage({
           <Storefront
             orgSlug={params.orgSlug}
             branchSlug={params.branchSlug}
-            organizationName={info.organizationName}
             items={menu.items}
             modifierGroups={menu.modifierGroups}
             currency={info.currency}

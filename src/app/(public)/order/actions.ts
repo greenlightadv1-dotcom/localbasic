@@ -1,14 +1,9 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
 import { AppError } from '@/lib/errors';
-import {
-  startGuestVerification, guestDeviceTrusted,
-} from '@/modules/restaurant/guest-verification/service';
-
-export type CheckoutState = { error?: string } | undefined;
+import { getOrderVerificationInfo } from '@/modules/restaurant/guest-verification/service';
 
 /** Parses the cart + contact fields every checkout submission carries. */
 function checkoutInputFromForm(formData: FormData) {
@@ -45,33 +40,28 @@ function checkoutInputFromForm(formData: FormData) {
 }
 
 /**
- * Checkout for a guest: a phone number and this browser's device id
- * (checked against WhatsApp-verified devices in the storefront before this
- * action ever fires) are the only identity involved — no account, no
- * password, no SMS OTP.
+ * Checkout for a guest: a phone number and this browser's device id are the
+ * only identity involved — no account, no password, no SMS OTP. The order is
+ * always created; whether it starts at 'new' or 'pending_verification' is
+ * the server's call (restaurant_place_online_order, from device trust), not
+ * this action's — the caller reads that back via getOrderVerificationInfoAction
+ * right after and decides whether to show the WhatsApp step or go straight
+ * to tracking.
  */
-export async function checkoutAction(
-  _prev: CheckoutState,
-  formData: FormData,
-): Promise<CheckoutState> {
+export async function checkoutAction(formData: FormData) {
   let input: ReturnType<typeof checkoutInputFromForm>;
   try {
     input = checkoutInputFromForm(formData);
   } catch {
-    return { error: 'السلة غير صالحة.' };
+    return { ok: false as const, error: 'السلة غير صالحة.' };
   }
 
-  let placed: Awaited<ReturnType<typeof placeOnlineOrder>>;
   try {
-    placed = await placeOnlineOrder(input);
+    const placed = await placeOnlineOrder(input);
+    return { ok: true as const, data: placed };
   } catch (error) {
-    return { error: error instanceof AppError ? error.message : 'تعذّر إتمام الطلب.' };
+    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر إتمام الطلب.' };
   }
-
-  // The token is the guest's only handle on this order, so the tracking page is
-  // where they land. redirect() throws NEXT_REDIRECT and must stay outside the
-  // try above, which would otherwise report a failure for a placed order.
-  redirect(`/order/track/${placed.token}`);
 }
 
 export type TrackState = { error?: string; ok?: string } | undefined;
@@ -124,30 +114,15 @@ export async function quoteCartAction(input: {
   }
 }
 
-/** Is this device already recognised for this phone at this storefront? */
-export async function checkGuestDeviceAction(input: {
-  orgSlug: string;
-  branchSlug: string;
-  deviceId: string;
-  phone: string;
-}): Promise<{ trusted: boolean }> {
-  const trusted = await guestDeviceTrusted(input.orgSlug, input.branchSlug, input.deviceId, input.phone);
-  return { trusted };
-}
-
-/** Issues the WhatsApp verification code for a first-time device. */
-export async function startGuestVerificationAction(input: {
-  orgSlug: string;
-  branchSlug: string;
-  deviceId: string;
-  phone: string;
-}) {
+/**
+ * What to show right after checkout: still 'pending_verification' (the
+ * WhatsApp sheet) or already 'new' (go straight to tracking) — read by the
+ * order's own status token, nothing else.
+ */
+export async function getOrderVerificationInfoAction(token: string) {
   try {
-    return {
-      ok: true as const,
-      data: await startGuestVerification(input.orgSlug, input.branchSlug, input.deviceId, input.phone),
-    };
+    return { ok: true as const, data: await getOrderVerificationInfo(token) };
   } catch (error) {
-    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر إرسال رمز التحقق.' };
+    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر التحقق من حالة الطلب.' };
   }
 }
