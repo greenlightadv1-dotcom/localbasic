@@ -39,6 +39,7 @@ export default async function KitchenPage({
       canReassign={ctx.permissions.has('restaurant.menu.manage')}
       organizationSlug={ctx.organizationSlug}
       branchSlug={ctx.branchSlug}
+      branchId={ctx.branchId}
     />
   );
 }

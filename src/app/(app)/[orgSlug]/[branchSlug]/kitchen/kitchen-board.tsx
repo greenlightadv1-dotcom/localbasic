@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
+import { useLiveOrders } from '@/lib/realtime/use-live-orders';
 import type { KitchenTicket } from '@/modules/restaurant/orders/service';
 import type { Station } from '@/modules/restaurant/stations/service';
 import { setOrderStatusAction, setOrderItemStationAction } from '../restaurant-actions';
@@ -53,6 +54,7 @@ export function KitchenBoard({
   canReassign,
   organizationSlug,
   branchSlug,
+  branchId,
 }: {
   stationKind: 'kitchen' | 'bar';
   tickets: Ticket[];
@@ -60,6 +62,7 @@ export function KitchenBoard({
   canReassign: boolean;
   organizationSlug: string;
   branchSlug: string;
+  branchId: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -80,16 +83,15 @@ export function KitchenBoard({
     });
   }
 
-  // Ticket ages tick without a request; the board itself refreshes on a slower
-  // beat so a new order appears without anyone touching the screen.
+  // Ticket ages tick without a request.
   useEffect(() => {
     const tick = setInterval(() => setTick((t) => t + 1), 30_000);
-    const refresh = setInterval(() => router.refresh(), 20_000);
-    return () => {
-      clearInterval(tick);
-      clearInterval(refresh);
-    };
-  }, [router]);
+    return () => clearInterval(tick);
+  }, []);
+
+  // New orders appear without anyone touching the screen: Realtime for an
+  // instant refresh, a 5-second poll as the backstop (see useLiveOrders).
+  useLiveOrders(branchId, stationKind);
 
   function advance(orderId: string, status: 'preparing' | 'ready') {
     startTransition(async () => {

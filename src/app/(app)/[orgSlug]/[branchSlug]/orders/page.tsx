@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Money } from '@/components/patterns/money';
 import { EmptyState } from '@/components/patterns/states';
+import { LiveOrders } from '@/lib/realtime/live-orders';
 
 export const metadata = { title: 'الطلبات' };
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export default async function OrdersPage({
 
   return (
     <div className="space-y-5">
+      <LiveOrders branchId={ctx.branchId} scope="orders" />
       <PageHeader title="الطلبات" description={`${orders.length} طلب — ${ctx.branchName}`} />
 
       <nav aria-label="تصفية الطلبات" className="flex flex-wrap gap-2">

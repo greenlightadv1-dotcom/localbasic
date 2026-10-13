@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Minus, Trash2, Search, ReceiptText, X, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/patterns/states';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useLiveOrders } from '@/lib/realtime/use-live-orders';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
 import type { FloorTable } from '@/modules/restaurant/tables/service';
 import type { CashierOrder } from '@/modules/restaurant/orders/service';
@@ -114,31 +114,11 @@ export function CashierTerminal({
   const [dispatching, setDispatching] = useState<CashierOrder | null>(null);
 
   // New orders (an online guest, a QR table, another till) and status
-  // changes both land on this branch's restaurant_orders rows. Realtime
-  // delivers a change here only when this session's own RLS (orders_select,
-  // 0020) would let it read that row directly — the same guarantee
-  // MembershipWatch already relies on — so subscribing needs no new broadcast
-  // trigger, just the table added to the publication (0073).
-  useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    const channel = supabase
-      .channel(`cashier-orders:${branchId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'restaurant_orders',
-          filter: `branch_id=eq.${branchId}`,
-        },
-        () => router.refresh(),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [branchId, router]);
+  // changes land on this branch's restaurant_orders rows. Realtime gives the
+  // instant refresh (RLS-filtered, table in the publication since 0073) and a
+  // 5-second poll backs it up; see useLiveOrders for why neither disturbs an
+  // open modal or a half-typed amount.
+  useLiveOrders(branchId, 'cashier');
 
   const results = useMemo(() => {
     const term = search.trim().toLowerCase();
