@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getBranding } from '@/modules/core/branding/service';
 import { Button } from '@/components/ui/button';
 import { Money } from '@/components/patterns/money';
-import { PrintButton } from '../../tables/[tableId]/qr/print-button';
+import { PrintReceiptButton } from '../../print-receipt-button';
 import { RECEIPT_DISCLAIMER_AR } from '@/modules/core/legal/receipt';
 
 export const metadata = { title: 'إيصال' };
@@ -82,7 +82,13 @@ export default async function ReceiptPage({
             الإيصالات
           </Button>
         </Link>
-        <PrintButton />
+        <PrintReceiptButton
+          organizationSlug={ctx.organizationSlug}
+          branchSlug={ctx.branchSlug}
+          invoiceId={receipt.id}
+          label="طباعة"
+          variant="primary"
+        />
       </div>
 
       <article className="rounded-lg border border-line bg-white p-6 text-[#0E1330] print:border-0 print:p-0">

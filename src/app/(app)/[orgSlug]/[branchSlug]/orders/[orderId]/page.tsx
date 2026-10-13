@@ -12,6 +12,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Money } from '@/components/patterns/money';
+import { PrintReceiptButton } from '../../print-receipt-button';
 
 export const metadata = { title: 'تفاصيل الطلب' };
 export const dynamic = 'force-dynamic';
@@ -206,6 +207,15 @@ export default async function OrderDetailPage({
                   <Money cents={order.total_cents} currency={order.currency} />
                 </dd>
               </div>
+              {invoice && (
+                <div className="flex justify-end pt-2 print:hidden">
+                  <PrintReceiptButton
+                    organizationSlug={ctx.organizationSlug}
+                    branchSlug={ctx.branchSlug}
+                    invoiceId={invoice.id}
+                  />
+                </div>
+              )}
               {invoice && (
                 <div className="flex justify-between pt-2">
                   <dt className="text-muted">رقم الإيصال</dt>

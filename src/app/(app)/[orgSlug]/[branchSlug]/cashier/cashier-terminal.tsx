@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/patterns/states';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { useLiveOrders } from '@/lib/realtime/use-live-orders';
+import { PrintReceiptButton } from '../print-receipt-button';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
 import type { FloorTable } from '@/modules/restaurant/tables/service';
 import type { CashierOrder } from '@/modules/restaurant/orders/service';
@@ -100,6 +101,7 @@ export function CashierTerminal({
   const [discount, setDiscount] = useState('');
   const [method, setMethod] = useState('cash');
   const [receipt, setReceipt] = useState<{
+    invoiceId: string;
     number: string;
     total: number;
     paid: number;
@@ -320,6 +322,7 @@ export function CashierTerminal({
       }
 
       setReceipt({
+        invoiceId: result.data.invoiceId,
         number: result.data.receiptNumber,
         total: result.data.totalCents,
         paid: result.data.paidCents,
@@ -416,6 +419,13 @@ export function CashierTerminal({
                         <Button size="sm" disabled={isPending} onClick={() => confirmOrder(order)}>
                           تأكيد
                         </Button>
+                      )}
+                      {order.invoiceId && order.paidCents > 0 && (
+                        <PrintReceiptButton
+                          organizationSlug={organizationSlug}
+                          branchSlug={branchSlug}
+                          invoiceId={order.invoiceId}
+                        />
                       )}
                       {order.paidCents < order.totalCents && (
                         <Button
@@ -938,6 +948,16 @@ export function CashierTerminal({
               </dd>
             </div>
           </dl>
+        )}
+        {receipt && (
+          <PrintReceiptButton
+            organizationSlug={organizationSlug}
+            branchSlug={branchSlug}
+            invoiceId={receipt.invoiceId}
+            label="طباعة الإيصال (بون الحساب)"
+            variant="primary"
+            size="md"
+          />
         )}
       </ConfirmDialog>
     </div>

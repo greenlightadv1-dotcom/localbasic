@@ -61,6 +61,7 @@ import {
   payOrderSchema,
 } from '@/modules/restaurant/orders/schemas';
 import { createOrder, setOrderStatus, payOrder } from '@/modules/restaurant/orders/service';
+import { getReceiptData } from '@/modules/restaurant/orders/receipt';
 import { verifyGuestOrder } from '@/modules/restaurant/guest-verification/service';
 
 /**
@@ -383,6 +384,16 @@ export const payOrderAction = defineTenantAction({
     );
     return result;
   },
+});
+
+/**
+ * The data behind the customer receipt (بون الحساب), for printing. Read-only;
+ * the database's own invoice, lines and payments, scoped to this branch.
+ */
+export const getReceiptAction = defineTenantAction({
+  schema: z.object({ invoiceId: z.string().uuid() }),
+  permission: 'invoice.read',
+  handler: async ({ ctx, input }) => getReceiptData(ctx, input.invoiceId),
 });
 
 // ---------------------------------------------------------------------------
