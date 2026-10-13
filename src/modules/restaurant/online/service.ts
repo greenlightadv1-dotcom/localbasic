@@ -365,3 +365,33 @@ export async function cancelOrder(input: unknown): Promise<void> {
   });
   if (error) throw new AppError('validation', error.message);
 }
+
+export type StatusTheme = {
+  organizationName: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+};
+
+/**
+ * The store's effective brand colors for an order-tracking page, by status
+ * token. The colors arrive already tier-gated (0091); a failed read just means
+ * the page renders in the LocalBasic palette.
+ */
+export async function getStatusTheme(token: unknown): Promise<StatusTheme | null> {
+  const parsed = orderToken.safeParse(token);
+  if (!parsed.success) return null;
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('restaurant_status_theme', { p_token: parsed.data });
+  if (error) return null;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { organization_name: string; logo_url: string | null; primary_color: string; secondary_color: string }
+    | undefined;
+  if (!row) return null;
+  return {
+    organizationName: row.organization_name,
+    logoUrl: row.logo_url,
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+  };
+}

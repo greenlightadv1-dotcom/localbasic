@@ -3228,6 +3228,7 @@ export type Database = {
       restaurant_set_order_item_station: { Args: Record<string, unknown>; Returns: Json };
       restaurant_order_staff_trail: { Args: Record<string, unknown>; Returns: Json };
       restaurant_staff_performance: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_status_theme: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_order_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website: { Args: Record<string, unknown>; Returns: Json };
       restaurant_website_best_sellers: { Args: Record<string, unknown>; Returns: Json };

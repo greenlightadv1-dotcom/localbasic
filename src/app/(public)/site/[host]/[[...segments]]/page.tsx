@@ -23,13 +23,21 @@ import { RestaurantSite } from '../../../r/[orgSlug]/page-shell';
  */
 export const dynamic = 'force-dynamic';
 
-type Params = { params: { host: string; segments?: string[] } };
+type Params = {
+  params: { host: string; segments?: string[] };
+  searchParams?: { table?: string | string[] };
+};
 
-/** Only the root and one branch segment are website paths on a custom domain. */
+/**
+ * Only the root and one branch segment are menu paths on a custom domain.
+ * `/menu` is the root under a friendlier name, so a store can print
+ * "store.com/menu" and have it work.
+ */
 function branchFrom(segments?: string[]): string | null | false {
   if (!segments || segments.length === 0) return null;
   if (segments.length > 1) return false;
-  return segments[0]!.toLowerCase();
+  const only = segments[0]!.toLowerCase();
+  return only === 'menu' ? null : only;
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
@@ -92,7 +100,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-export default async function CustomDomainSitePage({ params }: Params) {
+export default async function CustomDomainSitePage({ params, searchParams }: Params) {
   const host = decodeURIComponent(params.host);
   const resolved = await resolveHost(host);
   // No active domain for this hostname — including one that is merely pending,
@@ -112,6 +120,9 @@ export default async function CustomDomainSitePage({ params }: Params) {
   return (
     <RestaurantSite
       orgSlug={resolved.orgSlug}
+      table={searchParams?.table}
+      // Links on a store's own domain are root-relative, not under /r/<org>.
+      linkBase=""
       {...(branch ? { branchSlug: branch } : {})}
     />
   );

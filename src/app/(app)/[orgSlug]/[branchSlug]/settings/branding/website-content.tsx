@@ -17,7 +17,7 @@ function Save() {
       disabled={pending}
       className="h-12 w-full rounded-lg bg-primary text-base font-semibold text-primary-fg hover:bg-primary/90 disabled:opacity-50 sm:w-auto sm:px-8"
     >
-      {pending ? 'جارٍ الحفظ…' : 'حفظ محتوى الموقع'}
+      {pending ? 'جارٍ الحفظ…' : 'حفظ الوصف والمواعيد'}
     </button>
   );
 }
@@ -58,9 +58,9 @@ export function WebsiteContentSection({
 
       <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-line bg-surface p-4">
         <span>
-          <span className="block font-semibold text-fg">نشر الموقع</span>
+          <span className="block font-semibold text-fg">نشر المنيو للعامة</span>
           <span className="mt-0.5 block text-sm text-muted">
-            عند الإيقاف لا يظهر الموقع للعامة إطلاقًا.
+            عند الإيقاف لا يفتح رابط المنيو ولا نطاقك المخصص لأي زائر.
           </span>
         </span>
         <input
@@ -73,7 +73,7 @@ export function WebsiteContentSection({
 
       <label className="block">
         <span className="mb-1.5 block font-semibold text-fg">الوصف المختصر</span>
-        <span className="mb-2 block text-sm text-muted">سطر قصير يظهر أسفل اسم المطعم.</span>
+        <span className="mb-2 block text-sm text-muted">سطر قصير يظهر أسفل اسم متجرك في المنيو.</span>
         <input name="tagline" maxLength={200} defaultValue={settings.tagline}
           className={`${FIELD} h-12`} />
       </label>
@@ -87,7 +87,7 @@ export function WebsiteContentSection({
       <div>
         <span className="mb-1.5 block font-semibold text-fg">صورة الغلاف</span>
         <span className="mb-2 block text-sm text-muted">
-          اتركها فارغة لاستخدام خلفية بألوان المطعم.
+          اختيارية. تظهر عند مشاركة رابط المنيو على واتساب ووسائل التواصل.
         </span>
         <ImageUpload
           organizationId={organizationId}

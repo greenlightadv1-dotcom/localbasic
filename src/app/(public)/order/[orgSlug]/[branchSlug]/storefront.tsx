@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import { checkoutAction, quoteCartAction, getOrderVerificationInfoAction } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
 import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online/service';
@@ -12,6 +12,9 @@ import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geol
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
+import {
+  BottomSheet, CartBar, CategoryRail, CategorySection, FoodCard, FoodGrid,
+} from '@/components/menu/food-ui';
 
 type Line = { variantId: string; quantity: number; modifierIds: string[]; note?: string };
 
@@ -19,13 +22,18 @@ function money(cents: number, currency: string) {
   return `${(cents / 100).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ${currency}`;
 }
 
+const FIELD =
+  'h-12 w-full rounded-[14px] border border-line bg-elevated px-3.5 text-base text-fg transition-colors focus:border-primary focus:outline-none';
+
 /**
- * Guest storefront.
+ * Guest storefront: a mobile-first food-ordering menu.
  *
  * No account, no password, no SMS OTP — a phone number plus this browser's
  * device id is the only identity involved, exactly like the table-QR flow
  * (/p/[token]). A first-time (device, phone) pair sees the WhatsApp
- * verification step before checkout completes; a recognised one skips it.
+ * verification step before its order reaches the cashier; a recognised one
+ * skips it. A returning guest sees one line ("ordering as …") and a single
+ * confirm button instead of the form.
  *
  * The cart lives here, in the browser, and is never persisted as a priced
  * thing: the numbers shown come from quoteCartAction, which re-reads the menu
@@ -58,10 +66,7 @@ export function Storefront({
   const [fulfillment, setFulfillment] = useState<Fulfillment>(offered[0] ?? 'pickup');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  // Mobile only: the cart/checkout panel is an overlay opened from the sticky
-  // bottom bar, rather than something to scroll all the way down to. Unused
-  // above `lg:`, where the panel is always visible in its own column.
-  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [pricing, startPricing] = useTransition();
 
   // A returning guest's name/phone are remembered locally so they are not
@@ -69,14 +74,22 @@ export function Storefront({
   // with the table-QR ordering flow (/p/[token]).
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  // True only when BOTH were remembered from an earlier visit; decides whether
+  // the form opens collapsed to "ordering as …". Set once, never while typing.
+  const [prefilled, setPrefilled] = useState(false);
+  const [editingIdentity, setEditingIdentity] = useState(false);
   useEffect(() => {
     try {
-      setName(localStorage.getItem('lb-guest-name') ?? '');
-      setPhone(localStorage.getItem('lb-guest-phone') ?? '');
+      const n = localStorage.getItem('lb-guest-name') ?? '';
+      const p = localStorage.getItem('lb-guest-phone') ?? '';
+      setName(n);
+      setPhone(p);
+      setPrefilled(n.trim().length >= 2 && p.trim().length >= 6);
     } catch {
       // Private browsing or a blocked store: fields just start empty.
     }
   }, []);
+  const identityCollapsed = prefilled && !editingIdentity;
 
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -157,8 +170,7 @@ export function Storefront({
   //
   // crypto.randomUUID(), not Math.random(): presenting an existing key makes
   // the server hand back that order's tracking token, so the key is a capability
-  // and has to be unguessable. The retail storefront already generates it this
-  // way; this one did not.
+  // and has to be unguessable.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const groupsByProduct = useMemo(() => {
@@ -207,6 +219,7 @@ export function Storefront({
       : lines.map((l, i) => (i === index ? { ...l, quantity } : l));
     setLines(next);
     repriceWith(next, fulfillment);
+    if (next.length === 0) setCartOpen(false);
   }
 
   function changeFulfillment(f: Fulfillment) {
@@ -218,130 +231,143 @@ export function Storefront({
     () => new Map(items.map((i) => [i.variantId, i])), [items],
   );
 
-  // Categories, in first-seen order — the same order the menu screen and the
-  // Site Engine's own menu section already show them in, since both read
-  // sort_order off the same restaurant_categories table this list is
-  // derived from. `null` is the "الكل" tab: no filter, everything shown.
+  // Categories in first-seen order — the order the menu screen shows them in,
+  // since both read sort_order off the same restaurant_categories table. The
+  // rail's round icon is the category's first item photo.
   const categories = useMemo(() => {
-    const seen = new Map<string, string>();
+    const seen = new Map<string, { id: string; name: string; imageUrl: string | null; items: MenuItem[] }>();
     for (const item of items) {
-      const key = item.categoryId ?? '__uncategorised__';
-      if (!seen.has(key)) seen.set(key, item.categoryName ?? 'أصناف أخرى');
+      const id = item.categoryId ?? '__uncategorised__';
+      const entry = seen.get(id) ?? { id, name: item.categoryName ?? 'أصناف أخرى', imageUrl: null, items: [] };
+      entry.items.push(item);
+      entry.imageUrl ??= item.imageUrl;
+      seen.set(id, entry);
     }
-    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+    return [...seen.values()];
   }, [items]);
-
-  // One accordion section per category, collapsed by default except the
-  // first — the pill-row filter this replaces showed every category's name
-  // at once but only one category's items; this shows every category's items
-  // are one tap away, with just the first section's worth of clutter on
-  // screen to start.
-  const itemsByCategory = useMemo(() => {
-    const m = new Map<string, MenuItem[]>();
-    for (const item of items) {
-      const key = item.categoryId ?? '__uncategorised__';
-      m.set(key, [...(m.get(key) ?? []), item]);
-    }
-    return m;
-  }, [items]);
-
-  const [openCategories, setOpenCategories] = useState<Set<string>>(
-    () => new Set(categories[0] ? [categories[0].id] : []),
-  );
-
-  function toggleCategory(id: string) {
-    setOpenCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
 
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
+  const countFor = (variantId: string) =>
+    lines.filter((l) => l.variantId === variantId).reduce((n, l) => n + l.quantity, 0);
+
+  // The item whose options (modifiers) the guest is choosing.
+  const [picking, setPicking] = useState<MenuItem | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [pickError, setPickError] = useState<string | null>(null);
+
+  function beginAdd(item: MenuItem) {
+    const groups = groupsByProduct.get(item.productId) ?? [];
+    if (groups.length === 0) {
+      add(item, []);
+      return;
+    }
+    setChosen([]);
+    setPickError(null);
+    setPicking(item);
+  }
+
+  function toggleModifier(g: ModifierGroup, id: string) {
+    const inGroup = g.modifiers.map((m) => m.id);
+    const others = chosen.filter((c) => !inGroup.includes(c));
+    const mine = chosen.filter((c) => inGroup.includes(c));
+    if (mine.includes(id)) setChosen([...others, ...mine.filter((m) => m !== id)]);
+    else if (g.maxSelect === 1) setChosen([...others, id]);
+    else if (mine.length < g.maxSelect) setChosen([...others, ...mine, id]);
+  }
+
+  function confirmPicking() {
+    if (!picking) return;
+    for (const g of groupsByProduct.get(picking.productId) ?? []) {
+      const inGroup = g.modifiers.map((m) => m.id);
+      const count = chosen.filter((c) => inGroup.includes(c)).length;
+      if (count < g.minSelect) {
+        setPickError(`اختر ${g.minSelect > 1 ? `${g.minSelect} على الأقل من` : 'من'} «${g.groupName}»`);
+        return;
+      }
+    }
+    add(picking, chosen);
+    setPicking(null);
+  }
+
+  const cardName = (item: MenuItem) =>
+    item.variantName !== 'default' ? `${item.productName} — ${item.variantName}` : item.productName;
 
   return (
-    <div className="grid gap-8 pb-24 lg:grid-cols-[1.4fr_1fr] lg:pb-0">
-      <section>
-        <h2 className="mb-4 font-reem text-lg font-normal tracking-wide text-fg">المنيو</h2>
+    <div className="pb-28">
+      <CategoryRail categories={categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }))} />
 
-        {categories.length > 1 ? (
-          <div className="space-y-2">
-            {categories.map((c) => {
-              const catItems = itemsByCategory.get(c.id) ?? [];
-              const isOpen = openCategories.has(c.id);
-              return (
-                <div
-                  key={c.id}
-                  className="overflow-hidden rounded-[16px] border border-line bg-elevated"
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleCategory(c.id)}
-                    aria-expanded={isOpen}
-                    className="flex min-h-12 w-full items-center justify-between gap-2 px-4 py-3 text-start"
-                  >
-                    <span className="font-semibold text-fg">{c.name}</span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
-                      <span className="lb-numeric">{catItems.length}</span>
-                      <ChevronDown
-                        className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')}
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <ul className="animate-fade-in space-y-2 border-t border-line p-2.5">
-                      {catItems.map((item) => (
-                        <MenuRow
-                          key={item.variantId}
-                          item={item}
-                          groups={groupsByProduct.get(item.productId) ?? []}
-                          currency={currency}
-                          onAdd={add}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {items.map((item) => (
-              <MenuRow
+      {categories.map((c) => (
+        <CategorySection key={c.id} id={c.id} name={c.name}>
+          <FoodGrid>
+            {c.items.map((item) => (
+              <FoodCard
                 key={item.variantId}
-                item={item}
-                groups={groupsByProduct.get(item.productId) ?? []}
-                currency={currency}
-                onAdd={add}
+                name={cardName(item)}
+                description={item.description}
+                priceLabel={money(item.priceCents, currency)}
+                imageUrl={item.imageUrl}
+                count={countFor(item.variantId)}
+                onAdd={() => beginAdd(item)}
               />
             ))}
-          </ul>
-        )}
-      </section>
+          </FoodGrid>
+        </CategorySection>
+      ))}
 
-      <section
-        className={cn(
-          'lg:sticky lg:top-4 lg:block lg:self-start',
-          mobileCartOpen
-            ? 'fixed inset-0 z-30 overflow-y-auto bg-bg p-4'
-            : 'hidden',
-        )}
-      >
-        <div className="mb-4 flex items-center justify-between lg:mb-4">
-          <h2 className="font-reem text-lg font-normal tracking-wide text-fg">سلتك</h2>
+      <CartBar
+        count={itemCount}
+        totalLabel={quote ? money(quote.totalCents, quote.currency) : null}
+        onClick={() => setCartOpen(true)}
+      />
+
+      {picking ? (
+        <BottomSheet title={cardName(picking)} onClose={() => setPicking(null)}>
+          {pickError ? <p className="mb-3 rounded-[13px] bg-danger/10 px-3 py-2 text-sm text-danger">{pickError}</p> : null}
+          <div className="space-y-4">
+            {(groupsByProduct.get(picking.productId) ?? []).map((g) => (
+              <fieldset key={g.groupId}>
+                <legend className="mb-2 text-sm font-bold text-fg">
+                  {g.groupName}
+                  <span className="ms-2 text-xs font-normal text-muted">
+                    {g.minSelect > 0 ? 'مطلوب' : 'اختياري'}
+                    {g.maxSelect > 1 ? ` · حتى ${g.maxSelect}` : ''}
+                  </span>
+                </legend>
+                <div className="flex flex-wrap gap-2">
+                  {g.modifiers.map((m) => {
+                    const on = chosen.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => toggleModifier(g, m.id)}
+                        className={cn(
+                          'min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors',
+                          on ? 'border-primary bg-primary text-primary-fg' : 'border-line bg-elevated text-fg',
+                        )}
+                      >
+                        {m.name}
+                        {m.priceCents > 0 ? ` +${money(m.priceCents, currency)}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+          </div>
           <button
             type="button"
-            onClick={() => setMobileCartOpen(false)}
-            aria-label="إغلاق السلة"
-            className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-line text-xl text-muted lg:hidden"
+            onClick={confirmPicking}
+            className="mt-5 flex h-13 min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-primary text-base font-extrabold text-primary-fg"
           >
-            ✕
+            <Plus className="h-5 w-5" aria-hidden="true" /> أضف للسلة
           </button>
-        </div>
+        </BottomSheet>
+      ) : null}
 
-        <div className="rounded-[22px] border border-line bg-elevated p-4 shadow-[0_18px_44px_rgba(0,0,0,.2)]">
+      {cartOpen ? (
+        <BottomSheet title="سلتك" onClose={() => setCartOpen(false)}>
           {lines.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted">السلة فارغة.</p>
           ) : (
@@ -349,11 +375,11 @@ export function Storefront({
               {lines.map((l, i) => {
                 const item = byVariant.get(l.variantId);
                 return (
-                  <li key={`${l.variantId}-${i}`} className="flex items-center gap-2 text-sm">
-                    <span className="flex-1 text-fg">
-                      {item?.productName}
+                  <li key={`${l.variantId}-${i}`} className="flex items-center gap-3 text-sm">
+                    <span className="min-w-0 flex-1 font-semibold text-fg">
+                      {item ? cardName(item) : ''}
                       {l.modifierIds.length > 0 ? (
-                        <span className="text-muted"> (+{l.modifierIds.length})</span>
+                        <span className="font-normal text-muted"> (+{l.modifierIds.length})</span>
                       ) : null}
                     </span>
                     <div className="flex items-center gap-1 rounded-full border border-line p-0.5">
@@ -361,15 +387,15 @@ export function Storefront({
                         type="button"
                         aria-label="إنقاص"
                         onClick={() => setQty(i, l.quantity - 1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-full text-fg hover:bg-surface"
-                      >−</button>
-                      <span className="w-6 text-center font-semibold lb-numeric">{l.quantity}</span>
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-fg hover:bg-surface"
+                      ><Minus className="h-4 w-4" aria-hidden="true" /></button>
+                      <span className="lb-numeric w-6 text-center font-bold">{l.quantity}</span>
                       <button
                         type="button"
                         aria-label="زيادة"
                         onClick={() => setQty(i, l.quantity + 1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-full text-fg hover:bg-surface"
-                      >+</button>
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-fg hover:bg-surface"
+                      ><Plus className="h-4 w-4" aria-hidden="true" /></button>
                     </div>
                   </li>
                 );
@@ -377,23 +403,24 @@ export function Storefront({
             </ul>
           )}
 
-          <div className="mt-3 flex gap-2">
-            {offered.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => changeFulfillment(f)}
-                className={cn(
-                  'flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors',
-                  fulfillment === f
-                    ? 'bg-[rgb(var(--brand-primary))] text-white'
-                    : 'border border-line text-muted hover:text-fg',
-                )}
-              >
-                {FULFILLMENT_LABELS[f]}
-              </button>
-            ))}
-          </div>
+          {offered.length > 1 ? (
+            <div className="mt-3 flex gap-2">
+              {offered.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => changeFulfillment(f)}
+                  aria-pressed={fulfillment === f}
+                  className={cn(
+                    'min-h-11 flex-1 rounded-full px-3 text-sm font-bold transition-colors',
+                    fulfillment === f ? 'bg-primary text-primary-fg' : 'border border-line text-muted hover:text-fg',
+                  )}
+                >
+                  {FULFILLMENT_LABELS[f]}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {/* Every figure below comes back from the server. */}
           <div className="mt-3 space-y-1.5 text-sm" aria-live="polite">
@@ -421,254 +448,106 @@ export function Storefront({
               </>
             ) : null}
           </div>
-        </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <input type="hidden" name="orgSlug" value={orgSlug} />
-          <input type="hidden" name="branchSlug" value={branchSlug} />
-          <input type="hidden" name="fulfillment" value={fulfillment} />
-          <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-          <input type="hidden" name="items" value={JSON.stringify(lines)} />
+          <form ref={formRef} onSubmit={handleSubmit} className="mt-4 space-y-3">
+            <input type="hidden" name="orgSlug" value={orgSlug} />
+            <input type="hidden" name="branchSlug" value={branchSlug} />
+            <input type="hidden" name="fulfillment" value={fulfillment} />
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+            <input type="hidden" name="items" value={JSON.stringify(lines)} />
 
-          {orderError ? (
-            <p className="rounded-[13px] border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {orderError}
-            </p>
-          ) : null}
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-fg">الاسم</span>
-            <input name="customerName" required maxLength={120} value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-fg">رقم الهاتف</span>
-            <input name="customerPhone" required maxLength={32} dir="ltr" value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-          </label>
-
-          {fulfillment === 'delivery' ? (
-            <>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold text-fg">العنوان</span>
-                <input name="address" required maxLength={500}
-                  className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-fg">المدينة</span>
-                  <input name="city" maxLength={120}
-                    className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-fg">المنطقة</span>
-                  <input name="area" maxLength={120}
-                    className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-                </label>
-              </div>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold text-fg">علامة مميزة</span>
-                <input name="landmark" maxLength={240}
-                  className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-              </label>
-            </>
-          ) : null}
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-fg">ملاحظات</span>
-            <input name="note" maxLength={500}
-              className="h-11 w-full rounded-[13px] border border-line bg-elevated px-3 text-sm text-fg transition-colors focus:border-[rgb(var(--brand-primary))] focus:outline-none" />
-          </label>
-
-          {verification ? (
-            <GuestVerifySheet
-              code={verification.code}
-              whatsappUrl={verification.whatsappUrl}
-              checking={checkingStatus}
-              error={null}
-              onRecheck={recheckVerification}
-            />
-          ) : lines.length > 0 ? (
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="h-12 w-full rounded-[13px] bg-[rgb(var(--brand-primary))] text-base font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)] disabled:opacity-50"
-            >
-              {isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
-            </button>
-          ) : null}
-          <p className="text-center text-xs text-muted">
-            الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
-          </p>
-        </form>
-      </section>
-
-      {/* Mobile only: a sticky bottom bar standing in for the cart panel,
-          which is off-screen below the menu on a phone. Opens the same
-          panel as an overlay rather than making checkout something to
-          scroll all the way down to find. */}
-      {!mobileCartOpen && (
-        <button
-          type="button"
-          onClick={() => setMobileCartOpen(true)}
-          className="fixed inset-x-0 bottom-0 z-20 flex min-h-14 items-center justify-between gap-3 bg-[rgb(var(--brand-primary))] px-5 py-3 text-white shadow-[0_-4px_12px_rgb(0_0_0/0.15)] lg:hidden"
-        >
-          <span className="text-sm font-semibold">
-            {itemCount > 0 ? `عرض السلة (${itemCount})` : 'عرض السلة'}
-          </span>
-          {quote && (
-            <span className="lb-numeric text-base font-extrabold">
-              {money(quote.totalCents, quote.currency)}
-            </span>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** A small fallback icon for a variant with no photo — a plate outline. */
-function ItemThumbFallback() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm0 13 5-6 3 3 4-5 5 6"
-      />
-    </svg>
-  );
-}
-
-/**
- * One menu item, as a compact strip row: a small thumbnail, name/description/
- * price, and an add control — replacing the large square-image card grid this
- * used to be. A row with no modifiers adds straight to the cart in one tap;
- * one with modifiers expands the picker inline instead of opening anything
- * else, so the strip stays scannable and only the item actually being
- * customised grows.
- */
-function MenuRow({
-  item, groups, currency, onAdd,
-}: {
-  item: MenuItem;
-  groups: ModifierGroup[];
-  currency: string;
-  onAdd: (item: MenuItem, modifierIds: string[]) => void;
-}) {
-  const hasModifiers = groups.length > 0;
-  const [expanded, setExpanded] = useState(false);
-  const [chosen, setChosen] = useState<string[]>([]);
-
-  function toggle(g: ModifierGroup, id: string) {
-    const inGroup = g.modifiers.map((m) => m.id);
-    const others = chosen.filter((c) => !inGroup.includes(c));
-    const mine = chosen.filter((c) => inGroup.includes(c));
-    if (mine.includes(id)) setChosen([...others, ...mine.filter((m) => m !== id)]);
-    else if (g.maxSelect === 1) setChosen([...others, id]);
-    else if (mine.length < g.maxSelect) setChosen([...others, ...mine, id]);
-  }
-
-  function handleAddClick() {
-    if (!hasModifiers) { onAdd(item, []); return; }
-    setExpanded((v) => !v);
-  }
-
-  function confirmAdd() {
-    onAdd(item, chosen);
-    setChosen([]);
-    setExpanded(false);
-  }
-
-  return (
-    <li className="overflow-hidden rounded-[16px] border border-line bg-elevated">
-      <div className="flex items-center gap-3 p-2.5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface text-muted/40">
-          {item.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
-            <img
-              src={item.imageUrl}
-              alt=""
-              loading="lazy"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <ItemThumbFallback />
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-fg">
-            {item.productName}
-            {item.variantName !== 'default' ? (
-              <span className="text-muted"> — {item.variantName}</span>
+            {orderError ? (
+              <p className="rounded-[13px] border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {orderError}
+              </p>
             ) : null}
-          </p>
-          {item.description ? (
-            <p className="truncate text-xs text-muted">{item.description}</p>
-          ) : null}
-          <span className="text-sm font-extrabold text-fg">
-            {money(item.priceCents, currency)}
-          </span>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleAddClick}
-          aria-expanded={hasModifiers ? expanded : undefined}
-          aria-label="أضف للسلة"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--brand-primary))] text-lg font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
-        >
-          {hasModifiers && expanded ? '−' : '+'}
-        </button>
-      </div>
-
-      {hasModifiers && expanded && (
-        <div className="border-t border-line p-3">
-          {groups.map((g) => (
-            <fieldset key={g.groupId} className="mb-2">
-              <legend className="mb-1 text-xs font-semibold text-muted">
-                {g.groupName}
-                {g.minSelect > 0 ? <span className="text-danger"> *</span> : null}
-              </legend>
-              <div className="flex flex-wrap gap-1.5">
-                {g.modifiers.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => toggle(g, m.id)}
-                    className={cn(
-                      'rounded border px-2 py-1 text-xs',
-                      chosen.includes(m.id)
-                        ? 'border-[rgb(var(--brand-primary))] bg-[rgb(var(--brand-primary)/0.12)] text-[rgb(var(--brand-primary))]'
-                        : 'border-line text-muted',
-                    )}
-                  >
-                    {m.name}
-                    {m.priceCents > 0 ? ` +${money(m.priceCents, currency)}` : ''}
-                  </button>
-                ))}
+            {/* Name + phone only. A returning guest sees who the order is for
+                instead of the fields; the values still travel as hidden inputs. */}
+            {identityCollapsed ? (
+              <div className="flex items-center justify-between gap-3 rounded-[14px] bg-primary-soft px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">الطلب باسم</p>
+                  <p className="truncate font-bold text-fg">{name}</p>
+                  <p className="lb-numeric text-muted" dir="ltr">{phone}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingIdentity(true)}
+                  className="shrink-0 rounded-full border border-primary/40 px-3 py-1.5 text-xs font-bold text-primary"
+                >
+                  تغيير
+                </button>
+                <input type="hidden" name="customerName" value={name} />
+                <input type="hidden" name="customerPhone" value={phone} />
               </div>
-            </fieldset>
-          ))}
-          <button
-            type="button"
-            onClick={confirmAdd}
-            className="mt-1 flex h-9 w-full items-center justify-center gap-1 rounded-[13px] bg-[rgb(var(--brand-primary))] text-sm font-extrabold text-white transition-colors hover:bg-[rgb(var(--brand-primary)/0.9)]"
-          >
-            <span aria-hidden="true">+</span> أضف للسلة
-          </button>
-        </div>
-      )}
-    </li>
+            ) : (
+              <>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-fg">الاسم</span>
+                  <input name="customerName" required minLength={2} maxLength={120} autoComplete="name" value={name}
+                    onChange={(e) => setName(e.target.value)} className={FIELD} />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-fg">رقم الهاتف</span>
+                  <input name="customerPhone" type="tel" inputMode="tel" required minLength={6} maxLength={32} dir="ltr"
+                    autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} />
+                  <span className="mt-1 block text-xs text-muted">لتأكيد طلبك على واتساب. لا حاجة لحساب أو كلمة مرور.</span>
+                </label>
+              </>
+            )}
+
+            {fulfillment === 'delivery' ? (
+              <>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-fg">العنوان</span>
+                  <input name="address" required maxLength={500} className={FIELD} />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-semibold text-fg">المدينة</span>
+                    <input name="city" maxLength={120} className={FIELD} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-semibold text-fg">المنطقة</span>
+                    <input name="area" maxLength={120} className={FIELD} />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-fg">علامة مميزة</span>
+                  <input name="landmark" maxLength={240} className={FIELD} />
+                </label>
+              </>
+            ) : null}
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-fg">ملاحظات (اختياري)</span>
+              <input name="note" maxLength={500} className={FIELD} />
+            </label>
+
+            {verification ? (
+              <GuestVerifySheet
+                code={verification.code}
+                whatsappUrl={verification.whatsappUrl}
+                checking={checkingStatus}
+                error={null}
+                onRecheck={recheckVerification}
+              />
+            ) : lines.length > 0 ? (
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="h-14 w-full rounded-full bg-primary text-base font-extrabold text-primary-fg transition-opacity disabled:opacity-50"
+              >
+                {isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
+              </button>
+            ) : null}
+            <p className="text-center text-xs text-muted">
+              الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
+            </p>
+          </form>
+        </BottomSheet>
+      ) : null}
+    </div>
   );
 }

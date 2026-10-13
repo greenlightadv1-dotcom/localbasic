@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getOrderByToken } from '@/modules/restaurant/online/service';
-import { lavechiCssVars, LAVECHI_CARD_SHADOW } from '@/modules/restaurant/website/lavechi-theme';
+import { getOrderByToken, getStatusTheme } from '@/modules/restaurant/online/service';
+import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { EditWindow } from './track';
 import { OrderProgress } from './order-progress';
 
@@ -24,16 +24,16 @@ function money(cents: number, currency: string) {
  * token is not found — indistinguishable from one that never existed.
  */
 export default async function TrackPage({ params }: { params: { token: string } }) {
-  const order = await getOrderByToken(params.token);
+  const [order, theme] = await Promise.all([getOrderByToken(params.token), getStatusTheme(params.token)]);
   if (!order) notFound();
 
   return (
     <div
-      className="mx-auto min-h-dvh max-w-lg bg-[radial-gradient(circle_at_50%_18%,#0C3624,#07231A_60%)] px-4 py-10 text-[#F4F1E4] sm:px-6"
-      style={lavechiCssVars() as React.CSSProperties}
+      className="mx-auto min-h-dvh max-w-lg bg-bg px-4 py-10 text-fg sm:px-6"
+      style={brandThemeVars(theme?.primaryColor, theme?.secondaryColor) as React.CSSProperties}
     >
       <p className="text-sm text-muted">طلب رقم</p>
-      <h1 className="mb-4 font-reem text-2xl font-normal tracking-wide text-fg" dir="ltr">{order.number}</h1>
+      <h1 className="mb-4 text-2xl font-extrabold text-fg" dir="ltr">{order.number}</h1>
 
       <div className="mb-6">
         <OrderProgress token={params.token} initialStatus={order.status} />
@@ -45,7 +45,7 @@ export default async function TrackPage({ params }: { params: { token: string } 
         </div>
       ) : null}
 
-      <div className="rounded-[18px] border border-line bg-elevated p-4" style={{ boxShadow: LAVECHI_CARD_SHADOW }}>
+      <div className="rounded-lg border border-line bg-elevated p-4 shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)]">
         <ul className="space-y-2 border-b border-line pb-3 text-sm">
           {order.items.map((i, idx) => (
             <li key={idx} className="flex justify-between gap-3">

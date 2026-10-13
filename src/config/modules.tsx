@@ -52,14 +52,13 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/branches', label: 'الفروع', icon: 'Store', permission: 'branch.manage' },
   { href: '/settings/members', label: 'الموظفون', icon: 'UserCog', permission: 'member.read' },
   { href: '/settings/roles', label: 'الصلاحيات', icon: 'ShieldCheck', permission: 'role.manage' },
-  // The one website builder: brand identity + the public site's own content
-  // (tagline/about/cover/hours/publish) + the section editor, all reached
-  // from this single screen. One live site per organization — no separate
-  // "list of sites" to get lost in. Visible to whoever holds either half's
-  // permission, so a role with only settings.manage (no branding.manage)
-  // still sees the website content.
+  // Brand & Theme: identity (name, logo, colors where the plan has them) and
+  // the public menu's description, hours and publish switch, on one screen.
+  // There is no layout editor any more. Visible to whoever holds either
+  // half's permission, so a role with only settings.manage (no
+  // branding.manage) still sees the menu content.
   {
-    href: '/settings/branding', label: 'الموقع', icon: 'Globe',
+    href: '/settings/branding', label: 'الهوية والثيم', icon: 'Palette',
     permission: ['branding.manage', 'settings.manage'],
   },
   // Custom domain management, standalone: a different concern (DNS/TLS

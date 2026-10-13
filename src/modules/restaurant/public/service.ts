@@ -107,8 +107,8 @@ export async function getPublicMenu(token: string): Promise<PublicCategory[]> {
 export async function placePublicOrder(input: {
   token: string;
   items: { variantId: string; quantity: number; modifierIds: string[]; note?: string }[];
-  guestName?: string;
-  guestPhone?: string;
+  guestName: string;
+  guestPhone: string;
   note?: string;
   deviceId?: string;
   latitude?: number;

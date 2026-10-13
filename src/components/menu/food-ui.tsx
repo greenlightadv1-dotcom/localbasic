@@ -1,0 +1,314 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { Plus, ShoppingBag, UtensilsCrossed, X } from 'lucide-react';
+import { cn } from '@/lib/cn';
+
+/**
+ * The customer-facing menu kit — what the online storefront and the table-QR
+ * menu are both built from, modelled on a modern food-ordering app: a store
+ * header, a sticky rail of round category icons, image-first food cards with a
+ * one-tap add button, and a sticky bottom cart bar.
+ *
+ * Presentation only. Nothing here knows about carts, prices or checkout; the
+ * callers own that, so the two ordering flows cannot drift apart visually and
+ * neither can break the other's logic. Every color is a platform token
+ * (bg-primary, text-fg, border-line…), so the whole kit re-themes from the
+ * store's brand colors — see lib/theme/brand-theme.ts.
+ */
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+export function StoreHeader({
+  name, logoUrl, description, chips = [],
+}: {
+  name: string;
+  logoUrl: string | null;
+  description?: string | null;
+  /** Short facts under the name: branch, table, opening state. */
+  chips?: string[];
+}) {
+  return (
+    <header className="flex items-center gap-3 px-4 pb-3 pt-5">
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- an organization-supplied URL.
+        <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-full border border-line object-cover" />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-extrabold text-primary-fg"
+        >
+          {name.slice(0, 2)}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-xl font-extrabold text-fg">{name}</h1>
+        {description ? <p className="line-clamp-2 text-sm text-muted">{description}</p> : null}
+        {chips.length > 0 ? (
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {chips.map((c) => (
+              <li key={c} className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {c}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Category rail
+// ---------------------------------------------------------------------------
+export type RailCategory = { id: string; name: string; imageUrl: string | null };
+
+/** The element id a category's section must carry for the rail to find it. */
+export const categorySectionId = (id: string) => `menu-cat-${id}`;
+
+/**
+ * Sticky, horizontally scrolling round icons. Tapping one scrolls its section
+ * into view; while scrolling, the icon of the section on screen is highlighted
+ * (and kept in view in the rail), the way a delivery app's tab bar behaves.
+ */
+export function CategoryRail({ categories }: { categories: RailCategory[] }) {
+  const [active, setActive] = useState(categories[0]?.id ?? '');
+  const railRef = useRef<HTMLUListElement>(null);
+  // While a tap-initiated scroll is running the observer must not fight it.
+  const lockedUntil = useRef(0);
+
+  // Scroll-spy: the active category is the last one whose heading has reached
+  // the band under the sticky rail. Computed from positions on every (frame-
+  // throttled) scroll rather than from intersection events, which only report
+  // changes and so drift when sections enter and leave together.
+  useEffect(() => {
+    if (categories.length === 0) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (Date.now() < lockedUntil.current) return;
+      let current = categories[0]!.id;
+      for (const c of categories) {
+        const el = document.getElementById(categorySectionId(c.id));
+        if (el && el.getBoundingClientRect().top <= 150) current = c.id;
+      }
+      // A short last section can never reach the band; at the end of the page
+      // it is the one being read.
+      const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      setActive(atEnd && window.scrollY > 0 ? categories[categories.length - 1]!.id : current);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [categories]);
+
+  // Keep the active icon visible inside the rail.
+  useEffect(() => {
+    const el = railRef.current?.querySelector<HTMLElement>(`[data-cat="${CSS.escape(active)}"]`);
+    el?.scrollIntoView?.({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [active]);
+
+  function jump(id: string) {
+    setActive(id);
+    lockedUntil.current = Date.now() + 700;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(categorySectionId(id))?.scrollIntoView({
+      behavior: reduce ? 'auto' : 'smooth', block: 'start',
+    });
+  }
+
+  if (categories.length < 2) return null;
+
+  return (
+    <nav aria-label="أقسام المنيو" className="sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur">
+      <ul ref={railRef} className="flex gap-4 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {categories.map((c) => {
+          const on = c.id === active;
+          return (
+            <li key={c.id} data-cat={c.id} className="shrink-0">
+              <button
+                type="button"
+                onClick={() => jump(c.id)}
+                aria-current={on ? 'true' : undefined}
+                className="flex w-[68px] flex-col items-center gap-1.5 outline-offset-4"
+              >
+                <span
+                  className={cn(
+                    'flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-surface text-muted ring-2 ring-offset-2 ring-offset-bg transition-all',
+                    on ? 'scale-105 ring-primary' : 'ring-transparent',
+                  )}
+                >
+                  {c.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- a Storage URL.
+                    <img src={c.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <UtensilsCrossed className="h-6 w-6" aria-hidden="true" />
+                  )}
+                </span>
+                <span className={cn('line-clamp-1 w-full text-center text-xs font-semibold', on ? 'text-primary' : 'text-muted')}>
+                  {c.name}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Food card
+// ---------------------------------------------------------------------------
+export function FoodCard({
+  name, description, priceLabel, imageUrl, soldOut = false, canOrder = true, onAdd, count = 0,
+}: {
+  name: string;
+  description?: string | null;
+  /** Already formatted, e.g. "45.00 EGP" or "من 45.00 EGP". */
+  priceLabel: string;
+  imageUrl: string | null;
+  soldOut?: boolean;
+  /** False for a read-only menu: the add button is not shown. */
+  canOrder?: boolean;
+  onAdd?: () => void;
+  /** How many of this item are already in the cart, shown on the button. */
+  count?: number;
+}) {
+  return (
+    <li className="flex flex-col overflow-hidden rounded-lg border border-line bg-elevated shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)]">
+      <div className="relative aspect-[4/3] w-full bg-surface">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a Storage URL.
+          <img src={imageUrl} alt="" loading="lazy" className={cn('h-full w-full object-cover', soldOut && 'opacity-50 grayscale')} />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-muted/40">
+            <UtensilsCrossed className="h-9 w-9" aria-hidden="true" />
+          </span>
+        )}
+        {soldOut ? (
+          <span className="absolute start-2 top-2 rounded-full bg-danger px-2.5 py-0.5 text-xs font-bold text-white">نفد</span>
+        ) : null}
+        {canOrder && !soldOut && onAdd ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={`أضف ${name} للسلة`}
+            className="absolute bottom-2 end-2 flex h-10 min-w-10 items-center justify-center gap-1 rounded-full bg-primary px-2.5 text-sm font-extrabold text-primary-fg shadow-md transition-transform active:scale-90"
+          >
+            {count > 0 ? <span className="lb-numeric">{count}</span> : null}
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <h3 className="line-clamp-2 text-sm font-bold leading-snug text-fg">{name}</h3>
+        {description ? <p className="line-clamp-2 text-xs text-muted">{description}</p> : null}
+        <p className="lb-numeric mt-auto pt-1 text-sm font-extrabold text-primary">{priceLabel}</p>
+      </div>
+    </li>
+  );
+}
+
+/** The grid every category's cards sit in: two columns on a phone. */
+export function FoodGrid({ children }: { children: React.ReactNode }) {
+  return <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</ul>;
+}
+
+/** A category's titled section, addressable by the rail. */
+export function CategorySection({
+  id, name, description, children,
+}: { id: string; name: string; description?: string | null; children: React.ReactNode }) {
+  return (
+    <section id={categorySectionId(id)} className="scroll-mt-28 px-4 pt-5">
+      <h2 className="text-lg font-extrabold text-fg">{name}</h2>
+      {description ? <p className="mb-2 text-sm text-muted">{description}</p> : <div className="mb-2" />}
+      {children}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sticky cart bar
+// ---------------------------------------------------------------------------
+export function CartBar({
+  count, totalLabel, onClick, label = 'عرض السلة',
+}: { count: number; totalLabel: string | null; onClick: () => void; label?: string }) {
+  if (count <= 0) return null;
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 z-30 px-4 pt-3"
+      style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        data-testid="cart-bar"
+        className="mx-auto flex h-14 w-full max-w-2xl items-center gap-3 rounded-full bg-primary px-5 text-primary-fg shadow-[0_10px_30px_rgb(var(--lb-primary)/0.35)] transition-transform active:scale-[0.98]"
+      >
+        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+          <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+          <span className="lb-numeric absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bg px-1 text-[11px] font-extrabold text-primary">
+            {count}
+          </span>
+        </span>
+        <span className="flex-1 text-start text-base font-bold">{label}</span>
+        {totalLabel ? <span className="lb-numeric text-base font-extrabold">{totalLabel}</span> : null}
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bottom sheet
+// ---------------------------------------------------------------------------
+/**
+ * A modal bottom sheet: backdrop, Escape and backdrop-tap to close, body scroll
+ * locked while open. Rendered only while open, so its inputs and state reset on
+ * each opening.
+ */
+export function BottomSheet({
+  title, onClose, children,
+}: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/45" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        className="mx-auto max-h-[92dvh] w-full max-w-2xl animate-fade-in overflow-y-auto rounded-t-[26px] bg-bg p-4 shadow-[0_-12px_40px_rgba(0,0,0,.25)]"
+        style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-extrabold text-fg">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-muted"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}

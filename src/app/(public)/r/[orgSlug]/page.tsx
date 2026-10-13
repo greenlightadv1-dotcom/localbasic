@@ -9,6 +9,12 @@ export function generateMetadata({ params }: { params: { orgSlug: string } }) {
   return buildMetadata(params.orgSlug);
 }
 
-export default function RestaurantHomePage({ params }: { params: { orgSlug: string } }) {
-  return <RestaurantSite orgSlug={params.orgSlug} />;
+export default function RestaurantHomePage({
+  params,
+  searchParams,
+}: {
+  params: { orgSlug: string };
+  searchParams: { table?: string | string[] };
+}) {
+  return <RestaurantSite orgSlug={params.orgSlug} table={searchParams.table} />;
 }

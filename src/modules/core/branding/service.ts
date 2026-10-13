@@ -19,6 +19,16 @@ export type Branding = {
   /** Whether the "Powered by LocalBasic" footer may be hidden. Resolved from
    *  the organization's plan, never from a client-supplied flag. */
   whiteLabel: boolean;
+  /**
+   * Whether the plan lets this store use its own colors (Growth/Scale). When
+   * false, `primaryColor`/`secondaryColor` above are the LocalBasic defaults
+   * — the EFFECTIVE colors every screen should render — while the store's
+   * saved choice is kept in `storedPrimaryColor`/`storedSecondaryColor` so an
+   * upgrade brings it straight back and the settings page can show it locked.
+   */
+  customColors: boolean;
+  storedPrimaryColor: string;
+  storedSecondaryColor: string;
 };
 
 const DEFAULTS: Omit<Branding, 'displayName'> = {
@@ -29,6 +39,9 @@ const DEFAULTS: Omit<Branding, 'displayName'> = {
   whatsapp: null,
   email: null,
   whiteLabel: false,
+  customColors: false,
+  storedPrimaryColor: '#1E2FC8',
+  storedSecondaryColor: '#6B8BFA',
 };
 
 export async function getBranding(ctx: TenantContext): Promise<Branding> {
@@ -54,12 +67,22 @@ export async function getBranding(ctx: TenantContext): Promise<Branding> {
   const features = (subscription?.plans as unknown as { features: Record<string, unknown> } | null)
     ?.features;
   const planAllowsWhiteLabel = features?.white_label === true;
+  // Own colors are a plan feature too. Mirrors app.effective_brand_color()
+  // (0091), which the public pages read through — one rule in two places, so a
+  // Basic store sees the LocalBasic palette in its dashboard as well as to
+  // its guests.
+  const customColors = features?.custom_colors === true;
+  const storedPrimary = branding?.primary_color ?? DEFAULTS.primaryColor;
+  const storedSecondary = branding?.secondary_color ?? DEFAULTS.secondaryColor;
 
   return {
     displayName: branding?.display_name ?? ctx.organizationName,
     logoUrl: branding?.logo_url ?? DEFAULTS.logoUrl,
-    primaryColor: branding?.primary_color ?? DEFAULTS.primaryColor,
-    secondaryColor: branding?.secondary_color ?? DEFAULTS.secondaryColor,
+    primaryColor: customColors ? storedPrimary : DEFAULTS.primaryColor,
+    secondaryColor: customColors ? storedSecondary : DEFAULTS.secondaryColor,
+    customColors,
+    storedPrimaryColor: storedPrimary,
+    storedSecondaryColor: storedSecondary,
     phone: branding?.phone ?? null,
     whatsapp: branding?.whatsapp ?? null,
     email: branding?.email ?? null,
@@ -98,13 +121,19 @@ export async function updateBranding(
   requirePermission(ctx, 'branding.manage');
   const supabase = createSupabaseServerClient();
 
+  // A plan without custom colors cannot change them, whatever the form sent:
+  // the saved colors are left exactly as they were (so an upgrade restores
+  // them) and everything else still saves.
+  const { customColors } = await getBranding(ctx);
+
   const { error } = await supabase
     .from('branding_settings')
     .update({
       display_name: input.displayName,
       logo_url: input.logoUrl,
-      primary_color: input.primaryColor,
-      secondary_color: input.secondaryColor,
+      ...(customColors
+        ? { primary_color: input.primaryColor, secondary_color: input.secondaryColor }
+        : {}),
       phone: input.phone || null,
       whatsapp: input.whatsapp || null,
       email: input.email || null,

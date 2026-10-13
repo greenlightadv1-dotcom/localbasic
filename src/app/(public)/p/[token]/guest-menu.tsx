@@ -2,17 +2,16 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ImageOff, Minus, Plus, ShoppingBag, X, Search } from 'lucide-react';
+import { Minus, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
-import { LAVECHI_CARD_SHADOW, LAVECHI_SHEET_SPRING } from '@/modules/restaurant/website/lavechi-theme';
-import { usePrefersReducedMotion } from '@/modules/restaurant/website/lavechi-theme-client';
+import {
+  BottomSheet, CartBar, CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
+} from '@/components/menu/food-ui';
 import type {
   PublicCategory,
   PublicContext,
@@ -25,33 +24,6 @@ import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 import { placeGuestOrderAction, getOrderVerificationInfoAction } from './actions';
-
-/** A bottom sheet: springs up from off-screen, slides back down on close. */
-function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  const reduced = usePrefersReducedMotion();
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.18 }}
-      className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={reduced ? { y: 0 } : { y: '100%' }}
-        animate={{ y: 0 }}
-        exit={reduced ? { y: 0 } : { y: '100%' }}
-        transition={reduced ? { duration: 0 } : LAVECHI_SHEET_SPRING}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[85dvh] overflow-y-auto rounded-t-[22px] bg-elevated p-4"
-        style={{ boxShadow: LAVECHI_CARD_SHADOW }}
-      >
-        {children}
-      </motion.div>
-    </motion.div>
-  );
-}
 
 type CartLine = {
   key: string;
@@ -88,6 +60,8 @@ export function GuestMenu({
     null,
   );
   const [chosen, setChosen] = useState<Record<string, string[]>>({});
+  // A product with several sizes asks which one before anything else.
+  const [choosingVariant, setChoosingVariant] = useState<PublicProduct | null>(null);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [note, setNote] = useState('');
@@ -121,21 +95,6 @@ export function GuestMenu({
       // Private browsing or a blocked store: the fields just start empty.
     }
   }, []);
-
-  // Categories start collapsed except the first — a screen with every
-  // category's items open at once is exactly the clutter this replaces.
-  // Searching overrides collapse entirely: a matching category always shows
-  // its matches, never buried behind a tap the search bar already implied.
-  const [openCategories, setOpenCategories] = useState<Set<string>>(
-    () => new Set(menu[0] ? [menu[0].id] : []),
-  );
-  function toggleCategory(id: string) {
-    setOpenCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -215,6 +174,9 @@ export function GuestMenu({
   function submit() {
     if (cart.length === 0) return;
     setError(null);
+    // Name and phone are the whole identity (and what the WhatsApp check binds to).
+    if (guestName.trim().length < 2) { setError('اكتب اسمك.'); return; }
+    if (guestPhone.trim().length < 6) { setError('اكتب رقم هاتفك لتأكيد الطلب على واتساب.'); return; }
     startTransition(async () => {
       const location = await getBrowserLocation();
       const result = await placeGuestOrderAction({
@@ -224,8 +186,8 @@ export function GuestMenu({
           quantity: l.quantity,
           modifierIds: l.modifiers.map((m) => m.id),
         })),
-        guestName: guestName || undefined,
-        guestPhone: guestPhone || undefined,
+        guestName: guestName.trim(),
+        guestPhone: guestPhone.trim(),
         note: note || undefined,
         deviceId: deviceId || undefined,
         latitude: location?.latitude,
@@ -271,42 +233,38 @@ export function GuestMenu({
     });
   }
 
+  const rail = filtered.map((c) => ({
+    id: c.id,
+    name: c.name,
+    imageUrl: c.image_url ?? c.products.find((p) => p.image_url)?.image_url ?? null,
+  }));
+
+  /** Quick add: one size adds straight away; several sizes ask which. */
+  function quickAdd(product: PublicProduct) {
+    const available = product.variants.filter((v) => v.available);
+    if (available.length === 0) return;
+    if (product.variants.length === 1 || available.length === 1) {
+      choose(product, available[0]!);
+      return;
+    }
+    setChoosingVariant(product);
+  }
+  const inCart = (product: PublicProduct) =>
+    cart.filter((l) => product.variants.some((v) => v.id === l.variant.id)).reduce((n, l) => n + l.quantity, 0);
+  const fromPrice = (product: PublicProduct) => Math.min(...product.variants.map((v) => v.price_cents));
+
   return (
     <main className="mx-auto max-w-2xl pb-28">
-      <header className="sticky top-0 z-20 border-b border-line bg-elevated/70 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <span className="relative inline-flex shrink-0">
-            {context.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={context.logoUrl}
-                alt=""
-                className="lavechi-ring-pulse h-10 w-10 rounded-full object-cover"
-              />
-            ) : (
-              <span className="lavechi-ring-pulse flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-fg">
-                {context.organizationName.slice(0, 2)}
-              </span>
-            )}
-            <span aria-hidden className="lavechi-steam pointer-events-none absolute -top-2 start-1/2 -translate-x-1/2">
-              <span className="absolute block h-3 w-1 -translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
-              <span className="absolute block h-3 w-1 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
-              <span className="absolute block h-3 w-1 translate-x-2 rounded-full bg-[#F4F1E4]/40 blur-[1px]" />
-            </span>
-          </span>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-reem text-lg font-normal tracking-wide text-fg">
-              {context.organizationName}
-            </h1>
-            <p className="text-xs text-muted">
-              {context.branchName} · طاولة {context.tableName}
-            </p>
-          </div>
-        </div>
+      <StoreHeader
+        name={context.organizationName}
+        logoUrl={context.logoUrl}
+        chips={[context.branchName, `طاولة ${context.tableName}`]}
+      />
 
-        <div className="relative mt-3">
+      <div className="px-4 pb-3">
+        <div className="relative">
           <Search
-            className="pointer-events-none absolute inset-y-0 start-3 my-auto h-4 w-4 text-muted"
+            className="pointer-events-none absolute inset-y-0 start-3.5 my-auto h-4 w-4 text-muted"
             aria-hidden="true"
           />
           <label htmlFor="guest-search" className="sr-only">
@@ -317,142 +275,62 @@ export function GuestMenu({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ابحث في المنيو…"
-            className="ps-9"
+            className="h-12 rounded-full ps-10"
           />
         </div>
-      </header>
+      </div>
 
       {!context.orderingEnabled && (
-        <div className="px-4 pt-4">
+        <div className="px-4 pb-2">
           <Alert tone="info">هذا المنيو للعرض فقط. اطلب من الكابتن.</Alert>
         </div>
       )}
 
+      <CategoryRail categories={rail} />
+
       {filtered.length === 0 ? (
         <p className="px-4 py-16 text-center text-sm text-muted">لا توجد أصناف مطابقة.</p>
       ) : (
-        <div className="space-y-3 px-4 py-4">
-          {filtered.map((category) => {
-            const isOpen = Boolean(search.trim()) || openCategories.has(category.id);
-            return (
-            <section
-              key={category.id}
-              className="overflow-hidden rounded-[18px] border border-line bg-elevated"
-              style={{ boxShadow: LAVECHI_CARD_SHADOW }}
-            >
-              <button
-                type="button"
-                onClick={() => toggleCategory(category.id)}
-                aria-expanded={isOpen}
-                aria-controls={`cat-${category.id}`}
-                className="flex min-h-12 w-full items-center justify-between gap-2 px-3 py-3 text-start"
-              >
-                <span className="text-base font-bold">{category.name}</span>
-                <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
-                  <span className="lb-numeric">{category.products.length}</span>
-                  <ChevronDown
-                    className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')}
-                    aria-hidden="true"
-                  />
-                </span>
-              </button>
-              {isOpen && (
-              <div id={`cat-${category.id}`} className="border-t border-line p-3 pt-2">
-              {category.description && (
-                <p className="mb-2 text-sm text-muted">{category.description}</p>
-              )}
-              <ul className="space-y-2">
-                {category.products.map((product) => (
-                  <li key={product.id} className="rounded-[13px] bg-surface p-2.5">
-                    <div className="flex gap-3">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-elevated text-muted/40">
-                        {product.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={product.image_url}
-                            alt=""
-                            loading="lazy"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <ImageOff className="h-5 w-5" aria-hidden="true" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold">{product.name}</p>
-                        {product.description && (
-                          <p className="mt-0.5 line-clamp-2 text-sm text-muted">
-                            {product.description}
-                          </p>
-                        )}
-                        <ul className="mt-2 flex flex-wrap gap-2">
-                          {product.variants.map((variant) => (
-                            <li key={variant.id}>
-                              <button
-                                type="button"
-                                disabled={!variant.available || !context.orderingEnabled}
-                                onClick={() => choose(product, variant)}
-                                className={cn(
-                                  'flex min-h-11 items-center gap-2 rounded-[13px] border px-3 text-sm font-extrabold transition-colors',
-                                  variant.available && context.orderingEnabled
-                                    ? 'border-primary/30 bg-primary-soft text-primary active:bg-primary active:text-primary-fg'
-                                    : 'cursor-not-allowed border-line bg-surface text-muted',
-                                )}
-                              >
-                                {variant.name !== 'default' && <span>{variant.name}</span>}
-                                <span className="lb-numeric">
-                                  {formatMoney(variant.price_cents, context.currency)}
-                                </span>
-                                {!variant.available && <Badge tone="danger">نفد</Badge>}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              </div>
-              )}
-            </section>
-            );
-          })}
-        </div>
+        filtered.map((category) => (
+          <CategorySection key={category.id} id={category.id} name={category.name} description={category.description}>
+            <FoodGrid>
+              {category.products.map((product) => (
+                <FoodCard
+                  key={product.id}
+                  name={product.name}
+                  description={product.description}
+                  priceLabel={`${product.variants.length > 1 ? 'من ' : ''}${formatMoney(fromPrice(product), context.currency)}`}
+                  imageUrl={product.image_url}
+                  soldOut={product.variants.every((v) => !v.available)}
+                  canOrder={context.orderingEnabled}
+                  count={inCart(product)}
+                  onAdd={() => quickAdd(product)}
+                />
+              ))}
+            </FoodGrid>
+          </CategorySection>
+        ))
       )}
 
       {!context.whiteLabel && (
-        <div className="px-4 pb-6 pt-2 text-center">
+        <div className="px-4 pb-6 pt-6 text-center">
           <PoweredBy />
         </div>
       )}
 
       {/* Cart bar */}
-      {cartCount > 0 && context.orderingEnabled && !cartOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-elevated p-3">
-          <Button size="touch" block onClick={() => setCartOpen(true)}>
-            <ShoppingBag className="h-5 w-5" aria-hidden="true" />
-            <span>عرض الطلب ({cartCount})</span>
-            <span className="lb-numeric ms-auto">{formatMoney(cartTotal, context.currency)}</span>
-          </Button>
-        </div>
+      {context.orderingEnabled && !cartOpen && (
+        <CartBar
+          count={cartCount}
+          totalLabel={formatMoney(cartTotal, context.currency)}
+          onClick={() => setCartOpen(true)}
+          label="عرض الطلب"
+        />
       )}
 
       {/* Cart sheet */}
-      <AnimatePresence>
-        {cartOpen && (
-          <Sheet onClose={() => setCartOpen(false)}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-reem text-lg font-normal tracking-wide">طلبك</h2>
-              <button
-                type="button"
-                onClick={() => setCartOpen(false)}
-                aria-label="إغلاق"
-                className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-line"
-              >
-                <X className="h-5 w-5 text-muted" />
-              </button>
-            </div>
+      {cartOpen && (
+          <BottomSheet title="طلبك" onClose={() => setCartOpen(false)}>
 
             {error && !verification && <Alert tone="danger" className="mb-3">{error}</Alert>}
 
@@ -521,27 +399,36 @@ export function GuestMenu({
 
             <div className="mt-4 space-y-3">
               <div>
-                <label htmlFor="guest-name" className="mb-1 block text-sm font-medium">
-                  الاسم (اختياري)
+                <label htmlFor="guest-name" className="mb-1 block text-sm font-semibold">
+                  الاسم
                 </label>
                 <Input
                   id="guest-name"
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
                   maxLength={80}
+                  required
+                  autoComplete="name"
+                  className="h-12 rounded-[14px]"
                 />
               </div>
               <div>
-                <label htmlFor="guest-phone" className="mb-1 block text-sm font-medium">
-                  رقم الهاتف (اختياري — للتحقق فقط)
+                <label htmlFor="guest-phone" className="mb-1 block text-sm font-semibold">
+                  رقم الهاتف
                 </label>
                 <Input
                   id="guest-phone"
+                  type="tel"
+                  inputMode="tel"
                   dir="ltr"
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
                   maxLength={32}
+                  required
+                  autoComplete="tel"
+                  className="h-12 rounded-[14px]"
                 />
+                <p className="mt-1 text-xs text-muted">لتأكيد طلبك على واتساب. لا حاجة لحساب أو كلمة مرور.</p>
               </div>
               <div>
                 <label htmlFor="guest-note" className="mb-1 block text-sm font-medium">
@@ -578,25 +465,44 @@ export function GuestMenu({
                 </Button>
               )}
             </div>
-          </Sheet>
+          </BottomSheet>
         )}
-      </AnimatePresence>
+
+      {/* Size picker — only for a product with more than one size */}
+      {choosingVariant && (
+        <BottomSheet title={choosingVariant.name} onClose={() => setChoosingVariant(null)}>
+          <ul className="space-y-2">
+            {choosingVariant.variants.map((variant) => (
+              <li key={variant.id}>
+                <button
+                  type="button"
+                  disabled={!variant.available}
+                  onClick={() => {
+                    const product = choosingVariant;
+                    setChoosingVariant(null);
+                    choose(product, variant);
+                  }}
+                  className={cn(
+                    'flex min-h-14 w-full items-center justify-between gap-3 rounded-[14px] border px-4 text-base font-bold transition-colors',
+                    variant.available
+                      ? 'border-line bg-elevated text-fg active:border-primary active:bg-primary-soft'
+                      : 'cursor-not-allowed border-line bg-surface text-muted',
+                  )}
+                >
+                  <span>{variant.name !== 'default' ? variant.name : choosingVariant.name}</span>
+                  <span className="lb-numeric text-primary">
+                    {variant.available ? formatMoney(variant.price_cents, context.currency) : 'نفد'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </BottomSheet>
+      )}
 
       {/* Modifier sheet */}
-      <AnimatePresence>
-        {picking && (
-          <Sheet onClose={() => setPicking(null)}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-reem text-lg font-normal tracking-wide">{picking.product.name}</h2>
-              <button
-                type="button"
-                onClick={() => setPicking(null)}
-                aria-label="إغلاق"
-                className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-line"
-              >
-                <X className="h-5 w-5 text-muted" />
-              </button>
-            </div>
+      {picking && (
+          <BottomSheet title={picking.product.name} onClose={() => setPicking(null)}>
 
             {error && <Alert tone="danger" className="mb-3">{error}</Alert>}
 
@@ -659,9 +565,8 @@ export function GuestMenu({
             <Button size="touch" block className="mt-4" onClick={confirmModifiers}>
               إضافة للطلب
             </Button>
-          </Sheet>
+          </BottomSheet>
         )}
-      </AnimatePresence>
     </main>
   );
 }

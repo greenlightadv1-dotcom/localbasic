@@ -52,8 +52,10 @@ export const payOrderSchema = z.object({
 export const publicOrderSchema = z.object({
   token: z.string().min(22).max(64),
   items: z.array(orderItemInput).min(1).max(50),
-  guestName: z.string().trim().max(80).optional(),
-  guestPhone: z.string().trim().max(30).optional(),
+  // Name and phone are the whole identity: the phone is what the WhatsApp
+  // verification (0086) is bound to, so an order without one would skip it.
+  guestName: z.string().trim().min(2, 'الاسم مطلوب').max(80),
+  guestPhone: z.string().trim().min(6, 'رقم الهاتف مطلوب').max(30),
   note: z.string().trim().max(300).optional(),
   // Device trust + geofencing (0081). All optional: a browser that blocked
   // geolocation, or denied localStorage, still gets to place an order — it

@@ -121,11 +121,14 @@ test('a guest orders from a table QR', async ({ page }) => {
   await page.getByRole('button', { name: /دجاج/ }).first().click();
   await page.getByRole('button', { name: 'إضافة للطلب' }).click();
   await page.getByRole('button', { name: /عرض الطلب/ }).click();
+  // Name and phone are the whole identity now.
+  await page.getByLabel('الاسم').fill('ضيف تجريبي');
+  await page.getByLabel('رقم الهاتف').fill('01000000042');
   await page.getByRole('button', { name: 'إرسال الطلب' }).click();
 
-  await expect(page.getByRole('heading', { name: 'تم استلام طلبك' })).toBeVisible({
-    timeout: 20_000,
-  });
+  // A first-time device is held for the WhatsApp check before the cashier sees
+  // the order; a recognised one would go straight to the tracking page.
+  await expect(page.getByText('تأكيد رقم الهاتف')).toBeVisible({ timeout: 20_000 });
 });
 
 test('the kitchen marks an order ready and the waiter serves it', async ({ page }) => {

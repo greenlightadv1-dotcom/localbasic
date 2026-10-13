@@ -1,7 +1,10 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
-import { lavechiCssVars, LAVECHI_SPLASH_BACKGROUND } from '@/modules/restaurant/website/lavechi-theme';
+import { getWebsite } from '@/modules/restaurant/website/service';
+import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
+import { brandThemeVars } from '@/lib/theme/brand-theme';
+import { StoreHeader } from '@/components/menu/food-ui';
 import { Storefront } from './storefront';
 
 export const dynamic = 'force-dynamic';
@@ -20,15 +23,27 @@ export const metadata: Metadata = {
  * from a SECURITY DEFINER function that proves the branch belongs to the
  * organization; a storefront with online ordering switched off, or a slug
  * pair that does not belong together, is simply not found.
+ *
+ * `?table=<code>` (a table's QR code) goes straight to that table's menu.
+ *
+ * The page is themed from the store's brand colors, which arrive already
+ * resolved for its plan: its own on Growth/Scale, the LocalBasic palette on
+ * Basic.
  */
 export default async function OrderPage({
   params,
+  searchParams,
 }: {
   params: { orgSlug: string; branchSlug: string };
+  searchParams: { table?: string | string[] };
 }) {
-  const [menu, info] = await Promise.all([
+  const table = await resolveTableCode(searchParams.table);
+  if (table) redirect(`/p/${table}`);
+
+  const [menu, info, site] = await Promise.all([
     getOnlineMenu({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }).catch(() => null),
     getStorefront({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }),
+    getWebsite(params.orgSlug).catch(() => null),
   ]);
 
   if (!menu || menu.items.length === 0 || !info) notFound();
@@ -39,34 +54,25 @@ export default async function OrderPage({
 
   return (
     <div
-      className="min-h-dvh"
-      style={{ ...lavechiCssVars(), background: LAVECHI_SPLASH_BACKGROUND } as React.CSSProperties}
+      className="min-h-dvh bg-bg text-fg"
+      style={brandThemeVars(info.primaryColor, info.secondaryColor) as React.CSSProperties}
     >
-      <div className="mx-auto max-w-5xl px-4 py-8 text-[#F4F1E4] sm:px-6">
-          <div className="mb-6 flex items-center gap-3">
-            {info.logoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element -- an
-              // organization-supplied external URL, not a build-time asset.
-              <img
-                src={info.logoUrl}
-                alt=""
-                className="lavechi-ring-pulse h-12 w-12 shrink-0 rounded-full object-cover"
-              />
-            )}
-            <div>
-              <h1 className="font-reem text-2xl font-normal tracking-wide text-fg">{info.organizationName}</h1>
-              <p className="text-sm text-muted">{info.branchName}</p>
-            </div>
-          </div>
-          <Storefront
-            orgSlug={params.orgSlug}
-            branchSlug={params.branchSlug}
-            items={menu.items}
-            modifierGroups={menu.modifierGroups}
-            currency={info.currency}
-            pickupEnabled={info.pickupEnabled}
-            deliveryEnabled={info.deliveryEnabled}
-          />
+      <div className="mx-auto max-w-2xl">
+        <StoreHeader
+          name={info.organizationName}
+          logoUrl={info.logoUrl}
+          description={site?.tagline ?? site?.about ?? null}
+          chips={[info.branchName]}
+        />
+        <Storefront
+          orgSlug={params.orgSlug}
+          branchSlug={params.branchSlug}
+          items={menu.items}
+          modifierGroups={menu.modifierGroups}
+          currency={info.currency}
+          pickupEnabled={info.pickupEnabled}
+          deliveryEnabled={info.deliveryEnabled}
+        />
       </div>
     </div>
   );

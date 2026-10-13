@@ -12,8 +12,12 @@ export function generateMetadata({
 
 export default function RestaurantBranchPage({
   params,
+  searchParams,
 }: {
   params: { orgSlug: string; branchSlug: string };
+  searchParams: { table?: string | string[] };
 }) {
-  return <RestaurantSite orgSlug={params.orgSlug} branchSlug={params.branchSlug} />;
+  return (
+    <RestaurantSite orgSlug={params.orgSlug} branchSlug={params.branchSlug} table={searchParams.table} />
+  );
 }
