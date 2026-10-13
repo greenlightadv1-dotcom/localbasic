@@ -14,6 +14,7 @@ create schema if not exists auth;
 create table if not exists auth.users (
   id                    uuid primary key default gen_random_uuid(),
   email                 text unique,
+  phone                 text unique,
   raw_user_meta_data    jsonb not null default '{}'::jsonb,
   created_at            timestamptz not null default now()
 );
@@ -98,3 +99,37 @@ begin
   perform set_config('role', 'postgres', true);
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- The rest of what the migrations reach for on a real Supabase project. On a
+-- plain PostgreSQL cluster none of it exists, and the first migration to
+-- touch it (0065: the realtime publication) fails the whole run.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+end $$;
+
+create schema if not exists storage;
+create table if not exists storage.buckets (
+  id text primary key, name text, public boolean,
+  file_size_limit bigint, allowed_mime_types text[]
+);
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text, name text, owner uuid, metadata jsonb
+);
+alter table storage.objects enable row level security;
+create or replace function storage.foldername(name text)
+returns text[] language sql immutable as $$ select string_to_array(name, '/') $$;
+
+create schema if not exists realtime;
+-- Broadcast is a no-op here: tests assert database state, not delivery.
+create or replace function realtime.send(payload jsonb, event text, topic text, private boolean)
+returns void language sql as $$ select 1 $$;
+
+grant usage on schema storage, realtime to anon, authenticated;
+grant select, insert, update, delete on storage.objects to authenticated;
+grant select on storage.buckets to authenticated;

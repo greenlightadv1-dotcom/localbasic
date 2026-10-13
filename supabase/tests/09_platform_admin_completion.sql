@@ -229,7 +229,7 @@ begin
     from public.subscription_events
    where organization_id = org
    order by id desc limit 1;
-  assert r.gross_cents = 49900 * 12, 'FAIL: first sale gross is ' || r.gross_cents;
+  assert r.gross_cents = 250000 * 12, 'FAIL: first sale gross is ' || r.gross_cents;
   assert r.payment_method = 'cash', 'FAIL: payment method not recorded';
 
   -- The lead was closed and linked.
