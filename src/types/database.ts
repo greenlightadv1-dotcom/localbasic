@@ -3204,10 +3204,6 @@ export type Database = {
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
-      restaurant_guest_device_status: { Args: Record<string, unknown>; Returns: Json };
-      restaurant_guest_device_status_by_token: { Args: Record<string, unknown>; Returns: Json };
-      restaurant_guest_verification_start: { Args: Record<string, unknown>; Returns: Json };
-      restaurant_guest_verification_start_by_token: { Args: Record<string, unknown>; Returns: Json };
       restaurant_guest_verify_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_issue_table_link: { Args: Record<string, unknown>; Returns: Json };
       restaurant_online_cancel_order: { Args: Record<string, unknown>; Returns: Json };

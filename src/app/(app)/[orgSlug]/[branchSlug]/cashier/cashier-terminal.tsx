@@ -415,6 +415,11 @@ export function CashierTerminal({
                         </div>
                       </button>
                       <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+                      {order.status === 'pending_verification' && (
+                        <Button size="sm" variant="outline" disabled={isPending} onClick={() => verifyOnly(order)}>
+                          تأكيد عبر واتساب
+                        </Button>
+                      )}
                       {order.status === 'new' && (
                         <Button size="sm" disabled={isPending} onClick={() => confirmOrder(order)}>
                           تأكيد
