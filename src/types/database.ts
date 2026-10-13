@@ -1206,6 +1206,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_branch_stock: {
+        Row: {
+          organization_id: string;
+          branch_id: string;
+          product_id: string;
+          quantity: number;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          organization_id: string;
+          branch_id: string;
+          product_id: string;
+          quantity?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          organization_id?: string;
+          branch_id?: string;
+          product_id?: string;
+          quantity?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
       restaurant_branch_availability: {
         Row: {
           organization_id: string;
@@ -1746,6 +1773,8 @@ export type Database = {
           deleted_at: string | null;
           is_best_seller: boolean;
           station_id: string | null;
+          prep_notes: string | null;
+          track_inventory: boolean;
         };
         Insert: {
           id?: string;
@@ -1764,6 +1793,8 @@ export type Database = {
           deleted_at?: string | null;
           is_best_seller?: boolean;
           station_id?: string | null;
+          prep_notes?: string | null;
+          track_inventory?: boolean;
         };
         Update: {
           id?: string;
@@ -1782,6 +1813,8 @@ export type Database = {
           deleted_at?: string | null;
           is_best_seller?: boolean;
           station_id?: string | null;
+          prep_notes?: string | null;
+          track_inventory?: boolean;
         };
         Relationships: [];
       };
@@ -3204,6 +3237,7 @@ export type Database = {
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_set_stock: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_get: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_options: { Args: Record<string, unknown>; Returns: Json };

@@ -277,6 +277,8 @@ export type KitchenTicket = {
     quantity: number;
     note: string | null;
     modifiers: { name: string }[];
+    /** Internal recipe / prep specs for this dish. Staff screens only. */
+    prepNotes: string | null;
     stationId: string | null;
     stationKind: string | null;
   }[];
@@ -317,7 +319,7 @@ export async function listKitchenTickets(
   const [{ data: items }, { data: tables }] = await Promise.all([
     supabase
       .from('restaurant_order_items')
-      .select('id, order_id, product_name, variant_name, quantity, note, station_id, station_kind')
+      .select('id, order_id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind')
       .in('order_id', orderIds)
       .order('position'),
     tableIds.length
@@ -332,6 +334,21 @@ export async function listKitchenTickets(
         .select('order_item_id, name')
         .in('order_item_id', itemIds)
     : { data: [] as { order_item_id: string; name: string }[] };
+
+  // Internal prep specs ride along per dish: variant → product → prep_notes.
+  // Read here, behind tenant RLS, and only for the kitchen/bar screens.
+  const variantIds = [...new Set((items ?? []).map((i) => i.variant_id).filter(Boolean))] as string[];
+  const { data: variantRows } = variantIds.length
+    ? await supabase.from('restaurant_variants').select('id, product_id').in('id', variantIds)
+    : { data: [] as { id: string; product_id: string }[] };
+  const productIds = [...new Set((variantRows ?? []).map((v) => v.product_id))];
+  const { data: productRows } = productIds.length
+    ? await supabase.from('restaurant_products').select('id, prep_notes').in('id', productIds)
+    : { data: [] as { id: string; prep_notes: string | null }[] };
+  const notesByProduct = new Map((productRows ?? []).map((p) => [p.id, p.prep_notes]));
+  const prepNotesByVariant = new Map(
+    (variantRows ?? []).map((v) => [v.id, notesByProduct.get(v.product_id) ?? null]),
+  );
 
   const tableName = new Map((tables ?? []).map((t) => [t.id, t.name]));
   const modsByItem = new Map<string, { name: string }[]>();
@@ -351,6 +368,7 @@ export async function listKitchenTickets(
       quantity: i.quantity,
       note: i.note,
       modifiers: modsByItem.get(i.id) ?? [],
+      prepNotes: i.variant_id ? (prepNotesByVariant.get(i.variant_id) ?? null) : null,
       stationId: i.station_id,
       stationKind: i.station_kind,
     });

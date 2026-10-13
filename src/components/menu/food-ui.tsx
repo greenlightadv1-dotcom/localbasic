@@ -75,7 +75,7 @@ export function ImageOrIcon({
         placeholderClassName,
       )}
     >
-      <Icon className={cn('h-9 w-9 opacity-80', iconClassName)} strokeWidth={1.6} aria-hidden="true" />
+      <Icon className={cn('h-6 w-6 opacity-80', iconClassName)} strokeWidth={1.6} aria-hidden="true" />
     </span>
   );
 }
@@ -202,11 +202,11 @@ export function CategoryRail({ categories }: { categories: RailCategory[] }) {
               >
                 <span
                   className={cn(
-                    'flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-surface ring-2 ring-offset-2 ring-offset-bg transition-all',
+                    'flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-surface ring-2 ring-offset-2 ring-offset-bg transition-all',
                     on ? 'scale-105 ring-primary' : 'ring-transparent',
                   )}
                 >
-                  <ImageOrIcon src={c.imageUrl} categoryName={c.name} iconClassName="h-6 w-6" />
+                  <ImageOrIcon src={c.imageUrl} categoryName={c.name} iconClassName="h-5 w-5" />
                 </span>
                 <span className={cn('line-clamp-1 w-full text-center text-xs font-semibold', on ? 'text-primary' : 'text-muted')}>
                   {c.name}
@@ -242,33 +242,33 @@ export function FoodCard({
 }) {
   return (
     <li className="flex flex-col overflow-hidden rounded-lg border border-line bg-elevated shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)]">
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-surface">
         <ImageOrIcon
           src={imageUrl}
           categoryName={categoryName}
           imgClassName={soldOut ? 'opacity-50 grayscale' : undefined}
           placeholderClassName={soldOut ? 'opacity-60' : undefined}
-          iconClassName="h-12 w-12"
+          iconClassName="h-7 w-7"
         />
         {soldOut ? (
-          <span className="absolute start-2 top-2 rounded-full bg-danger px-2.5 py-0.5 text-xs font-bold text-white">نفد</span>
+          <span className="absolute start-1.5 top-1.5 rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">نفدت الكمية</span>
         ) : null}
         {canOrder && !soldOut && onAdd ? (
           <button
             type="button"
             onClick={onAdd}
             aria-label={`أضف ${name} للسلة`}
-            className="absolute bottom-2 end-2 flex h-10 min-w-10 items-center justify-center gap-1 rounded-full bg-primary px-2.5 text-sm font-extrabold text-primary-fg shadow-md transition-transform active:scale-90"
+            className="absolute bottom-1.5 end-1.5 flex h-8 min-w-8 items-center justify-center gap-1 rounded-full bg-primary px-2 text-sm font-extrabold text-primary-fg shadow-md transition-transform active:scale-90"
           >
             {count > 0 ? <span className="lb-numeric">{count}</span> : null}
-            <Plus className="h-5 w-5" aria-hidden="true" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <h3 className="line-clamp-2 text-sm font-bold leading-snug text-fg">{name}</h3>
-        {description ? <p className="line-clamp-2 text-xs text-muted">{description}</p> : null}
-        <p className="lb-numeric mt-auto pt-1 text-sm font-extrabold text-primary">{priceLabel}</p>
+      <div className="flex flex-1 flex-col gap-0.5 p-2">
+        <h3 className="line-clamp-1 text-[13px] font-bold leading-snug text-fg">{name}</h3>
+        {description ? <p className="line-clamp-1 text-[11px] text-muted">{description}</p> : null}
+        <p className="lb-numeric mt-auto pt-0.5 text-[13px] font-extrabold text-primary">{priceLabel}</p>
       </div>
     </li>
   );
@@ -276,7 +276,7 @@ export function FoodCard({
 
 /** The grid every category's cards sit in: two columns on a phone. */
 export function FoodGrid({ children }: { children: React.ReactNode }) {
-  return <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</ul>;
+  return <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">{children}</ul>;
 }
 
 /** A category's titled section, addressable by the rail. */

@@ -37,7 +37,7 @@ export async function printConfirmedOrder(ctx: TenantContext, orderId: string): 
 
   const { data: items } = await supabase
     .from('restaurant_order_items')
-    .select('id, product_name, variant_name, quantity, note, station_id, station_kind')
+    .select('id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind')
     .eq('organization_id', ctx.organizationId)
     .eq('order_id', orderId)
     .order('position');
@@ -50,6 +50,20 @@ export async function printConfirmedOrder(ctx: TenantContext, orderId: string): 
         .select('order_item_id, name')
         .in('order_item_id', itemIds)
     : { data: [] as { order_item_id: string; name: string }[] };
+
+  // Internal prep specs for the station copy: variant → product → prep_notes.
+  const variantIds = [...new Set(items.map((i) => i.variant_id).filter(Boolean))] as string[];
+  const { data: variantRows } = variantIds.length
+    ? await supabase.from('restaurant_variants').select('id, product_id').in('id', variantIds)
+    : { data: [] as { id: string; product_id: string }[] };
+  const productIds = [...new Set((variantRows ?? []).map((v) => v.product_id))];
+  const { data: productRows } = productIds.length
+    ? await supabase.from('restaurant_products').select('id, prep_notes').in('id', productIds)
+    : { data: [] as { id: string; prep_notes: string | null }[] };
+  const notesByProduct = new Map((productRows ?? []).map((p) => [p.id, p.prep_notes]));
+  const prepNotesByVariant = new Map(
+    (variantRows ?? []).map((v) => [v.id, notesByProduct.get(v.product_id) ?? null]),
+  );
 
   const stationIds = [...new Set(items.map((i) => i.station_id).filter(Boolean))] as string[];
   const { data: stations } = stationIds.length
@@ -72,6 +86,7 @@ export async function printConfirmedOrder(ctx: TenantContext, orderId: string): 
       variantName: item.variant_name,
       quantity: Number(item.quantity),
       note: item.note,
+      prepNotes: item.variant_id ? (prepNotesByVariant.get(item.variant_id) ?? null) : null,
       modifiers: (modifiers ?? [])
         .filter((m) => m.order_item_id === item.id)
         .map((m) => m.name),

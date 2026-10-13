@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Minus, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
@@ -21,6 +20,7 @@ import type {
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
@@ -77,11 +77,25 @@ export function GuestMenu({
   // cleared the moment realtime (or a manual recheck) reports it's past that.
   const [verification, setVerification] = useState<{ token: string; code: string; whatsappUrl: string } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
-  const router = useRouter();
 
   useOrderStatusBroadcast(verification?.token ?? null, (status) => {
-    if (status !== 'pending_verification') router.push(`/order/track/${verification!.token}`);
+    if (status !== 'pending_verification') finishOrder(verification!.token);
   });
+
+  /** Past verification: stay on the menu and pin the live status banner. */
+  function finishOrder(orderToken: string) {
+    setVerification(null);
+    setCart([]);
+    setNote('');
+    setCartOpen(false);
+    rememberActiveOrder(`table/${token}`, orderToken);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const loadStatus = useCallback(async (orderToken: string) => {
+    const info = await getOrderVerificationInfoAction(orderToken);
+    return info.ok ? info.data.status : null;
+  }, []);
 
   // Returning-guest convenience only: prefills the name/phone fields from
   // whichever table this browser last ordered at (or the online storefront,
@@ -221,7 +235,7 @@ export function GuestMenu({
       }
       // Same tracking page and live realtime status an online order gets
       // (0076) — the guest never sees a dead-end "order received" screen.
-      router.push(`/order/track/${result.data.statusToken}`);
+      finishOrder(result.data.statusToken);
     });
   }
 
@@ -232,7 +246,7 @@ export function GuestMenu({
       const info = await getOrderVerificationInfoAction(verification.token);
       setCheckingStatus(false);
       if (info.ok && info.data.status !== 'pending_verification') {
-        router.push(`/order/track/${verification.token}`);
+        finishOrder(verification.token);
       }
     });
   }
@@ -259,6 +273,7 @@ export function GuestMenu({
 
   return (
     <main className="mx-auto max-w-2xl pb-28">
+      <OrderStatusBanner scopeKey={`table/${token}`} loadStatus={loadStatus} />
       <StoreHeader
         name={context.organizationName}
         logoUrl={context.logoUrl}

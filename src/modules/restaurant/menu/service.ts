@@ -20,6 +20,11 @@ export type MenuItem = {
   categoryName: string | null;
   taxRateBp: number;
   prepMinutes: number;
+  /** Staff-only recipe / preparation specs. */
+  prepNotes: string | null;
+  trackInventory: boolean;
+  /** On-hand quantity at the current branch (0 when not tracked). */
+  stockQuantity: number;
   isActive: boolean;
   isBestSeller: boolean;
   /** null = auto-routed from the category's default_station_kind. */
@@ -40,7 +45,7 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     supabase
       .from('restaurant_products')
       .select(
-        'id, name, description, image_url, category_id, tax_rate_bp, prep_minutes, is_active, is_best_seller, sort_order, station_id',
+        'id, name, description, image_url, category_id, tax_rate_bp, prep_minutes, prep_notes, track_inventory, is_active, is_best_seller, sort_order, station_id',
       )
       .eq('organization_id', ctx.organizationId)
       .is('deleted_at', null)
@@ -69,6 +74,13 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
       .in('product_id', productIds),
   ]);
 
+  const { data: stockRows } = await supabase
+    .from('restaurant_branch_stock')
+    .select('product_id, quantity')
+    .eq('branch_id', ctx.branchId)
+    .in('product_id', productIds);
+  const stockByProduct = new Map((stockRows ?? []).map((r) => [r.product_id, Number(r.quantity)]));
+
   const variantIds = (variants ?? []).map((v) => v.id);
   const { data: availability } = variantIds.length
     ? await supabase
@@ -93,6 +105,9 @@ export async function listMenu(ctx: TenantContext): Promise<MenuItem[]> {
     categoryName: product.category_id ? (categoryName.get(product.category_id) ?? null) : null,
     taxRateBp: product.tax_rate_bp,
     prepMinutes: product.prep_minutes,
+    prepNotes: product.prep_notes,
+    trackInventory: product.track_inventory,
+    stockQuantity: stockByProduct.get(product.id) ?? 0,
     isActive: product.is_active,
     isBestSeller: product.is_best_seller,
     stationId: product.station_id,
@@ -214,6 +229,23 @@ export async function setProductImage(
  * A dish with no sizes still gets one variant named "default", so ordering,
  * pricing and reporting only ever deal with one shape.
  */
+/**
+ * Turns stock tracking on/off for an item at THIS branch and sets its on-hand
+ * quantity. Goes through restaurant_set_stock (0094), which also closes or
+ * reopens the item's variants here when the quantity hits or leaves zero.
+ */
+async function applyStock(ctx: TenantContext, productId: string, track: boolean, quantity: number) {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('restaurant_set_stock', {
+    p_org: ctx.organizationId,
+    p_branch: ctx.branchId,
+    p_product: productId,
+    p_track: track,
+    p_quantity: quantity,
+  });
+  if (error) throw toAppError(error, 'applyStock');
+}
+
 export async function createMenuProduct(ctx: TenantContext, input: MenuProductInput) {
   const supabase = createSupabaseServerClient();
 
@@ -227,6 +259,7 @@ export async function createMenuProduct(ctx: TenantContext, input: MenuProductIn
       image_url: input.imageUrl ?? null,
       tax_rate_bp: Math.round(input.taxRatePercent * 100),
       prep_minutes: input.prepMinutes,
+      prep_notes: input.prepNotes || null,
       station_id: input.stationId ?? null,
       created_by: ctx.userId,
     })
@@ -274,6 +307,8 @@ export async function createMenuProduct(ctx: TenantContext, input: MenuProductIn
     }
   }
 
+  if (input.trackInventory) await applyStock(ctx, product.id, true, input.stockQuantity);
+
   return { id: product.id };
 }
 
@@ -297,10 +332,13 @@ export async function updateMenuProduct(
       description: input.description ?? null,
       tax_rate_bp: Math.round(input.taxRatePercent * 100),
       prep_minutes: input.prepMinutes,
+      prep_notes: input.prepNotes || null,
     })
     .eq('organization_id', ctx.organizationId)
     .eq('id', input.productId);
   if (error) throw toAppError(error, 'updateMenuProduct');
+
+  await applyStock(ctx, input.productId, input.trackInventory, input.stockQuantity);
 
   for (const v of input.variants) {
     const { error: variantError } = await supabase

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { checkoutAction, quoteCartAction, getOrderVerificationInfoAction } from '../../actions';
 import { FULFILLMENT_LABELS, FULFILLMENT_TYPES, type Fulfillment } from '@/modules/restaurant/online/schemas';
@@ -10,6 +9,7 @@ import { cn } from '@/lib/cn';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
@@ -95,7 +95,6 @@ export function Storefront({
   }, []);
   const identityCollapsed = prefilled && !editingIdentity;
 
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [deviceId, setDeviceId] = useState('');
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -116,8 +115,28 @@ export function Storefront({
   // The gateway webhook (0086) advances a verified order to 'new' from the
   // outside; this is what notices without the customer doing anything.
   useOrderStatusBroadcast(verification?.token ?? null, (status) => {
-    if (status === 'new') router.push(`/order/track/${verification!.token}`);
+    if (status === 'new') finishOrder(verification!.token);
   });
+
+  /**
+   * The order exists and is past verification: keep the guest on the menu,
+   * clear the cart and pin the live status banner instead of sending them to
+   * a separate tracking page.
+   */
+  function finishOrder(token: string) {
+    setVerification(null);
+    setLines([]);
+    setQuote(null);
+    setQuoteError(null);
+    setCartOpen(false);
+    rememberActiveOrder(`${orgSlug}/${branchSlug}`, token);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const loadStatus = useCallback(async (token: string) => {
+    const info = await getOrderVerificationInfoAction(token);
+    return info.ok ? info.data.status : null;
+  }, []);
 
   /**
    * The order is always created — device/phone verification never blocks
@@ -153,7 +172,7 @@ export function Storefront({
         });
         return;
       }
-      router.push(`/order/track/${placed.data.token}`);
+      finishOrder(placed.data.token);
     });
   }
 
@@ -164,7 +183,7 @@ export function Storefront({
       const info = await getOrderVerificationInfoAction(verification.token);
       setCheckingStatus(false);
       if (info.ok && info.data.status !== 'pending_verification') {
-        router.push(`/order/track/${verification.token}`);
+        finishOrder(verification.token);
       }
     });
   }
@@ -298,6 +317,7 @@ export function Storefront({
 
   return (
     <div className="pb-28">
+      <OrderStatusBanner scopeKey={`${orgSlug}/${branchSlug}`} loadStatus={loadStatus} />
       <CategoryRail categories={categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }))} />
 
       {categories.map((c) => (

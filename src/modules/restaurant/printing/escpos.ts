@@ -28,6 +28,8 @@ export type TicketLine = {
   quantity: number;
   note: string | null;
   modifiers: string[];
+  /** Internal recipe / prep specs — printed on station tickets only. */
+  prepNotes?: string | null;
 };
 
 export type Ticket = {
@@ -76,6 +78,9 @@ export function buildKitchenTicket(ticket: Ticket): Buffer {
     parts.push(BOLD_ON, text(`${line.quantity} × ${label}`), BOLD_OFF);
     for (const mod of line.modifiers) parts.push(text(`  + ${mod}`));
     if (line.note) parts.push(text(`  ملاحظة: ${line.note}`));
+    if (line.prepNotes) {
+      for (const row of line.prepNotes.split('\n')) parts.push(text(`  تحضير: ${row}`));
+    }
   }
 
   if (ticket.note) {

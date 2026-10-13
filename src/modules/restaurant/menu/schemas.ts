@@ -39,6 +39,11 @@ export const menuProductSchema = z.object({
   imageUrl: z.string().trim().url().max(2000).nullable().optional(),
   taxRatePercent: z.coerce.number().min(0).max(100).default(0),
   prepMinutes: z.coerce.number().int().min(0).max(600).default(0),
+  /** Recipe / preparation specs. Staff-only: never sent to a guest surface. */
+  prepNotes: z.string().trim().max(2000).optional(),
+  /** Track stock for this item at the current branch. */
+  trackInventory: z.coerce.boolean().default(false),
+  stockQuantity: z.coerce.number().int().min(0).max(1000000).default(0),
   /** null = auto-route from the category's default_station_kind. */
   stationId: z.string().uuid().nullable().optional(),
   variants: z
@@ -81,6 +86,11 @@ export const updateMenuProductSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   taxRatePercent: z.coerce.number().min(0).max(100).default(0),
   prepMinutes: z.coerce.number().int().min(0).max(600).default(0),
+  /** Recipe / preparation specs. Staff-only: never sent to a guest surface. */
+  prepNotes: z.string().trim().max(2000).optional(),
+  /** Track stock for this item at the current branch. */
+  trackInventory: z.coerce.boolean().default(false),
+  stockQuantity: z.coerce.number().int().min(0).max(1000000).default(0),
   variants: z
     .array(
       z.object({

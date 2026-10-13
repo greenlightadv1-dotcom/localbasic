@@ -97,6 +97,9 @@ export function MenuManager({
         imageUrl: newItemImage,
         taxRatePercent: formData.get('taxRatePercent') || 0,
         prepMinutes: formData.get('prepMinutes') || 0,
+        prepNotes: formData.get('prepNotes') || undefined,
+        trackInventory: formData.get('trackInventory') === 'on',
+        stockQuantity: formData.get('stockQuantity') || 0,
         stationId: formData.get('stationId') || null,
         variants: variants.map((v) => ({ name: v.name || 'default', priceCents: v.price || '0' })),
         modifierGroups: groups.map((g) => ({
@@ -154,6 +157,9 @@ export function MenuManager({
         description: formData.get('description') || undefined,
         taxRatePercent: formData.get('taxRatePercent') || 0,
         prepMinutes: formData.get('prepMinutes') || 0,
+        prepNotes: formData.get('prepNotes') || undefined,
+        trackInventory: formData.get('trackInventory') === 'on',
+        stockQuantity: formData.get('stockQuantity') || 0,
         variants: item.variants.map((v) => ({
           id: v.id,
           name: formData.get(`variant-name-${v.id}`) || 'default',
@@ -320,6 +326,20 @@ export function MenuManager({
                 </div>
               </div>
 
+              <fieldset className="space-y-3 rounded border border-line p-3">
+                <legend className="px-1 text-sm font-medium">مخزون وتحضير (داخلي)</legend>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="trackInventory" className="h-5 w-5 accent-primary" />
+                  تتبع المخزون في هذا الفرع (تنفد الكمية تلقائيًا عند الصفر)
+                </label>
+                <Field label="الكمية المتاحة">
+                  {(p) => <Input {...p} name="stockQuantity" type="number" min={0} defaultValue={0} dir="ltr" />}
+                </Field>
+                <Field label="ملاحظات التحضير / مواصفات الوصفة" hint="تظهر للمطبخ والباريستا فقط — لا تظهر للعميل أبدًا.">
+                  {(p) => <Textarea {...p} name="prepNotes" maxLength={2000} />}
+                </Field>
+              </fieldset>
+
               <ImageUpload
                 organizationId={organizationId}
                 purpose="product"
@@ -395,10 +415,10 @@ export function MenuManager({
               </fieldset>
 
               <fieldset className="rounded border border-line p-3">
-                <legend className="px-1 text-sm font-medium">مجموعات الإضافات</legend>
+                <legend className="px-1 text-sm font-medium">النكهات والخيارات والإضافات</legend>
                 {groups.length === 0 && (
                   <p className="text-sm text-muted">
-                    مثال: «درجة النضج» (اختيار إجباري واحد) أو «إضافات» (اختياري متعدد).
+                    مثال: «النكهة» (فانيليا / كراميل / شوكولاتة — اختيار إجباري واحد بحد أدنى 1 وأقصى 1) أو «إضافات» (اختياري متعدد). لكل خيار سعر إضافي اختياري.
                   </p>
                 )}
                 <div className="space-y-3">
@@ -620,10 +640,15 @@ export function MenuManager({
                           </button>
                         ) : null}
                         <span className="font-medium">{item.name}</span>
+                        {item.trackInventory ? (
+                          <Badge tone={item.stockQuantity > 0 ? 'info' : 'danger'}>
+                            {item.stockQuantity > 0 ? `المخزون: ${item.stockQuantity}` : 'نفدت الكمية'}
+                          </Badge>
+                        ) : null}
                       </div>
                       {item.modifierGroupCount > 0 && (
                         <span className="ms-2 text-xs text-muted">
-                          {item.modifierGroupCount} مجموعة إضافات
+                          {item.modifierGroupCount} مجموعة نكهات / إضافات
                         </span>
                       )}
                     </td>
@@ -770,6 +795,34 @@ export function MenuManager({
                               </Field>
                             </div>
                           </div>
+
+                          <fieldset className="space-y-3 rounded border border-line p-3">
+                            <legend className="px-1 text-sm font-medium">مخزون وتحضير (داخلي)</legend>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                name="trackInventory"
+                                defaultChecked={item.trackInventory}
+                                className="h-5 w-5 accent-primary"
+                              />
+                              تتبع المخزون في هذا الفرع
+                            </label>
+                            <Field label="الكمية المتاحة">
+                              {(p) => (
+                                <Input
+                                  {...p}
+                                  name="stockQuantity"
+                                  type="number"
+                                  min={0}
+                                  defaultValue={item.stockQuantity}
+                                  dir="ltr"
+                                />
+                              )}
+                            </Field>
+                            <Field label="ملاحظات التحضير / مواصفات الوصفة" hint="تظهر للمطبخ والباريستا فقط — لا تظهر للعميل أبدًا.">
+                              {(p) => <Textarea {...p} name="prepNotes" maxLength={2000} defaultValue={item.prepNotes ?? ''} />}
+                            </Field>
+                          </fieldset>
 
                           <fieldset className="rounded border border-line p-3">
                             <legend className="px-1 text-sm font-medium">الأحجام والأسعار</legend>

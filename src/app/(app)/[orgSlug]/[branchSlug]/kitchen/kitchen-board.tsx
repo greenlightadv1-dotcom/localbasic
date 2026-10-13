@@ -189,6 +189,15 @@ export function KitchenBoard({
                                 {line.modifiers.map((m) => m.name).join('، ')}
                               </p>
                             )}
+                            {line.prepNotes && (
+                              <p
+                                data-testid="prep-notes"
+                                className="ms-6 mt-1 whitespace-pre-line rounded border border-line bg-surface px-2 py-1 text-xs text-fg"
+                              >
+                                <span className="font-semibold">تحضير: </span>
+                                {line.prepNotes}
+                              </p>
+                            )}
                             {line.note && (
                               <p className="ps-6 text-sm font-medium text-warn">
                                 <StickyNote className="inline h-3.5 w-3.5" aria-hidden="true" />{' '}
