@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import { AppError } from '@/lib/errors';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { getOrder } from '@/modules/restaurant/orders/service';
+import { getOrderStaffTrail } from '@/modules/restaurant/orders/staff';
+import { buildStageRows, computeDurations, formatDuration } from '@/modules/restaurant/orders/staff-metrics';
 import { STATUS_LABELS, STATUS_TONES, type OrderStatus } from '@/modules/restaurant/orders/schemas';
 import { PageHeader } from '@/components/patterns/page-header';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +32,14 @@ export default async function OrderDetailPage({
   }
 
   const { order, lines, tableName, invoice, delivery } = data;
+
+  // Who handled each stage and how long it took — for admins and managers
+  // (audit.read). A failed read hides the card rather than the whole order.
+  const trail = can(ctx, 'audit.read')
+    ? await getOrderStaffTrail(ctx, params.orderId).catch(() => null)
+    : null;
+  const stageRows = trail ? buildStageRows(order, trail) : [];
+  const durations = trail ? computeDurations(order, trail) : null;
   const base = `/${ctx.organizationSlug}/${ctx.branchSlug}`;
   const status = order.status as OrderStatus;
 
@@ -213,6 +223,58 @@ export default async function OrderDetailPage({
                   </dd>
                 </div>
               )}
+            </dl>
+          </CardBody>
+        </Card>
+      )}
+
+      {trail && durations && (
+        <Card data-testid="order-staff">
+          <CardHeader>
+            <CardTitle>الموظفون وزمن الأوردر</CardTitle>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <ul className="divide-y divide-line text-sm">
+              {stageRows.map((row) => (
+                <li key={row.key} className="flex items-start justify-between gap-3 py-2">
+                  <span className="text-muted">{row.label}</span>
+                  <span className="text-end">
+                    <span className="font-medium">
+                      {row.actorName ?? row.note ?? (row.at ? 'غير مسجّل' : '—')}
+                    </span>
+                    {row.at && (
+                      <time className="lb-numeric block text-xs text-muted" dateTime={row.at}>
+                        {new Date(row.at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                      </time>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <dl className="space-y-2 rounded border border-line bg-surface p-3 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-muted">الانتظار قبل التحضير</dt>
+                <dd className="lb-numeric font-medium">{formatDuration(durations.waitSeconds)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted">زمن التحضير (المطبخ / البار)</dt>
+                <dd className="lb-numeric font-medium">{formatDuration(durations.prepSeconds)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted">من الجاهزية إلى التقديم / التسوية</dt>
+                <dd className="lb-numeric font-medium">{formatDuration(durations.handoverSeconds)}</dd>
+              </div>
+              <div className="flex justify-between border-t border-line pt-2 text-base font-bold">
+                <dt>الزمن الاستغراقي الكلي</dt>
+                <dd className="lb-numeric" data-testid="order-total-duration">
+                  {durations.totalSeconds != null
+                    ? formatDuration(durations.totalSeconds)
+                    : durations.openSeconds != null
+                      ? `قيد التنفيذ — ${formatDuration(durations.openSeconds)}`
+                      : '—'}
+                </dd>
+              </div>
             </dl>
           </CardBody>
         </Card>

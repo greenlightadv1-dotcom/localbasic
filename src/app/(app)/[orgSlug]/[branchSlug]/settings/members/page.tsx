@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { UserCog } from 'lucide-react';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
@@ -71,6 +72,7 @@ export default async function MembersPage({
     .order('name');
 
   const canManage = can(ctx, 'member.manage');
+  const canViewPerformance = canManage || can(ctx, 'report.read');
 
   const nameById = new Map(
     (profiles ?? []).map((p) => [p.id, { name: p.full_name, phone: p.phone, username: p.username }]),
@@ -145,7 +147,17 @@ export default async function MembersPage({
                 {rows.map((member) => (
                   <tr key={member.id} className="border-b border-line last:border-0">
                     <td className="p-3">
-                      <span className="font-medium">{member.name}</span>
+                      {canViewPerformance ? (
+                        <Link
+                          href={`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members/${member.id}`}
+                          className="font-medium text-primary hover:underline"
+                          data-testid={`member-profile-${member.id}`}
+                        >
+                          {member.name}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{member.name}</span>
+                      )}
                       {member.username && (
                         <span className="lb-numeric ms-2 text-xs text-muted" dir="ltr">
                           @{member.username}
