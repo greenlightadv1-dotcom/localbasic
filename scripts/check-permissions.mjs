@@ -20,7 +20,13 @@ const tsKeys = new Set(
 const migrationsDir = 'supabase/migrations';
 const sqlKeys = new Set();
 for (const file of readdirSync(migrationsDir).sort()) {
-  const sql = readFileSync(join(migrationsDir, file), 'utf8');
+  // Audit-event names ('platform.organization_deleted', 'organization', ...)
+  // share the shape of a permissions seed row but are not permissions: drop the
+  // first argument of write_platform_audit() before looking for seed rows.
+  const sql = readFileSync(join(migrationsDir, file), 'utf8').replace(
+    /write_platform_audit\(\s*'[^']*'/g,
+    "write_platform_audit(''",
+  );
   // Matches rows of the permissions seed: ('key', 'group', module, 'desc', bool)
   for (const m of sql.matchAll(/\(\s*'([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)'\s*,\s*'[a-z]+'\s*,/g)) {
     sqlKeys.add(m[1]);
