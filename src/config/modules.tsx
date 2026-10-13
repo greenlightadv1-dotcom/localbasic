@@ -42,7 +42,13 @@ export const CORE_NAVIGATION: NavItem[] = [
   { href: '', label: 'لوحة التحكم', icon: 'LayoutDashboard', permission: 'customer.read' },
   { href: '/customers', label: 'العملاء', icon: 'Users', permission: 'customer.read' },
   { href: '/invoices', label: 'الفواتير', icon: 'FileText', permission: 'invoice.read' },
-  { href: '/payments', label: 'المدفوعات', icon: 'CreditCard', permission: 'payment.read' },
+  // Restaurant payment methods and gateway settings. This entry used to point
+  // at a /payments page that never existed (a dead link); it now opens the
+  // real screen, so it needs the permission that screen checks.
+  {
+    href: '/settings/payments', label: 'المدفوعات', icon: 'CreditCard',
+    permission: 'settings.manage', modules: ['restaurant'],
+  },
   { href: '/treasury', label: 'الخزينة', icon: 'Wallet', permission: 'treasury.read' },
   { href: '/expenses', label: 'المصروفات', icon: 'Receipt', permission: 'treasury.create' },
   { href: '/reports', label: 'التقارير', icon: 'BarChart3', permission: 'report.read' },
