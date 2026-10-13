@@ -201,6 +201,7 @@ function ReadOnlyMenu({ categories, currency }: { categories: MenuCategory[]; cu
                 description={p.description}
                 priceLabel={`${p.variants.length > 1 ? 'من ' : ''}${formatMoney(p.fromPriceCents, currency)}`}
                 imageUrl={p.imageUrl}
+                categoryName={c.name}
                 canOrder={false}
               />
             ))}

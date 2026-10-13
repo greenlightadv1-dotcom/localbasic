@@ -301,6 +301,7 @@ export function GuestMenu({
                   description={product.description}
                   priceLabel={`${product.variants.length > 1 ? 'من ' : ''}${formatMoney(fromPrice(product), context.currency)}`}
                   imageUrl={product.image_url}
+                  categoryName={category.name}
                   soldOut={product.variants.every((v) => !v.available)}
                   canOrder={context.orderingEnabled}
                   count={inCart(product)}

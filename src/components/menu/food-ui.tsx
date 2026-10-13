@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, ShoppingBag, UtensilsCrossed, X } from 'lucide-react';
+import { Plus, ShoppingBag, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { iconForCategory } from './category-icon';
 
 /**
  * The customer-facing menu kit — what the online storefront and the table-QR
@@ -16,6 +17,68 @@ import { cn } from '@/lib/cn';
  * (bg-primary, text-fg, border-line…), so the whole kit re-themes from the
  * store's brand colors — see lib/theme/brand-theme.ts.
  */
+
+
+// ---------------------------------------------------------------------------
+// Image with a themed placeholder
+// ---------------------------------------------------------------------------
+/**
+ * A photo that fills its parent, or — when there is none, or the URL fails to
+ * load (a deleted upload, a dead link) — a placeholder in the store's own
+ * colors: a soft tint of the brand color with a category icon in the brand
+ * color. Never an empty box and never the browser's broken-image mark, and it
+ * fills the same space, so cards in a row stay the same height.
+ */
+export function ImageOrIcon({
+  src, categoryName, iconClassName, imgClassName, placeholderClassName,
+}: {
+  src: string | null | undefined;
+  /** Picks the placeholder icon (a pizza section gets a pizza). */
+  categoryName?: string | null;
+  iconClassName?: string;
+  imgClassName?: string;
+  placeholderClassName?: string;
+}) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const usable = Boolean(src) && failedSrc !== src;
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // The server renders this <img> before the page hydrates, so a URL that fails
+  // fast can finish failing before React attaches onError — the event is
+  // simply missed and the browser's broken-image mark stays. Once mounted,
+  // look at the element itself: finished loading with no pixels means failed.
+  useEffect(() => {
+    const el = imgRef.current;
+    if (el && src && el.complete && el.naturalWidth === 0) setFailedSrc(src);
+  }, [src]);
+
+  if (usable) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a Storage URL, not a build asset.
+      <img
+        ref={imgRef}
+        src={src!}
+        alt=""
+        loading="lazy"
+        onError={() => setFailedSrc(src!)}
+        className={cn('h-full w-full object-cover', imgClassName)}
+      />
+    );
+  }
+
+  const Icon = iconForCategory(categoryName);
+  return (
+    <span
+      data-testid="image-placeholder"
+      className={cn(
+        'flex h-full w-full items-center justify-center bg-primary-soft text-primary',
+        placeholderClassName,
+      )}
+    >
+      <Icon className={cn('h-9 w-9 opacity-80', iconClassName)} strokeWidth={1.6} aria-hidden="true" />
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Header
@@ -139,16 +202,11 @@ export function CategoryRail({ categories }: { categories: RailCategory[] }) {
               >
                 <span
                   className={cn(
-                    'flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-surface text-muted ring-2 ring-offset-2 ring-offset-bg transition-all',
+                    'flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-surface ring-2 ring-offset-2 ring-offset-bg transition-all',
                     on ? 'scale-105 ring-primary' : 'ring-transparent',
                   )}
                 >
-                  {c.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- a Storage URL.
-                    <img src={c.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  ) : (
-                    <UtensilsCrossed className="h-6 w-6" aria-hidden="true" />
-                  )}
+                  <ImageOrIcon src={c.imageUrl} categoryName={c.name} iconClassName="h-6 w-6" />
                 </span>
                 <span className={cn('line-clamp-1 w-full text-center text-xs font-semibold', on ? 'text-primary' : 'text-muted')}>
                   {c.name}
@@ -166,13 +224,15 @@ export function CategoryRail({ categories }: { categories: RailCategory[] }) {
 // Food card
 // ---------------------------------------------------------------------------
 export function FoodCard({
-  name, description, priceLabel, imageUrl, soldOut = false, canOrder = true, onAdd, count = 0,
+  name, description, priceLabel, imageUrl, categoryName, soldOut = false, canOrder = true, onAdd, count = 0,
 }: {
   name: string;
   description?: string | null;
   /** Already formatted, e.g. "45.00 EGP" or "من 45.00 EGP". */
   priceLabel: string;
   imageUrl: string | null;
+  /** The item's category, which picks the icon shown when there is no photo. */
+  categoryName?: string | null;
   soldOut?: boolean;
   /** False for a read-only menu: the add button is not shown. */
   canOrder?: boolean;
@@ -182,15 +242,14 @@ export function FoodCard({
 }) {
   return (
     <li className="flex flex-col overflow-hidden rounded-lg border border-line bg-elevated shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)]">
-      <div className="relative aspect-[4/3] w-full bg-surface">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a Storage URL.
-          <img src={imageUrl} alt="" loading="lazy" className={cn('h-full w-full object-cover', soldOut && 'opacity-50 grayscale')} />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-muted/40">
-            <UtensilsCrossed className="h-9 w-9" aria-hidden="true" />
-          </span>
-        )}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface">
+        <ImageOrIcon
+          src={imageUrl}
+          categoryName={categoryName}
+          imgClassName={soldOut ? 'opacity-50 grayscale' : undefined}
+          placeholderClassName={soldOut ? 'opacity-60' : undefined}
+          iconClassName="h-12 w-12"
+        />
         {soldOut ? (
           <span className="absolute start-2 top-2 rounded-full bg-danger px-2.5 py-0.5 text-xs font-bold text-white">نفد</span>
         ) : null}

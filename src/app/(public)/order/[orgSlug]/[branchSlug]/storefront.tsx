@@ -306,6 +306,7 @@ export function Storefront({
                 description={item.description}
                 priceLabel={money(item.priceCents, currency)}
                 imageUrl={item.imageUrl}
+                categoryName={c.name}
                 count={countFor(item.variantId)}
                 onAdd={() => beginAdd(item)}
               />
