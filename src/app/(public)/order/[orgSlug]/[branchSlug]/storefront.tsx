@@ -89,7 +89,7 @@ export function Storefront({
   // sheet. token is kept alongside it so the realtime subscription and the
   // eventual redirect both have it.
   const [verification, setVerification] = useState<
-    { token: string; code: string; whatsappUrl: string | null } | null
+    { token: string; code: string; whatsappUrl: string } | null
   >(null);
 
   useEffect(() => {
@@ -132,7 +132,7 @@ export function Storefront({
         setVerification({
           token: placed.data.token,
           code: info.data.code,
-          whatsappUrl: buildWhatsAppVerifyUrl(info.data.whatsapp, info.data.code),
+          whatsappUrl: buildWhatsAppVerifyUrl(info.data.code),
         });
         return;
       }

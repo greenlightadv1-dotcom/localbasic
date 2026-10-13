@@ -97,7 +97,7 @@ export function GuestMenu({
   // null: order not placed yet, or already verified and on its way to
   // tracking. Set once a placed order comes back 'pending_verification' —
   // cleared the moment realtime (or a manual recheck) reports it's past that.
-  const [verification, setVerification] = useState<{ token: string; code: string; whatsappUrl: string | null } | null>(null);
+  const [verification, setVerification] = useState<{ token: string; code: string; whatsappUrl: string } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const router = useRouter();
 
@@ -249,7 +249,7 @@ export function GuestMenu({
         setVerification({
           token: result.data.statusToken,
           code: info.data.code,
-          whatsappUrl: buildWhatsAppVerifyUrl(info.data.whatsapp, info.data.code),
+          whatsappUrl: buildWhatsAppVerifyUrl(info.data.code),
         });
         return;
       }

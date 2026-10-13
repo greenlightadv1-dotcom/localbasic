@@ -20,7 +20,7 @@ export function GuestVerifySheet({
   onRecheck,
 }: {
   code: string;
-  whatsappUrl: string | null;
+  whatsappUrl: string;
   checking: boolean;
   error: string | null;
   onRecheck: () => void;
@@ -36,18 +36,14 @@ export function GuestVerifySheet({
       <p className="rounded-[13px] border border-line bg-surface p-3 text-center font-reem text-2xl tracking-[0.3em] text-fg">
         {code}
       </p>
-      {whatsappUrl ? (
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-11 w-full items-center justify-center rounded-[13px] bg-[#25D366] text-sm font-extrabold text-white"
-        >
-          فتح واتساب وإرسال الرمز
-        </a>
-      ) : (
-        <p className="text-sm text-danger">لم يضبط المطعم رقم واتساب بعد.</p>
-      )}
+      <a
+        href={whatsappUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex h-11 w-full items-center justify-center rounded-[13px] bg-[#25D366] text-sm font-extrabold text-white"
+      >
+        فتح واتساب وإرسال الرمز
+      </a>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <p className="flex items-center justify-center gap-2 text-xs text-muted" aria-live="polite">
         <span className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
