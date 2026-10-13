@@ -22,7 +22,11 @@ describe('secret-box', () => {
     const { sealSecret, openSecret } = await import('./secret-box');
     const sealed = sealSecret('x', KEY);
     expect(() => openSecret(sealed, 'z'.repeat(40))).toThrow();
-    const tampered = sealed.slice(0, -2) + (sealed.endsWith('A') ? 'B=' : 'A=');
+    // Flip a real bit in the ciphertext body (after iv[12] + tag[16]); editing
+    // base64 text directly can land on padding bits and change nothing.
+    const raw = Buffer.from(sealed.slice(3), 'base64');
+    raw[raw.length - 1] = raw[raw.length - 1]! ^ 0x01;
+    const tampered = `v1:${raw.toString('base64')}`;
     expect(() => openSecret(tampered, KEY)).toThrow();
   });
 
