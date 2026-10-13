@@ -84,13 +84,15 @@ export function ImageOrIcon({
 // Header
 // ---------------------------------------------------------------------------
 export function StoreHeader({
-  name, logoUrl, description, chips = [],
+  name, logoUrl, description, chips = [], action,
 }: {
   name: string;
   logoUrl: string | null;
   description?: string | null;
   /** Short facts under the name: branch, table, opening state. */
   chips?: string[];
+  /** Trailing control, e.g. the profile button. */
+  action?: React.ReactNode;
 }) {
   return (
     <header className="flex items-center gap-3 px-4 pb-3 pt-5">
@@ -118,6 +120,7 @@ export function StoreHeader({
           </ul>
         ) : null}
       </div>
+      {action ? <div className="shrink-0 self-start">{action}</div> : null}
     </header>
   );
 }
@@ -301,8 +304,9 @@ export function CartBar({
   if (count <= 0) return null;
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-30 px-4 pt-3"
-      style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}
+      className="fixed inset-x-0 z-30 px-4 pt-3"
+      // Sits above the 56px bottom nav (StoreBottomNav) and its safe-area inset.
+      style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))', paddingBottom: '10px' }}
     >
       <button
         type="button"

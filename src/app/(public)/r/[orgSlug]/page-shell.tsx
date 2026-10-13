@@ -14,6 +14,7 @@ import { PoweredBy } from '@/components/brand/logo';
 import {
   CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
 } from '@/components/menu/food-ui';
+import { ProfileHeaderButton } from '@/components/menu/customer-profile';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
 
@@ -136,6 +137,7 @@ export async function RestaurantSite({
         logoUrl={site.logoUrl}
         description={description}
         chips={[branch.name]}
+        action={ordering ? <ProfileHeaderButton /> : undefined}
       />
       {ordering ? (
         <Storefront

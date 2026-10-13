@@ -20,6 +20,8 @@ import type {
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { CustomerProfileSheet, ProfileHeaderButton, StoreBottomNav, useProfileSheet } from '@/components/menu/customer-profile';
+import type { ReorderLine } from '@/modules/restaurant/customer/types';
 import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
@@ -96,6 +98,54 @@ export function GuestMenu({
     const info = await getOrderVerificationInfoAction(orderToken);
     return info.ok ? info.data.status : null;
   }, []);
+
+  // ---- guest profile: reorder -------------------------------------------
+  const profileSheet = useProfileSheet();
+  const [activeOrders, setActiveOrders] = useState(0);
+
+  /** Adds a past order's lines to the cart; unavailable items are skipped. */
+  function reorder(past: ReorderLine[]): { added: number; skipped: number } {
+    let added = 0;
+    let skipped = 0;
+    const additions: CartLine[] = [];
+    for (const l of past) {
+      let found: { product: PublicProduct; variant: PublicVariant } | null = null;
+      for (const c of menu) {
+        for (const p of c.products) {
+          const v = p.variants.find((x) => x.id === l.variantId);
+          if (v) found = { product: p, variant: v };
+        }
+      }
+      if (!found || !found.variant.available) { skipped += 1; continue; }
+      const known = new Map(found.product.modifier_groups.flatMap((g) => g.modifiers.map((m) => [m.id, m] as const)));
+      const modifiers = l.modifierIds.flatMap((id) => {
+        const m = known.get(id);
+        return m ? [{ id: m.id, name: m.name, price_cents: m.price_cents }] : [];
+      });
+      additions.push({
+        key: `${found.variant.id}:${modifiers.map((m) => m.id).sort().join(',')}`,
+        productName: found.product.name,
+        variant: found.variant,
+        modifiers,
+        quantity: l.quantity,
+        note: l.note ?? undefined,
+      });
+      added += 1;
+    }
+    if (added > 0) {
+      setCart((lines) => {
+        const next = [...lines];
+        for (const a of additions) {
+          const at = next.findIndex((x) => x.key === a.key);
+          if (at >= 0) next[at] = { ...next[at]!, quantity: next[at]!.quantity + a.quantity };
+          else next.push(a);
+        }
+        return next;
+      });
+      setCartOpen(true);
+    }
+    return { added, skipped };
+  }
 
   // Returning-guest convenience only: prefills the name/phone fields from
   // whichever table this browser last ordered at (or the online storefront,
@@ -272,12 +322,26 @@ export function GuestMenu({
   const fromPrice = (product: PublicProduct) => Math.min(...product.variants.map((v) => v.price_cents));
 
   return (
-    <main className="mx-auto max-w-2xl pb-28">
+    <main className="mx-auto max-w-2xl pb-40">
       <OrderStatusBanner scopeKey={`table/${token}`} loadStatus={loadStatus} />
+      <StoreBottomNav
+        cartCount={cartCount}
+        onCart={() => context.orderingEnabled && setCartOpen(true)}
+        hasActiveOrder={activeOrders > 0}
+      />
+      {profileSheet.open ? (
+        <CustomerProfileSheet
+          scope={{ kind: 'token', token }}
+          onClose={() => profileSheet.setOpen(false)}
+          onReorder={reorder}
+          onActiveOrders={setActiveOrders}
+        />
+      ) : null}
       <StoreHeader
         name={context.organizationName}
         logoUrl={context.logoUrl}
         chips={[context.branchName, `طاولة ${context.tableName}`]}
+        action={<ProfileHeaderButton />}
       />
 
       <div className="px-4 pb-3">

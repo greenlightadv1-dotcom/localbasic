@@ -46,6 +46,13 @@ export const payOrderSchema = z.object({
   method: z.enum(['cash', 'card', 'transfer', 'wallet', 'other']).default('cash'),
   tenderedCents: z.coerce.number().int().nonnegative().default(0),
   discountCents: z.coerce.number().int().nonnegative().default(0),
+  /** A loyalty reward code (0095). Redeemed together with the payment. */
+  couponCode: z.string().trim().toUpperCase().max(20).optional(),
+});
+
+export const checkCouponSchema = z.object({
+  orderId: z.string().uuid(),
+  couponCode: z.string().trim().toUpperCase().min(4).max(20),
 });
 
 /** The public (guest) order. The token is the only identity involved. */

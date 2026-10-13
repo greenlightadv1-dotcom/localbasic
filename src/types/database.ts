@@ -3237,6 +3237,15 @@ export type Database = {
       restaurant_domain_set_status: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domain_verification_target: { Args: Record<string, unknown>; Returns: Json };
       restaurant_domains_list: { Args: Record<string, unknown>; Returns: Json };
+      customer_profile: { Args: Record<string, unknown>; Returns: Json };
+      customer_profile_by_token: { Args: Record<string, unknown>; Returns: Json };
+      customer_claim_reward: { Args: Record<string, unknown>; Returns: Json };
+      customer_claim_reward_by_token: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_loyalty_settings_get: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_loyalty_settings_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_coupon_check: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_coupon_redeem: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_coupon_release: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_stock: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_get: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_save: { Args: Record<string, unknown>; Returns: Json };

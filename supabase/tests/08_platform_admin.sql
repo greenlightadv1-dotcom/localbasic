@@ -144,24 +144,24 @@ begin
 
   assert app.is_platform_admin(), 'FAIL: platform admin not recognised';
 
-  -- basic = 49900/month. A year must be twelve times that, not whatever a
+  -- basic = 250000/month (2,500 EGP since 0090). A year must be twelve times that, not whatever a
   -- client might like it to be.
   select * into q from public.platform_quote_renewal(org, plan_basic, 'year', null);
   assert q.valid, 'FAIL: clean quote rejected';
   assert q.months = 12, 'FAIL: year is not 12 months';
-  assert q.gross_cents = 49900 * 12,
+  assert q.gross_cents = 250000 * 12,
     'FAIL: annual gross wrong: ' || q.gross_cents;
   assert q.discount_cents = 0, 'FAIL: phantom discount';
   assert q.net_cents = q.gross_cents, 'FAIL: net <> gross with no promo';
 
   select * into q from public.platform_quote_renewal(org, plan_basic, 'quarter', null);
-  assert q.months = 3 and q.gross_cents = 49900 * 3, 'FAIL: quarter mispriced';
+  assert q.months = 3 and q.gross_cents = 250000 * 3, 'FAIL: quarter mispriced';
 
   select * into q from public.platform_quote_renewal(org, plan_basic, 'semiannual', null);
-  assert q.months = 6 and q.gross_cents = 49900 * 6, 'FAIL: semiannual mispriced';
+  assert q.months = 6 and q.gross_cents = 250000 * 6, 'FAIL: semiannual mispriced';
 
   select * into q from public.platform_quote_renewal(org, plan_basic, 'month', null);
-  assert q.months = 1 and q.gross_cents = 49900, 'FAIL: month mispriced';
+  assert q.months = 1 and q.gross_cents = 250000, 'FAIL: month mispriced';
 
   ok := false;
   begin
@@ -183,7 +183,7 @@ begin
 
   select * into q from public.platform_quote_renewal(org, plan_basic, 'year', 'DEMO30');
   assert q.valid, 'FAIL: DEMO30 rejected';
-  assert q.discount_cents = floor(49900 * 12 * 0.30),
+  assert q.discount_cents = floor(250000 * 12 * 0.30),
     'FAIL: 30% discount wrong: ' || q.discount_cents;
   assert q.net_cents = q.gross_cents - q.discount_cents, 'FAIL: net mismatch';
 
@@ -250,8 +250,8 @@ begin
 
   select * into s from public.subscription_events where id = ev;
   assert s.event_type = 'renewed', 'FAIL: event_type is ' || s.event_type;
-  assert s.gross_cents = 49900 * 12, 'FAIL: history gross wrong';
-  assert s.discount_cents = floor(49900 * 12 * 0.30), 'FAIL: history discount wrong';
+  assert s.gross_cents = 250000 * 12, 'FAIL: history gross wrong';
+  assert s.discount_cents = floor(250000 * 12 * 0.30), 'FAIL: history discount wrong';
   assert s.net_cents = s.gross_cents - s.discount_cents, 'FAIL: history net wrong';
   assert s.payment_method = 'cash', 'FAIL: payment method not recorded';
   assert s.promo_code = 'DEMO30', 'FAIL: promo code not recorded in history';

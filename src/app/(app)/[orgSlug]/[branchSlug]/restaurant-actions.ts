@@ -59,8 +59,9 @@ import {
   createOrderSchema,
   setStatusSchema,
   payOrderSchema,
+  checkCouponSchema,
 } from '@/modules/restaurant/orders/schemas';
-import { createOrder, setOrderStatus, payOrder } from '@/modules/restaurant/orders/service';
+import { createOrder, setOrderStatus, payOrder, checkCoupon } from '@/modules/restaurant/orders/service';
 import { getReceiptData } from '@/modules/restaurant/orders/receipt';
 import { verifyGuestOrder } from '@/modules/restaurant/guest-verification/service';
 
@@ -366,6 +367,12 @@ export const verifyGuestOrderAction = defineTenantAction({
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/cashier');
     return { ok: true };
   },
+});
+
+export const checkCouponAction = defineTenantAction({
+  schema: checkCouponSchema,
+  permission: 'restaurant.pos.discount',
+  handler: async ({ ctx, input }) => checkCoupon(ctx, input),
 });
 
 export const payOrderAction = defineTenantAction({
