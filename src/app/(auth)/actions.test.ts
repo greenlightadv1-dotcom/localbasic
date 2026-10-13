@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// --- doubles -------------------------------------------------------------
 // The env module parses process.env at import time and would demand real
 // Supabase credentials, so it is replaced wholesale.
 vi.mock('@/lib/env', () => ({
@@ -27,31 +26,29 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-type AuthError = { message: string } | null;
-type AuthError2 = { message: string; status?: number } | null;
-type AuthResult = { data: unknown; error: AuthError2 };
-type UserResult = { data: { user: { id: string; email: string } | null }; error: AuthError };
+type AuthResult = { data: unknown; error: { message: string } | null };
 
-const resetPasswordForEmail = vi.fn(
-  async (_email: string, _options: { redirectTo: string }): Promise<AuthResult> => ({
-    data: {},
-    error: null,
-  }),
+const signInWithPassword = vi.fn(
+  async (_c: { email: string; password: string }): Promise<AuthResult> => ({ data: {}, error: null }),
 );
 const updateUser = vi.fn(
   async (_attrs: { password: string }): Promise<AuthResult> => ({ data: {}, error: null }),
 );
-const getUser = vi.fn(
-  async (): Promise<UserResult> => ({ data: { user: { id: 'u1', email: 'a@b.com' } }, error: null }),
-);
+const getUser = vi.fn(async () => ({ data: { user: { id: 'u1' } as { id: string } | null }, error: null }));
 
 vi.mock('@/lib/supabase/server', () => ({
-  createSupabaseServerClient: () => ({
-    auth: { resetPasswordForEmail, updateUser, getUser },
-  }),
+  createSupabaseServerClient: () => ({ auth: { signInWithPassword, updateUser, getUser } }),
 }));
 
-import { requestPasswordResetAction, updatePasswordAction } from './actions';
+const gate = { mustChange: true };
+vi.mock('@/lib/auth/password-gate', () => ({ mustChangePassword: async () => gate.mustChange }));
+
+const clearMustChangePassword = vi.fn(async (_id: string) => {});
+vi.mock('@/modules/core/members/credentials', () => ({
+  clearMustChangePassword: (id: string) => clearMustChangePassword(id),
+}));
+
+import { changePasswordAction, signInAction } from './actions';
 
 function form(values: Record<string, string>): FormData {
   const fd = new FormData();
@@ -59,7 +56,6 @@ function form(values: Record<string, string>): FormData {
   return fd;
 }
 
-/** The actions redirect rather than return; capture where they went. */
 async function destinationOf(run: Promise<unknown>): Promise<string> {
   try {
     await run;
@@ -70,103 +66,94 @@ async function destinationOf(run: Promise<unknown>): Promise<string> {
   throw new Error('expected a redirect');
 }
 
-/** Each test needs its own address and IP: the limiter is process-wide. */
+/** Each test needs its own identifier and IP: the limiter is process-wide. */
 let n = 0;
-function freshEmail() {
+function fresh() {
   n += 1;
-  return `user${n}-${Date.now()}@example.com`;
+  return `user${n}-${Date.now()}`;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   ip.mockImplementation(() => `198.51.100.${(n % 250) + 1}`);
-  resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+  signInWithPassword.mockResolvedValue({ data: {}, error: null });
   updateUser.mockResolvedValue({ data: {}, error: null });
-  getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } }, error: null });
+  getUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+  gate.mustChange = true;
 });
 
-describe('requestPasswordResetAction', () => {
-  it('calls Supabase with the production callback and reports success', async () => {
-    const email = freshEmail();
-    const to = await destinationOf(requestPasswordResetAction(form({ email })));
-
-    expect(to).toBe('/forgot-password?status=sent');
-    expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
-
-    const [sentTo, options] = resetPasswordForEmail.mock.calls[0]!;
-    expect(sentTo).toBe(email);
-    expect(options.redirectTo).toBe('https://localbasic.vercel.app/callback/recovery');
-    expect(new URL(options.redirectTo).search).toBe('');
-    expect(options.redirectTo).not.toContain('localhost');
-  });
-
-  it('rejects a malformed address without contacting Supabase', async () => {
-    const to = await destinationOf(requestPasswordResetAction(form({ email: 'nope' })));
-    expect(to).toBe('/forgot-password?status=invalid');
-    expect(resetPasswordForEmail).not.toHaveBeenCalled();
-  });
-
-  // Never swallowed: the previous version discarded the result entirely, so a
-  // refusal from Supabase looked exactly like a delivered email.
-  it('surfaces a Supabase failure instead of claiming success', async () => {
-    resetPasswordForEmail.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'redirect_to not allowed', status: 400 },
+describe('signInAction', () => {
+  it('signs a username in under its derived internal address', async () => {
+    const username = fresh();
+    const to = await destinationOf(signInAction(undefined, form({ identifier: username, password: 'secret1' })));
+    expect(to).toBe('/workspace');
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: `${username.toLowerCase()}@login.localbasic.internal`,
+      password: 'secret1',
     });
-    const to = await destinationOf(requestPasswordResetAction(form({ email: freshEmail() })));
-    expect(to).toBe('/forgot-password?status=failed');
   });
 
-  it('stops mail-bombing one address', async () => {
-    const email = freshEmail();
-    ip.mockImplementation(() => '203.0.113.99');
+  it('still lets a real email (platform admins, older accounts) sign in as typed', async () => {
+    await destinationOf(signInAction(undefined, form({ identifier: 'Admin@Example.com', password: 'secret12' })));
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: 'admin@example.com', password: 'secret12' });
+  });
 
-    const destinations: string[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      destinations.push(await destinationOf(requestPasswordResetAction(form({ email }))));
+  it('gives one generic message for a wrong password', async () => {
+    signInWithPassword.mockResolvedValueOnce({ data: null, error: { message: 'Invalid login credentials' } });
+    const result = await signInAction(undefined, form({ identifier: fresh(), password: 'wrongpass' }));
+    expect(result).toEqual({ error: 'بيانات الدخول غير صحيحة.' });
+  });
+
+  it('rate-limits repeated attempts against one username', async () => {
+    const username = fresh();
+    ip.mockImplementation(() => '203.0.113.200');
+    signInWithPassword.mockResolvedValue({ data: null, error: { message: 'Invalid login credentials' } });
+    const results: unknown[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      results.push(await signInAction(undefined, form({ identifier: username, password: 'wrongpass' })));
     }
-    expect(destinations).toContain('/forgot-password?status=rate_limited');
-    expect(resetPasswordForEmail.mock.calls.length).toBeLessThan(7);
+    expect(results).toContainEqual({ error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' });
+    expect(signInWithPassword.mock.calls.length).toBeLessThan(12);
   });
 });
 
-describe('updatePasswordAction', () => {
-  it('sets the password and lands in the workspace', async () => {
-    const to = await destinationOf(
-      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
-    );
+describe('changePasswordAction', () => {
+  const GOOD = { password: 'correct horse battery', confirm: 'correct horse battery' };
+
+  it('sets the password, clears the temporary-password flag and lands in the workspace', async () => {
+    const to = await destinationOf(changePasswordAction(form(GOOD)));
     expect(to).toBe('/workspace');
     expect(updateUser).toHaveBeenCalledWith({ password: 'correct horse battery' });
+    expect(clearMustChangePassword).toHaveBeenCalledWith('u1');
   });
 
-  it('refuses a mismatched confirmation', async () => {
-    const to = await destinationOf(
-      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'other' })),
-    );
-    expect(to).toBe('/reset-password?status=invalid');
+  // The whole point of "staff cannot change their own password": their flag is
+  // never set, so this action does nothing for them.
+  it('does nothing for an account that was not given a temporary password', async () => {
+    gate.mustChange = false;
+    const to = await destinationOf(changePasswordAction(form(GOOD)));
+    expect(to).toBe('/workspace');
     expect(updateUser).not.toHaveBeenCalled();
+    expect(clearMustChangePassword).not.toHaveBeenCalled();
   });
 
-  it('refuses a short password', async () => {
-    const to = await destinationOf(updatePasswordAction(form({ password: 'short', confirm: 'short' })));
-    expect(to).toBe('/reset-password?status=invalid');
-    expect(updateUser).not.toHaveBeenCalled();
-  });
-
-  it('reports an expired or already-used link', async () => {
+  it('sends a signed-out visitor to sign-in', async () => {
     getUser.mockResolvedValueOnce({ data: { user: null }, error: null });
-    const to = await destinationOf(
-      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
-    );
-    expect(to).toBe('/reset-password?status=expired');
+    expect(await destinationOf(changePasswordAction(form(GOOD)))).toBe('/sign-in');
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it('surfaces a Supabase rejection', async () => {
+  it('refuses a mismatched confirmation or a short password', async () => {
+    expect(await destinationOf(changePasswordAction(form({ password: 'correct horse battery', confirm: 'other' }))))
+      .toBe('/change-password?status=invalid');
+    expect(await destinationOf(changePasswordAction(form({ password: 'short', confirm: 'short' }))))
+      .toBe('/change-password?status=invalid');
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a Supabase rejection and keeps the gate set', async () => {
     updateUser.mockResolvedValueOnce({ data: null, error: { message: 'same as old' } });
-    const to = await destinationOf(
-      updatePasswordAction(form({ password: 'correct horse battery', confirm: 'correct horse battery' })),
-    );
-    expect(to).toBe('/reset-password?status=failed');
+    expect(await destinationOf(changePasswordAction(form(GOOD)))).toBe('/change-password?status=failed');
+    expect(clearMustChangePassword).not.toHaveBeenCalled();
   });
 });

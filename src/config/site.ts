@@ -26,6 +26,17 @@ export function whatsappLink(message: string): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
+/**
+ * Account creation and owner password recovery both go through the platform's
+ * own WhatsApp line (the same number as sales) — there is no self-service
+ * sign-up or email reset for restaurants.
+ */
+export const ACCOUNT_WHATSAPP_MESSAGES = {
+  createAccount: 'مرحباً، أريد إنشاء حساب جديد وشراء الخدمة لمنشأتي',
+  forgotPassword: (username?: string) =>
+    `مرحباً، نسيت كلمة المرور لحساب المطعم الخاص بي. اسم المستخدم: ${username?.trim() || ''}`.trimEnd(),
+} as const;
+
 export const WHATSAPP_MESSAGES = {
   general: 'السلام عليكم، أرغب في معرفة المزيد عن Local Basic.',
   restaurant: 'السلام عليكم، مهتم بنظام إدارة المطاعم والكافيهات من Local Basic.',

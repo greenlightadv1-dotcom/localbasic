@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { listMyWorkspaces } from '@/modules/core/tenancy/service';
 import { getPlatformContext } from '@/modules/platform/admin/context';
+import { CHANGE_PASSWORD_PATH, mustChangePassword } from '@/lib/auth/password-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
   const supabase = createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return to('/sign-in');
+
+  // A temporary password (new restaurant owner, or one reset by the platform)
+  // must be replaced before anything else is reachable.
+  if (await mustChangePassword()) return to(CHANGE_PASSWORD_PATH);
 
   // A Platform Admin operates the SaaS and belongs to no tenant, so their
   // destination is the console. Checked before the workspace lookup rather

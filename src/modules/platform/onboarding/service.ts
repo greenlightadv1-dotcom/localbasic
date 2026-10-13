@@ -1,9 +1,9 @@
 import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { serverEnv } from '@/lib/env';
-import { appOrigin } from '@/lib/auth/redirects';
+import { usernameField } from '@/lib/auth/username';
+import { createLoginAccount, discardLoginAccount } from '@/modules/core/members/credentials';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AppError } from '@/lib/errors';
 import { BILLING_PERIODS } from '@/modules/platform/billing/schemas';
@@ -23,12 +23,20 @@ import { BILLING_PERIODS } from '@/modules/platform/billing/schemas';
  *      the subscription term and closes the lead. A failure anywhere rolls all
  *      of it back, so there is no orphan workspace and no orphan subscription.
  *
- * We never store or handle a password. The owner receives an invitation and
- * sets their own credentials through Supabase Auth.
+ * The owner is created with a USERNAME and a TEMPORARY password the platform
+ * operator types in and hands over (WhatsApp, in person). The account is
+ * flagged must_change_password, so the owner's first login goes straight to a
+ * mandatory change-password screen; the operator's copy of it stops working
+ * the moment they do. Nothing here stores the password — it goes to Supabase
+ * Auth and is not kept or logged.
  */
 
 export const onboardInput = z.object({
-  ownerEmail: z.string().trim().toLowerCase().email('بريد إلكتروني غير صحيح'),
+  ownerUsername: usernameField,
+  ownerPassword: z
+    .string()
+    .min(8, 'كلمة المرور المؤقتة 8 أحرف على الأقل')
+    .max(72, 'كلمة المرور طويلة جدًا'),
   ownerName: z.string().trim().min(2, 'اسم المالك مطلوب').max(120),
   organizationName: z.string().trim().min(2, 'اسم المنشأة مطلوب').max(120),
   slug: z
@@ -49,7 +57,6 @@ export type OnboardResult = {
   organizationId: string;
   customerCode: string;
   slug: string;
-  ownerInvited: boolean;
 };
 
 /** The exact variable an operator must set for account creation to work. */
@@ -65,50 +72,6 @@ export function ownerProvisioningAvailable(): boolean {
   return Boolean(serverEnv().SUPABASE_SERVICE_ROLE_KEY);
 }
 
-/** Finds an existing auth account for an address, via the admin-only RPC. */
-async function findOwnerByEmail(email: string): Promise<string | null> {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('platform_find_user_by_email', { p_email: email });
-  if (error) throw new AppError('validation', error.message);
-  const row = (Array.isArray(data) ? data[0] : data) as { user_id: string } | undefined;
-  return row?.user_id ?? null;
-}
-
-/**
- * Resolves the owner's user id, inviting a new account when there isn't one.
- *
- * Returns `invited` so the caller can tell the admin whether an email went out.
- * Never creates a password; the invitation link lets the owner set their own.
- */
-async function resolveOwner(
-  email: string,
-  fullName: string,
-): Promise<{ userId: string; invited: boolean }> {
-  const existing = await findOwnerByEmail(email);
-  if (existing) return { userId: existing, invited: false };
-
-  if (!ownerProvisioningAvailable()) {
-    throw new AppError(
-      'validation',
-      `لا يوجد حساب بهذا البريد، وإنشاء الحسابات غير مُهيأ على الخادم. ` +
-        `اضبط ${SERVICE_ROLE_ENV} أو اطلب من المالك إنشاء حساب أولًا.`,
-    );
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName },
-    // appOrigin(), so an invite cannot be mailed pointing at localhost when
-    // NEXT_PUBLIC_APP_URL was absent for the build that produced this bundle.
-    redirectTo: `${appOrigin()}/callback`,
-  });
-
-  if (error || !data.user) {
-    throw new AppError('validation', `تعذّر إنشاء حساب المالك: ${error?.message ?? 'خطأ غير معروف'}`);
-  }
-  return { userId: data.user.id, invited: true };
-}
-
 export async function onboardCustomer(input: unknown): Promise<OnboardResult> {
   await requirePlatformAdmin();
 
@@ -121,13 +84,18 @@ export async function onboardCustomer(input: unknown): Promise<OnboardResult> {
   const supabase = createSupabaseServerClient();
 
   // Check the slug before touching identity, so a taken slug never leaves a
-  // freshly invited account with no workspace attached.
+  // freshly created account with no workspace attached.
   const { data: slugFree } = await supabase.rpc('is_org_slug_available', { p_slug: v.slug });
   if (slugFree === false) {
     throw new AppError('validation', 'هذا المعرّف مستخدم بالفعل.');
   }
 
-  const owner = await resolveOwner(v.ownerEmail, v.ownerName);
+  const owner = await createLoginAccount({
+    username: v.ownerUsername,
+    password: v.ownerPassword,
+    fullName: v.ownerName,
+    mustChangePassword: true,
+  });
 
   // One transaction: workspace, module, plan, subscription term, lead close and
   // audit. Nothing partial survives a failure.
@@ -145,17 +113,19 @@ export async function onboardCustomer(input: unknown): Promise<OnboardResult> {
     p_note: v.note || null,
   });
 
-  if (error) throw new AppError('validation', error.message);
-
   const row = (Array.isArray(data) ? data[0] : data) as
     | { out_organization_id: string; out_customer_code: string; out_slug: string }
     | undefined;
-  if (!row) throw new AppError('validation', 'تعذّر إنشاء مساحة العمل.');
+  if (error || !row) {
+    // The workspace half rolled back; do not leave its owner account behind
+    // with a password and no workspace.
+    await discardLoginAccount(owner.userId);
+    throw new AppError('validation', error?.message ?? 'تعذّر إنشاء مساحة العمل.');
+  }
 
   return {
     organizationId: row.out_organization_id,
     customerCode: row.out_customer_code,
     slug: row.out_slug,
-    ownerInvited: owner.invited,
   };
 }

@@ -24,14 +24,12 @@ export default async function OnboardPage() {
         lead="إنشاء مساحة عمل كاملة: المالك، الخدمة، الباقة، ومدة الاشتراك — في عملية واحدة."
       />
 
-      {/* A missing credential is reported plainly. Nothing is faked, and the
-          rest of the screen still works for an owner who already has an
-          account. */}
+      {/* A missing credential is reported plainly. Nothing is faked. */}
       {!canInvite ? (
         <div className="mb-6 rounded-lg border border-warn/40 bg-warn/10 p-4">
           <h2 className="text-sm font-bold text-warn">إنشاء حسابات المالكين غير مُهيأ</h2>
           <p className="mt-1.5 text-sm leading-relaxed text-fg">
-            دعوة مالك جديد بالبريد تحتاج مفتاح الخدمة على الخادم. اضبط متغير البيئة{' '}
+            إنشاء حساب مالك جديد يحتاج مفتاح الخدمة على الخادم. اضبط متغير البيئة{' '}
             <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs" dir="ltr">
               {SERVICE_ROLE_ENV}
             </code>{' '}
@@ -40,9 +38,6 @@ export default async function OnboardPage() {
               NEXT_PUBLIC_
             </code>{' '}
             ولا يُودَع في المستودع.
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            حتى ذلك الحين يمكنك إنشاء مساحة عمل لمالك <strong className="text-fg">لديه حساب بالفعل</strong>.
           </p>
         </div>
       ) : null}

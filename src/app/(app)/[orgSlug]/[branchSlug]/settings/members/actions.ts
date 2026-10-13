@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { defineTenantAction } from '@/lib/action';
-import { createMemberDirect } from '@/modules/core/members/direct';
+import { usernameField } from '@/lib/auth/username';
+import { createMemberDirect, resetMemberPassword, staffPasswordField } from '@/modules/core/members/direct';
 import { removeMember } from '@/modules/core/members/remove';
 
 /**
@@ -15,16 +16,8 @@ import { removeMember } from '@/modules/core/members/remove';
 
 export const createMemberDirectAction = defineTenantAction({
   schema: z.object({
-    // Optional — see createMemberDirect() for why an omitted email is
-    // generated rather than required or rejected.
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .max(200)
-      .refine((v) => v === '' || z.string().email().safeParse(v).success, 'أدخل بريدًا صحيحًا')
-      .optional(),
-    password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل').max(72),
+    username: usernameField,
+    password: staffPasswordField,
     fullName: z.string().trim().min(2, 'الاسم مطلوب').max(120),
     roleIds: z.array(z.string().uuid()).max(20).default([]),
     allBranches: z.coerce.boolean().default(false),
@@ -35,6 +28,15 @@ export const createMemberDirectAction = defineTenantAction({
     const result = await createMemberDirect(ctx, input);
     revalidatePath(`/${ctx.organizationSlug}/${ctx.branchSlug}/settings/members`);
     return result;
+  },
+});
+
+export const resetMemberPasswordAction = defineTenantAction({
+  schema: z.object({ memberId: z.string().uuid(), password: staffPasswordField }),
+  permission: 'member.manage',
+  handler: async ({ ctx, input }) => {
+    await resetMemberPassword(ctx, input.memberId, input.password);
+    return { ok: true };
   },
 });
 

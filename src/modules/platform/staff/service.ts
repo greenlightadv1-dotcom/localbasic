@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
 import { AppError } from '@/lib/errors';
+import { setLoginPassword } from '@/modules/core/members/credentials';
 
 /**
  * Platform console: granular staff role management for a customer.
@@ -130,4 +131,38 @@ export async function revokeStaffRole(input: {
     p_branch_id: input.branchId || null,
   });
   if (error) throw new AppError('validation', error.message);
+}
+
+/**
+ * A platform operator assigns a restaurant owner a new TEMPORARY password
+ * (the owner forgot theirs and asked support on WhatsApp). The account is
+ * flagged must_change_password again, so the owner's next login goes straight
+ * to the mandatory change-password screen and the operator's copy stops
+ * working as soon as they choose their own.
+ *
+ * Owner lookup goes through the same admin-gated platform_customer_staff
+ * function the customer page already uses, so the target is "whoever holds
+ * this customer's is_owner role" and never an id taken from the browser.
+ */
+export async function resetOwnerPassword(customerCode: string, password: string): Promise<void> {
+  await requirePlatformAdmin();
+
+  if (password.length < 8 || password.length > 72) {
+    throw new AppError('validation', 'كلمة المرور المؤقتة 8 أحرف على الأقل');
+  }
+
+  const staff = await listCustomerStaff(customerCode);
+  const owner = staff.find((m) => m.status === 'active' && m.roles.some((r) => r.isOwner));
+  if (!owner) throw new AppError('not_found', 'لا يوجد مالك لهذا العميل.');
+
+  await setLoginPassword(owner.userId, password, true);
+
+  // The audit row names the customer only — the password never travels here.
+  const supabase = createSupabaseServerClient();
+  await supabase.rpc('write_platform_audit', {
+    p_action: 'platform.owner.password_reset',
+    p_entity_type: 'organization',
+    p_entity_id: customerCode,
+    p_after: { owner_user_id: owner.userId },
+  });
 }

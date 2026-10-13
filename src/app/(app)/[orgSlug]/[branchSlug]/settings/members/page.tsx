@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/patterns/states';
-import { CreateMemberDirectForm, RemoveMember } from './invite-forms';
+import { CreateMemberDirectForm, RemoveMember, ResetMemberPassword } from './invite-forms';
 
 export const metadata = { title: 'الموظفون' };
 export const dynamic = 'force-dynamic';
@@ -51,7 +51,7 @@ export default async function MembersPage({
           .in('member_id', memberIds)
       : Promise.resolve({ data: [] }),
     userIds.length
-      ? supabase.from('profiles').select('id, full_name, phone').in('id', userIds)
+      ? supabase.from('profiles').select('id, full_name, phone, username').in('id', userIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -63,10 +63,17 @@ export default async function MembersPage({
     .eq('organization_id', ctx.organizationId)
     .order('name_ar');
 
+  const { data: branchRows } = await supabase
+    .from('branches')
+    .select('id, name')
+    .eq('organization_id', ctx.organizationId)
+    .is('deleted_at', null)
+    .order('name');
+
   const canManage = can(ctx, 'member.manage');
 
   const nameById = new Map(
-    (profiles ?? []).map((p) => [p.id, { name: p.full_name, phone: p.phone }]),
+    (profiles ?? []).map((p) => [p.id, { name: p.full_name, phone: p.phone, username: p.username }]),
   );
 
   const rows = (members ?? []).map((member) => {
@@ -76,6 +83,7 @@ export default async function MembersPage({
       userId: member.user_id,
       name: nameById.get(member.user_id)?.name ?? '—',
       phone: nameById.get(member.user_id)?.phone ?? null,
+      username: nameById.get(member.user_id)?.username ?? null,
       status: member.status,
       allBranches: member.all_branches,
       roles: own.map((g) => {
@@ -96,8 +104,9 @@ export default async function MembersPage({
         </CardHeader>
         <CardBody className="space-y-3">
           <p className="text-xs text-muted">
-            يعمل الحساب فورًا بالبريد وكلمة المرور اللي تدخلها — بدون دعوة
-            ولا بريد إلكتروني. استخدمه لموظف واقف معاك جاهز لبدء الشيفت.
+            يعمل الحساب فورًا باسم المستخدم وكلمة المرور اللي تدخلها — بدون دعوة
+            ولا بريد إلكتروني. الموظف لا يستطيع تغيير كلمة المرور بنفسه؛ لو نسيها
+            أعد تعيينها له من جدول فريق العمل.
           </p>
           <CreateMemberDirectForm
             orgSlug={ctx.organizationSlug}
@@ -106,6 +115,7 @@ export default async function MembersPage({
               id: r.id,
               label: ROLE_NAMES[r.key] ?? r.name_ar,
             }))}
+            branches={(branchRows ?? []).map((b) => ({ id: b.id, name: b.name }))}
           />
         </CardBody>
       </Card>
@@ -136,6 +146,11 @@ export default async function MembersPage({
                   <tr key={member.id} className="border-b border-line last:border-0">
                     <td className="p-3">
                       <span className="font-medium">{member.name}</span>
+                      {member.username && (
+                        <span className="lb-numeric ms-2 text-xs text-muted" dir="ltr">
+                          @{member.username}
+                        </span>
+                      )}
                       {member.phone && (
                         <span className="lb-numeric ms-2 text-xs text-muted">{member.phone}</span>
                       )}
@@ -160,11 +175,18 @@ export default async function MembersPage({
                     {canManage ? (
                       <td className="p-3">
                         {member.userId !== ownerUserId ? (
-                          <RemoveMember
-                            orgSlug={ctx.organizationSlug}
-                            branchSlug={ctx.branchSlug}
-                            memberId={member.id}
-                          />
+                          <span className="flex flex-wrap items-center gap-1">
+                            <ResetMemberPassword
+                              orgSlug={ctx.organizationSlug}
+                              branchSlug={ctx.branchSlug}
+                              memberId={member.id}
+                            />
+                            <RemoveMember
+                              orgSlug={ctx.organizationSlug}
+                              branchSlug={ctx.branchSlug}
+                              memberId={member.id}
+                            />
+                          </span>
                         ) : null}
                       </td>
                     ) : null}

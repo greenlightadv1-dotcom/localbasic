@@ -36,9 +36,25 @@ export function AuthForm({
         </Field>
       )}
 
-      <Field label="البريد الإلكتروني" required>
-        {(p) => <Input {...p} name="email" type="email" autoComplete="email" required dir="ltr" />}
-      </Field>
+      {mode === 'sign-up' ? (
+        <Field label="البريد الإلكتروني" required>
+          {(p) => <Input {...p} name="email" type="email" autoComplete="email" required dir="ltr" />}
+        </Field>
+      ) : (
+        <Field label="اسم المستخدم" required>
+          {(p) => (
+            <Input
+              {...p}
+              name="identifier"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              dir="ltr"
+            />
+          )}
+        </Field>
+      )}
 
       <Field
         label="كلمة المرور"
@@ -51,7 +67,7 @@ export function AuthForm({
             name="password"
             type="password"
             autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-            minLength={8}
+            minLength={mode === 'sign-up' ? 8 : undefined}
             required
             dir="ltr"
           />

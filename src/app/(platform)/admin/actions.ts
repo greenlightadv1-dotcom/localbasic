@@ -9,7 +9,7 @@ import {
 import { createLead, updateLead } from '@/modules/platform/leads/service';
 import { setServiceAvailability } from '@/modules/platform/services/service';
 import { onboardCustomer } from '@/modules/platform/onboarding/service';
-import { grantStaffRole, revokeStaffRole } from '@/modules/platform/staff/service';
+import { grantStaffRole, revokeStaffRole, resetOwnerPassword } from '@/modules/platform/staff/service';
 import { PROMO_REASONS } from '@/modules/platform/billing/schemas';
 import { AppError } from '@/lib/errors';
 
@@ -242,7 +242,8 @@ export async function onboardCustomerAction(
   let result: Awaited<ReturnType<typeof onboardCustomer>>;
   try {
     result = await onboardCustomer({
-      ownerEmail: String(formData.get('ownerEmail') ?? ''),
+      ownerUsername: String(formData.get('ownerUsername') ?? ''),
+      ownerPassword: String(formData.get('ownerPassword') ?? ''),
       ownerName: String(formData.get('ownerName') ?? ''),
       organizationName: String(formData.get('organizationName') ?? ''),
       slug: String(formData.get('slug') ?? ''),
@@ -306,4 +307,21 @@ export async function revokeStaffRoleAction(
   }
   revalidatePath('/admin/customers', 'layout');
   return { ok: 'تم سحب الدور.' };
+}
+
+export type OwnerPasswordState = { error?: string; ok?: string } | undefined;
+
+export async function resetOwnerPasswordAction(
+  _prev: OwnerPasswordState,
+  formData: FormData,
+): Promise<OwnerPasswordState> {
+  try {
+    await resetOwnerPassword(
+      String(formData.get('customerCode') ?? ''),
+      String(formData.get('password') ?? ''),
+    );
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : 'تعذّر تغيير كلمة المرور.' };
+  }
+  return { ok: 'تم تعيين كلمة مرور مؤقتة. سيُطلب من المالك تغييرها عند أول دخول.' };
 }

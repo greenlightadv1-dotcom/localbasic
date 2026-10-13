@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
 import { requirePlatformAdmin } from '@/modules/platform/admin/context';
+import { redirectIfMustChangePassword } from '@/lib/auth/password-gate';
 
 export const dynamic = 'force-dynamic';
 // No metadata export here on purpose: a layout title template is applied to
@@ -31,6 +32,7 @@ const NAV = [
  */
 export default async function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requirePlatformAdmin();
+  await redirectIfMustChangePassword();
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">

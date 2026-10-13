@@ -47,17 +47,30 @@ export function OnboardForm({
         <legend className="mb-2 text-xs font-bold text-fg">المالك</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-fg">بريد المالك</span>
-            <input name="ownerEmail" type="email" required dir="ltr" className={FIELD} />
+            <span className="mb-1.5 block text-xs font-semibold text-fg">اسم المالك</span>
+            <input name="ownerName" required maxLength={120} className={FIELD} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-fg">اسم المستخدم</span>
+            <input
+              name="ownerUsername" required dir="ltr" minLength={3} maxLength={32}
+              autoComplete="off" autoCapitalize="none" spellCheck={false} className={FIELD}
+            />
             <span className="mt-1 block text-[11px] text-muted">
-              {canInvite
-                ? 'إن لم يكن له حساب، تُرسَل دعوة ليضبط كلمة المرور بنفسه.'
-                : 'يجب أن يكون للمالك حساب بالفعل — إنشاء الحسابات غير مُهيأ.'}
+              حروف إنجليزية صغيرة وأرقام (3–32). هو اللي بيدخل بيه المالك.
             </span>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-fg">اسم المالك</span>
-            <input name="ownerName" required maxLength={120} className={FIELD} />
+            <span className="mb-1.5 block text-xs font-semibold text-fg">كلمة المرور المؤقتة</span>
+            <input
+              name="ownerPassword" type="text" required dir="ltr" minLength={8} maxLength={72}
+              autoComplete="off" className={FIELD}
+            />
+            <span className="mt-1 block text-[11px] text-muted">
+              {canInvite
+                ? 'سلّمها للمالك؛ هيُطلب منه تغييرها فور أول دخول.'
+                : 'إنشاء الحسابات غير مُهيأ على الخادم.'}
+            </span>
           </label>
         </div>
       </fieldset>

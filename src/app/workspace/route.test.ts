@@ -6,6 +6,7 @@ const h = vi.hoisted(() => {
     user: null as { id: string } | null,
     platform: null as { role: 'owner' | 'staff' } | null,
     workspaces: [] as { slug: string; name: string; moduleKey: string }[],
+    mustChange: false,
   };
   return {
     state,
@@ -23,6 +24,10 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/modules/platform/admin/context', () => ({
   getPlatformContext: h.getPlatformContext,
 }));
+vi.mock('@/lib/auth/password-gate', () => ({
+  CHANGE_PASSWORD_PATH: '/change-password',
+  mustChangePassword: async () => h.state.mustChange,
+}));
 vi.mock('@/modules/core/tenancy/service', () => ({ listMyWorkspaces: h.listMyWorkspaces }));
 
 import { GET } from './route';
@@ -39,9 +44,20 @@ beforeEach(() => {
   h.state.user = { id: 'user-1' };
   h.state.platform = null;
   h.state.workspaces = [];
+  h.state.mustChange = false;
 });
 
 describe('GET /workspace', () => {
+  // A temporary password has to be replaced before any workspace or the
+  // console is reachable, whoever the account belongs to.
+  it('sends an account with a temporary password to the change-password screen first', async () => {
+    h.state.mustChange = true;
+    h.state.workspaces = [{ slug: 'alhara', name: 'x', moduleKey: 'restaurant' }];
+    expect(await visit()).toBe(`${ORIGIN}/change-password`);
+    h.state.platform = { role: 'staff' };
+    expect(await visit()).toBe(`${ORIGIN}/change-password`);
+  });
+
   it('sends a signed-out visitor to sign-in', async () => {
     h.state.user = null;
     expect(await visit()).toBe(`${ORIGIN}/sign-in`);

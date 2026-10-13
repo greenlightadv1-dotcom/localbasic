@@ -985,6 +985,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
           email: string | null;
+          username: string | null;
+          must_change_password: boolean;
         };
         Insert: {
           id: string;
@@ -995,6 +997,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           email?: string | null;
+          username?: string | null;
+          must_change_password?: boolean;
         };
         Update: {
           id?: string;
@@ -1005,6 +1009,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           email?: string | null;
+          username?: string | null;
+          must_change_password?: boolean;
         };
         Relationships: [];
       };
@@ -3155,6 +3161,7 @@ export type Database = {
       is_org_slug_available: { Args: Record<string, unknown>; Returns: Json };
       member_provision_direct: { Args: Record<string, unknown>; Returns: Json };
       member_remove: { Args: Record<string, unknown>; Returns: Json };
+      member_reset_password_authorize: { Args: Record<string, unknown>; Returns: Json };
       notification_claim_batch: { Args: Record<string, unknown>; Returns: Json };
       notification_mark_failed: { Args: Record<string, unknown>; Returns: Json };
       notification_mark_sent: { Args: Record<string, unknown>; Returns: Json };

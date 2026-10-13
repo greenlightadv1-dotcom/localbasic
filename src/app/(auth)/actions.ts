@@ -5,23 +5,29 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/action';
-import { appOrigin, isLoopbackOrigin, recoveryRedirectUrl } from '@/lib/auth/redirects';
+import { identifierToEmail } from '@/lib/auth/username';
+import { mustChangePassword } from '@/lib/auth/password-gate';
+import { clearMustChangePassword } from '@/modules/core/members/credentials';
 
 export type AuthFormState = { error?: string; notice?: string } | undefined;
 
 const credentials = z.object({
-  email: z.string().email('بريد إلكتروني غير صحيح'),
-  password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل'),
+  // A username (staff, restaurant owners) or, for platform admins and accounts
+  // that predate usernames, an email. See lib/auth/username.
+  identifier: z.string().trim().min(3).max(200),
+  password: z.string().min(6).max(72),
 });
 
-const signUpInput = credentials.extend({
+const signUpInput = z.object({
+  email: z.string().email('بريد إلكتروني غير صحيح'),
+  password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل'),
   fullName: z.string().min(2, 'الاسم مطلوب').max(120),
 });
 
 /**
- * Sign-in failures always return the same message whether the email is unknown
- * or the password is wrong. Distinguishing them would turn the form into a
- * user-enumeration oracle.
+ * Sign-in failures always return the same message whether the account is
+ * unknown or the password is wrong. Distinguishing them would turn the form
+ * into a user-enumeration oracle.
  */
 const GENERIC_CREDENTIALS_ERROR = 'بيانات الدخول غير صحيحة.';
 
@@ -30,24 +36,28 @@ export async function signInAction(
   formData: FormData,
 ): Promise<AuthFormState> {
   const parsed = credentials.safeParse({
-    email: formData.get('email'),
+    identifier: formData.get('identifier'),
     password: formData.get('password'),
   });
   if (!parsed.success) return { error: GENERIC_CREDENTIALS_ERROR };
 
+  const email = identifierToEmail(parsed.data.identifier);
+
   // Limited by IP and by identifier, so neither a password-spray across many
   // accounts nor a brute force against one gets many attempts.
   const ip = getClientIp();
-  for (const key of [`signin:ip:${ip}`, `signin:email:${parsed.data.email.toLowerCase()}`]) {
+  for (const key of [`signin:ip:${ip}`, `signin:email:${email}`]) {
     if (!checkRateLimit(key, RATE_LIMITS.signIn).ok) {
       return { error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' };
     }
   }
 
   const supabase = createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
   if (error) return { error: GENERIC_CREDENTIALS_ERROR };
 
+  // /workspace sends an account holding a temporary password to
+  // /change-password before anything else.
   redirect('/workspace');
 }
 
@@ -88,16 +98,15 @@ export async function signOutAction() {
 }
 
 // ---------------------------------------------------------------------------
-// Password recovery.
+// Mandatory password change.
 //
-// Uses Supabase's own recovery flow end to end: resetPasswordForEmail() mints
-// the token and mails it, /callback exchanges the code for a session exactly as
-// it does for a sign-up confirmation, and updateUser() sets the new password
-// against that session. No second auth system, no service-role key, and
-// nothing writes auth.users directly.
+// There is no self-service password reset or recovery any more. Staff passwords
+// are assigned by their admin; restaurant-owner passwords by the platform, who
+// hand over a TEMPORARY one (profiles.must_change_password = true, migration
+// 0088). This is the only path by which a user changes their own password, and
+// it is open only while that flag is set — so a staff member, whose flag is
+// never set, cannot use it.
 // ---------------------------------------------------------------------------
-
-const emailOnly = z.object({ email: z.string().email() });
 
 const newPassword = z
   .object({
@@ -106,109 +115,34 @@ const newPassword = z
   })
   .refine((v) => v.password === v.confirm);
 
-/**
- * A short id that ties the lines of one submission together in the server log.
- * Not a secret and not derived from anything about the person.
- */
-function correlationId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-/** Server-log breadcrumb. Never carries an address, token, cookie or key. */
-function trace(id: string, step: string, detail?: string) {
-  console.log(`[RECOVERY_DEBUG] ${id} ${step}${detail ? ` ${detail}` : ''}`);
-}
-
-/**
- * Request a recovery link.
- *
- * A plain Server Action taking FormData, invoked by `<form action={...}>` in a
- * Server Component. No useFormState, no useFormStatus, no client component:
- * the form posts natively, so it works with JavaScript disabled, blocked by a
- * content security policy, or simply not yet hydrated. The previous version
- * depended on hydration, and when the policy blocked the page's scripts the
- * button silently did nothing at all — no request, no error, no email.
- *
- * The outcome is carried back in the query string rather than component state,
- * which keeps the whole path server-side and makes the page dynamic.
- */
-export async function requestPasswordResetAction(formData: FormData): Promise<void> {
-  const id = correlationId();
-  trace(id, 'submit_received');
-
-  const parsed = emailOnly.safeParse({ email: formData.get('email') });
-  if (!parsed.success) {
-    trace(id, 'validation_failed');
-    redirect('/forgot-password?status=invalid');
-  }
-  trace(id, 'validation_passed');
-
-  const email = parsed.data.email.toLowerCase();
-
-  // Two buckets: one per address so a single account cannot be mail-bombed,
-  // one per IP so a script cannot walk a list of addresses.
-  for (const key of [`reset:ip:${getClientIp()}`, `reset:email:${email}`]) {
-    if (!checkRateLimit(key, RATE_LIMITS.passwordReset).ok) {
-      trace(id, 'rate_limited');
-      redirect('/forgot-password?status=rate_limited');
-    }
-  }
-
-  const origin = appOrigin();
-  trace(id, 'origin_resolved', origin);
-
-  // Refuse to mail a link nobody can open, rather than burning a single-use
-  // token on a machine only the developer can reach.
-  if (process.env.NODE_ENV === 'production' && isLoopbackOrigin(origin)) {
-    trace(id, 'origin_unusable');
-    redirect('/forgot-password?status=unconfigured');
-  }
-
-  const redirectTo = recoveryRedirectUrl(origin);
-  trace(id, 'calling_supabase', redirectTo);
-
-  const supabase = createSupabaseServerClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo });
-
-  // Never swallowed. The message is logged, the address is not.
-  if (error) {
-    trace(id, 'supabase_result error', `${error.status ?? ''} ${error.message}`.trim());
-    redirect('/forgot-password?status=failed');
-  }
-
-  trace(id, 'supabase_result ok');
-  redirect('/forgot-password?status=sent');
-}
-
-/**
- * Set the new password against the session the recovery link produced.
- *
- * Also a plain FormData action, for the same reason: this page is the last step
- * of a flow whose whole purpose is to let someone back in, so it must not
- * depend on client JavaScript running.
- */
-export async function updatePasswordAction(formData: FormData): Promise<void> {
+export async function changePasswordAction(formData: FormData): Promise<void> {
   const parsed = newPassword.safeParse({
     password: formData.get('password'),
     confirm: formData.get('confirm'),
   });
-  if (!parsed.success) {
-    redirect('/reset-password?status=invalid');
-  }
+  if (!parsed.success) redirect('/change-password?status=invalid');
 
   const supabase = createSupabaseServerClient();
-
-  // The recovery link is what produced this session. No session means the link
-  // was invalid, already used, or expired.
   const { data, error: userError } = await supabase.auth.getUser();
-  if (userError || !data?.user) {
-    redirect('/reset-password?status=expired');
+  if (userError || !data?.user) redirect('/sign-in');
+
+  if (!(await mustChangePassword())) {
+    // Nothing asked this account to choose a new password. Staff land here.
+    redirect('/workspace');
   }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
-    console.log(`[RECOVERY_DEBUG] update_password_failed ${error.message}`);
-    redirect('/reset-password?status=failed');
+    console.log(`[PASSWORD_CHANGE] update_failed ${error.message}`);
+    redirect('/change-password?status=failed');
+  }
+
+  try {
+    await clearMustChangePassword(data.user.id);
+  } catch {
+    // The password changed but the flag could not be cleared; send them back
+    // rather than let them into the app with the gate still set.
+    redirect('/change-password?status=failed');
   }
 
   redirect('/workspace');

@@ -13,6 +13,7 @@ import { RenewForm } from './renew-form';
 import { AdjustDaysForm, SwitchPlanForm } from './subscription-ops-form';
 import { DangerZone } from './danger-zone';
 import { StaffRoles } from './staff-roles';
+import { OwnerPasswordReset } from './owner-password-reset';
 
 import { getPlatformContext } from '@/modules/platform/admin/context';
 
@@ -137,6 +138,7 @@ export default async function CustomerProfilePage({
             <Row label="واتساب"><span dir="ltr">{org.contactWhatsapp ?? '—'}</span></Row>
             <Row label="بريد المنشأة"><span dir="ltr">{org.contactEmail ?? '—'}</span></Row>
           </dl>
+          <OwnerPasswordReset customerCode={org.customerCode} />
         </Panel>
 
         <Panel>
