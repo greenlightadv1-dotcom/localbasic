@@ -29,7 +29,7 @@ export default function SignInPage({
           <Alert tone="danger">الرابط غير صالح أو منتهي الصلاحية.</Alert>
         )}
 
-        <AuthForm action={signInAction} submitLabel="دخول" mode="sign-in" />
+        <AuthForm action={signInAction} submitLabel="دخول" />
 
         <p className="text-center text-sm">
           <ForgotPasswordLink className="font-semibold text-primary hover:underline" />

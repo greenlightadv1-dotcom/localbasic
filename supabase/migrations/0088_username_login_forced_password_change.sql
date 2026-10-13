@@ -30,8 +30,10 @@ create unique index if not exists profiles_username_unique
   on public.profiles (lower(username))
   where username is not null;
 
+-- NOT security definer: inside a definer function current_user is the function
+-- owner, which would make the role check below always pass.
 create or replace function app.profiles_guard_credentials()
-returns trigger language plpgsql security definer set search_path = '' as $$
+returns trigger language plpgsql set search_path = '' as $$
 begin
   -- current_user is the role the statement runs as: 'authenticated' / 'anon'
   -- for a request made with a user's JWT, while the service role and

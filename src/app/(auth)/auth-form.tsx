@@ -18,11 +18,9 @@ function SubmitButton({ label }: { label: string }) {
 export function AuthForm({
   action,
   submitLabel,
-  mode,
 }: {
   action: (state: AuthFormState, formData: FormData) => Promise<AuthFormState>;
   submitLabel: string;
-  mode: 'sign-in' | 'sign-up';
 }) {
   const [state, formAction] = useFormState(action, undefined);
 
@@ -30,44 +28,27 @@ export function AuthForm({
     <form action={formAction} className="space-y-4">
       {state?.error && <Alert tone="danger">{state.error}</Alert>}
 
-      {mode === 'sign-up' && (
-        <Field label="الاسم بالكامل" required>
-          {(p) => <Input {...p} name="fullName" autoComplete="name" required />}
-        </Field>
-      )}
+      <Field label="اسم المستخدم" required>
+        {(p) => (
+          <Input
+            {...p}
+            name="identifier"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            dir="ltr"
+          />
+        )}
+      </Field>
 
-      {mode === 'sign-up' ? (
-        <Field label="البريد الإلكتروني" required>
-          {(p) => <Input {...p} name="email" type="email" autoComplete="email" required dir="ltr" />}
-        </Field>
-      ) : (
-        <Field label="اسم المستخدم" required>
-          {(p) => (
-            <Input
-              {...p}
-              name="identifier"
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              dir="ltr"
-            />
-          )}
-        </Field>
-      )}
-
-      <Field
-        label="كلمة المرور"
-        required
-        hint={mode === 'sign-up' ? '8 أحرف على الأقل' : undefined}
-      >
+      <Field label="كلمة المرور" required>
         {(p) => (
           <Input
             {...p}
             name="password"
             type="password"
-            autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-            minLength={mode === 'sign-up' ? 8 : undefined}
+            autoComplete="current-password"
             required
             dir="ltr"
           />

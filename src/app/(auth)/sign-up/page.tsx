@@ -1,27 +1,10 @@
-import Link from 'next/link';
-import type { Metadata } from 'next';
-import { Card, CardBody } from '@/components/ui/card';
-import { AuthForm } from '../auth-form';
-import { signUpAction } from '../actions';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'إنشاء حساب' };
-
+/**
+ * Self-service sign-up is closed: new customers are onboarded by the platform
+ * (the "أنشئ حسابًا" link on the sign-in page opens WhatsApp to sales). Old
+ * bookmarks and links land here, so this sends them to sign-in rather than 404.
+ */
 export default function SignUpPage() {
-  return (
-    <Card>
-      <CardBody className="space-y-5 p-6">
-        <div className="space-y-1">
-          <h1 className="text-lg font-bold">إنشاء حساب</h1>
-          <p className="text-sm text-muted">ابدأ بإنشاء مساحة عمل لنشاطك.</p>
-        </div>
-        <AuthForm action={signUpAction} submitLabel="إنشاء الحساب" mode="sign-up" />
-        <p className="text-center text-sm text-muted">
-          لديك حساب بالفعل؟{' '}
-          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
-            تسجيل الدخول
-          </Link>
-        </p>
-      </CardBody>
-    </Card>
-  );
+  redirect('/sign-in');
 }

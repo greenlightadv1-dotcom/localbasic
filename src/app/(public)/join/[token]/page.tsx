@@ -73,8 +73,7 @@ export default async function JoinPage({
             {!user ? (
               <>
                 <p className="mb-4 text-sm text-muted">
-                  سجّل الدخول بنفس البريد لقبول الدعوة. إن لم يكن لديك حساب، أنشئ
-                  حسابًا بهذا البريد أولًا.
+                  سجّل الدخول بحسابك لقبول الدعوة.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Link
@@ -82,12 +81,6 @@ export default async function JoinPage({
                     className="inline-flex h-11 items-center justify-center rounded bg-primary px-5 text-sm font-semibold text-primary-fg hover:opacity-90"
                   >
                     تسجيل الدخول
-                  </Link>
-                  <Link
-                    href={`/sign-up?next=${encodeURIComponent(`/join/${params.token}`)}`}
-                    className="inline-flex h-11 items-center justify-center rounded border border-line px-5 text-sm font-semibold text-fg hover:bg-surface"
-                  >
-                    إنشاء حساب
                   </Link>
                 </div>
               </>

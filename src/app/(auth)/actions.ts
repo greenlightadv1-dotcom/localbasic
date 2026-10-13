@@ -18,12 +18,6 @@ const credentials = z.object({
   password: z.string().min(6).max(72),
 });
 
-const signUpInput = z.object({
-  email: z.string().email('بريد إلكتروني غير صحيح'),
-  password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل'),
-  fullName: z.string().min(2, 'الاسم مطلوب').max(120),
-});
-
 /**
  * Sign-in failures always return the same message whether the account is
  * unknown or the password is wrong. Distinguishing them would turn the form
@@ -59,36 +53,6 @@ export async function signInAction(
   // /workspace sends an account holding a temporary password to
   // /change-password before anything else.
   redirect('/workspace');
-}
-
-export async function signUpAction(
-  _prev: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const parsed = signUpInput.safeParse({
-    email: formData.get('email'),
-    password: formData.get('password'),
-    fullName: formData.get('fullName'),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'تحقق من البيانات المدخلة.' };
-  }
-
-  if (!checkRateLimit(`signup:ip:${getClientIp()}`, RATE_LIMITS.signUp).ok) {
-    return { error: 'محاولات كثيرة. برجاء المحاولة بعد قليل.' };
-  }
-
-  const supabase = createSupabaseServerClient();
-  const { error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: { data: { full_name: parsed.data.fullName } },
-  });
-
-  // Signing up with an address that already exists must not confirm that fact.
-  if (error) return { error: 'تعذّر إنشاء الحساب. تحقق من البيانات أو سجّل الدخول.' };
-
-  redirect('/onboarding');
 }
 
 export async function signOutAction() {
