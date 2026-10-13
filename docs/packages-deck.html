@@ -1,0 +1,624 @@
+<title>عرض باقات LocalBasic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@500;600;700&display=swap">
+<style>
+/* Layout concept: a full-height deck, one slide at a time, RTL. Deep-blue
+   cover and close bracket light content slides; the three packages are tints
+   of the brand blue so the price ladder reads as a ladder. */
+:root {
+  --bg: #F3F5FC;
+  --surface: #FFFFFF;
+  --ink: #0E1330;
+  --muted: #55608A;
+  --line: #D9DEF2;
+  --brand: #1E2FC8;
+  --brand-2: #6B8BFA;
+  --brand-soft: #E5E9FF;
+  --deep: #1E2FC8;
+  --on-deep: #FFFFFF;
+  --on-deep-muted: #C9D2FF;
+  --ok: #12794A;
+  --no: #8A93B8;
+  --tier-1: #8FA6FF;
+  --tier-2: #4F6BE8;
+  --tier-3: #1E2FC8;
+  --font-display: "Reem Kufi", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
+  --shadow: 0 1px 2px rgba(14, 19, 48, .06), 0 8px 24px rgba(30, 47, 200, .08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B0F26; --surface: #141A3A; --ink: #EEF1FF; --muted: #9AA5D6; --line: #263060;
+    --brand: #8FA6FF; --brand-2: #4F6BE8; --brand-soft: #1B2458; --deep: #101A66; --on-deep: #FFFFFF;
+    --on-deep-muted: #B9C4FF; --ok: #4CD08A; --no: #6B749E;
+    --tier-1: #5C75E8; --tier-2: #7F98FF; --tier-3: #B7C5FF;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B0F26; --surface: #141A3A; --ink: #EEF1FF; --muted: #9AA5D6; --line: #263060;
+  --brand: #8FA6FF; --brand-2: #4F6BE8; --brand-soft: #1B2458; --deep: #101A66; --on-deep: #FFFFFF;
+  --on-deep-muted: #B9C4FF; --ok: #4CD08A; --no: #6B749E;
+  --tier-1: #5C75E8; --tier-2: #7F98FF; --tier-3: #B7C5FF;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; overflow: hidden; }
+* { box-sizing: border-box; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.25; text-wrap: balance; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--brand-2); outline-offset: 2px; border-radius: 6px; }
+.num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+
+#deck { height: 100%; position: relative; }
+.slide {
+  position: absolute; inset: 0; padding-inline: max(16px, 5vw); padding-block: 28px 84px;
+  overflow-y: auto; overflow-x: hidden; visibility: hidden; opacity: 0; transform: translateX(-28px);
+  transition: opacity .45s ease, transform .45s ease, visibility 0s .45s;
+}
+.slide.on { visibility: visible; opacity: 1; transform: none; transition: opacity .45s ease, transform .45s ease; }
+.slide > .inner { width: 100%; max-width: 1080px; margin-inline: auto; min-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 28px; }
+.eyebrow { font-size: .8125rem; font-weight: 600; letter-spacing: .06em; color: var(--brand); }
+.title { font-size: clamp(1.75rem, 4.2vw, 3rem); }
+.lead { color: var(--muted); max-width: 62ch; font-size: 1.0625rem; }
+
+/* entrance: children rise in one after another when the slide becomes active */
+.slide.on .rise { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* ---- cover & close ---- */
+.deep { background: var(--deep); color: var(--on-deep); }
+.deep .eyebrow { color: var(--on-deep-muted); }
+.deep .lead { color: var(--on-deep-muted); }
+.cover-mark { font-family: var(--font-display); font-size: clamp(1rem, 2vw, 1.25rem); letter-spacing: .02em; opacity: .9; }
+.cover-mark b { font-weight: 700; } .cover-mark span { color: var(--on-deep-muted); }
+.cover h1 { font-size: clamp(2.25rem, 6vw, 4rem); max-width: 16ch; }
+.cover-ladder { display: flex; gap: 10px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: baseline; gap: 8px; padding: 10px 16px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 999px; font-weight: 600; background: rgba(255, 255, 255, .08); }
+.chip .num { font-family: var(--font-display); font-size: 1.25rem; }
+.chip small { color: var(--on-deep-muted); font-size: .8125rem; font-weight: 500; }
+.cover-bg { position: absolute; inset: 0; pointer-events: none; opacity: .55; }
+
+/* ---- flow ---- */
+.flow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; position: relative; }
+.flow::before { content: ""; position: absolute; inset-inline: 6%; top: 27px; height: 3px; background: var(--line); border-radius: 3px; }
+.flow-bar { position: absolute; inset-inline-start: 6%; top: 27px; height: 3px; background: var(--brand); border-radius: 3px; width: 0; transition: width .5s ease; }
+.step { position: relative; background: none; border: 0; padding: 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.step .dot { width: 54px; height: 54px; border-radius: 50%; background: var(--surface); border: 3px solid var(--line); display: grid; place-items: center; font-family: var(--font-display); font-size: 1.25rem; color: var(--muted); transition: all .3s; z-index: 1; }
+.step span.t { font-weight: 600; font-size: .9375rem; color: var(--muted); transition: color .3s; }
+.step[aria-selected="true"] .dot { background: var(--brand); border-color: var(--brand); color: var(--surface); transform: scale(1.12); }
+.step[aria-selected="true"] span.t, .step.done span.t { color: var(--ink); }
+.step.done .dot { border-color: var(--brand); color: var(--brand); }
+.flow-note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; min-height: 108px; box-shadow: var(--shadow); }
+.flow-note h3 { font-size: 1.25rem; margin-bottom: 6px; }
+.flow-note p { color: var(--muted); max-width: 70ch; }
+
+/* ---- role tabs ---- */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: .9375rem; transition: all .2s; }
+.tab[aria-selected="true"] { background: var(--brand); color: var(--surface); border-color: var(--brand); }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 28px; align-items: start; }
+.panel h3 { font-size: 1.5rem; margin-bottom: 8px; }
+.panel .who { color: var(--muted); }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.checks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; animation: rise .4s both; animation-delay: calc(var(--i, 0) * 50ms); }
+.checks li::before { content: ""; width: 10px; height: 10px; margin-top: 8px; margin-inline-start: 6px; border-radius: 50%; background: var(--brand); }
+.checks li { line-height: 1.55; }
+
+/* ---- feature tiles ---- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+.tile h3 { font-size: 1.125rem; margin-bottom: 6px; color: var(--ink); }
+.tile p { color: var(--muted); font-size: .9375rem; }
+.tile .tag { display: inline-block; font-size: .75rem; font-weight: 600; color: var(--brand); background: var(--brand-soft); border-radius: 6px; padding: 2px 8px; margin-bottom: 10px; }
+
+/* ---- packages ---- */
+.terms { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 4px; gap: 2px; flex-wrap: wrap; }
+.term { border: 0; background: none; padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: .9375rem; color: var(--muted); }
+.term[aria-pressed="true"] { background: var(--brand); color: var(--surface); }
+.pkgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: stretch; }
+.pkg { background: var(--surface); border: 1px solid var(--line); border-top: 6px solid var(--c); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
+.pkg.t1 { --c: var(--tier-1); } .pkg.t2 { --c: var(--tier-2); } .pkg.t3 { --c: var(--tier-3); }
+.pkg h3 { font-size: 1.5rem; }
+.pkg .fit { color: var(--muted); font-size: .9375rem; min-height: 3.1em; }
+.price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.price .big { font-family: var(--font-display); font-size: clamp(2.5rem, 5vw, 3.5rem); line-height: 1; color: var(--ink); }
+.price .cur { color: var(--muted); font-weight: 600; }
+.price-sub { color: var(--muted); font-size: .875rem; min-height: 1.5em; }
+.pkg ul { list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; gap: 8px; font-size: .9375rem; }
+.pkg li { display: flex; justify-content: space-between; gap: 12px; }
+.pkg li b { font-variant-numeric: tabular-nums; }
+.fine { color: var(--muted); font-size: .875rem; }
+
+/* ---- comparison ---- */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { padding: 11px 14px; text-align: center; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: start; font-weight: 600; position: sticky; inset-inline-start: 0; background: var(--surface); z-index: 1; }
+thead th { font-family: var(--font-display); font-size: 1.125rem; border-bottom: 3px solid var(--c, var(--line)); }
+thead th small { display: block; font-family: var(--font-body); font-weight: 500; color: var(--muted); font-size: .8125rem; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--brand-soft); }
+td.col-hot, th.col-hot { background: var(--brand-soft); }
+.yes { color: var(--ok); font-weight: 700; } .no { color: var(--no); }
+td .num { font-weight: 600; }
+.group td { background: var(--bg); font-size: .8125rem; font-weight: 700; letter-spacing: .05em; color: var(--brand); text-align: start; }
+
+/* ---- fit finder ---- */
+.finder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; align-items: start; }
+.inputs { display: grid; gap: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+.field label { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; margin-bottom: 8px; }
+.field label output { color: var(--brand); font-family: var(--font-display); font-size: 1.25rem; }
+input[type="range"] { width: 100%; accent-color: var(--brand); }
+.verdict { background: var(--deep); color: var(--on-deep); border-radius: 12px; padding: 22px; display: grid; gap: 6px; }
+.verdict small { color: var(--on-deep-muted); }
+.verdict strong { font-family: var(--font-display); font-size: 2rem; line-height: 1.2; }
+.bars { display: grid; gap: 14px; margin-top: 14px; }
+.barrow { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; font-size: .9375rem; }
+.barrow .track { height: 22px; background: var(--brand-soft); border-radius: 6px; overflow: hidden; direction: ltr; }
+.barrow .fill { height: 100%; width: 0; background: var(--c); border-radius: 6px; transition: width .6s cubic-bezier(.2, .7, .2, 1); }
+.barrow.off { opacity: .5; }
+.barrow .val { font-weight: 600; white-space: nowrap; }
+.barrow.off .val { font-weight: 500; color: var(--muted); }
+
+/* ---- close ---- */
+.cta { display: inline-flex; align-items: center; gap: 10px; background: var(--on-deep); color: var(--deep); font-weight: 700; padding: 14px 24px; border-radius: 10px; text-decoration: none; font-size: 1.0625rem; width: fit-content; }
+.cta:hover { transform: translateY(-2px); }
+.contact-line { color: var(--on-deep-muted); }
+.contact-line .num { color: var(--on-deep); font-weight: 600; }
+.points { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.point { border: 1px solid rgba(255, 255, 255, .25); border-radius: 12px; padding: 14px 16px; background: rgba(255, 255, 255, .07); }
+.point b { display: block; font-family: var(--font-display); font-size: 1.25rem; }
+.point span { color: var(--on-deep-muted); font-size: .9375rem; }
+
+/* ---- navigation ---- */
+.nav { position: fixed; inset-inline: 0; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(16px, 3vw); padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
+.nav button { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; min-width: 44px; height: 44px; padding: 0 16px; font-weight: 600; }
+.nav button:disabled { opacity: .35; cursor: default; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.dots button { min-width: 0; width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 0; background: var(--line); transition: all .25s; }
+.dots button[aria-current="true"] { background: var(--brand); width: 30px; border-radius: 8px; }
+.counter { color: var(--muted); font-size: .875rem; min-width: 48px; text-align: center; }
+
+@media (max-width: 760px) {
+  .flow { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 20px; }
+  .flow::before, .flow-bar { display: none; }
+  .panel, .finder { grid-template-columns: minmax(0, 1fr); }
+  .barrow { grid-template-columns: 64px minmax(0, 1fr); } .barrow .val { grid-column: 1 / -1; }
+  .slide { padding-block: 20px 88px; }
+  .dots { display: none; }
+  .nav { justify-content: space-between; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide, .slide.on { transition: none; transform: none; }
+  .slide.on .rise, .checks li { animation: none; }
+  .barrow .fill, .flow-bar, .step .dot { transition: none; }
+}
+</style>
+
+<div id="deck" dir="rtl" lang="ar">
+
+  <!-- 1 · Cover -->
+  <section class="slide deep cover on" data-title="الغلاف">
+    <canvas class="cover-bg" id="bg" aria-hidden="true"></canvas>
+    <div class="inner" style="position:relative">
+      <p class="cover-mark rise" style="--i:0"><b>Local</b><span>Basic</span> · A Green Light Company</p>
+      <h1 class="rise" style="--i:1">نظام واحد يُدير المطعم من الطاولة إلى الخزينة</h1>
+      <p class="lead rise" style="--i:2">كاشير ومطبخ وباريستا وصالة وطلبات أونلاين وإيصالات وتقارير، على شاشة لكل دور. وثلاث باقات تكبر بحجم نشاطك.</p>
+      <div class="cover-ladder rise" style="--i:3" aria-label="الباقات وأسعارها الشهرية">
+        <span class="chip">أساسي <span class="num">2,500</span> <small>ج.م / شهر</small></span>
+        <span class="chip">نمو <span class="num">3,500</span> <small>ج.م / شهر</small></span>
+        <span class="chip">احترافي <span class="num">6,000</span> <small>ج.م / شهر</small></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · Order cycle -->
+  <section class="slide" data-title="دورة الطلب">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">دورة الطلب</p>
+        <h2 class="title">من لحظة دخول الضيف حتى التقرير</h2>
+      </div>
+      <div class="flow rise" style="--i:1" role="tablist" aria-label="مراحل الطلب" id="flow">
+        <div class="flow-bar" id="flowBar"></div>
+      </div>
+      <div class="flow-note rise" style="--i:2" id="flowNote" aria-live="polite"></div>
+      <p class="fine rise" style="--i:3">اضغط أي مرحلة لتقرأ ما يحدث فيها. يتقدّم العرض وحده حتى تضغط.</p>
+    </div>
+  </section>
+
+  <!-- 3 · Screens by role -->
+  <section class="slide" data-title="شاشة لكل دور">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">شاشة لكل دور</p>
+        <h2 class="title">كل موظف يرى ما يخصّه فقط</h2>
+      </div>
+      <div class="tabs rise" style="--i:1" role="tablist" aria-label="الأدوار" id="roleTabs"></div>
+      <div class="panel rise" style="--i:2" id="rolePanel"></div>
+    </div>
+  </section>
+
+  <!-- 4 · Beyond the till -->
+  <section class="slide" data-title="ما بعد الكاشير">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">ما بعد الكاشير</p>
+        <h2 class="title">تعرف ماذا حدث، ومن فعله، وكم استغرق</h2>
+        <p class="lead" style="margin-top:8px">هذه الإمكانات موجودة في كل الباقات الثلاث.</p>
+      </div>
+      <div class="tiles">
+        <article class="tile rise" style="--i:1"><span class="tag">لحظي</span><h3>شاشات تتحدّث وحدها</h3><p>الطلب الجديد يظهر على الكاشير والمطبخ والباريستا خلال ثوانٍ، بدون تحديث الصفحة.</p></article>
+        <article class="tile rise" style="--i:2"><span class="tag">مسؤولية</span><h3>من فعل ماذا</h3><p>لكل طلب: من استلمه، ومن اعتمده، ومن حضّره، ومن قدّمه، ومن حصّله.</p></article>
+        <article class="tile rise" style="--i:3"><span class="tag">وقت</span><h3>الزمن الاستغراقي للأوردر</h3><p>الانتظار قبل التحضير، وزمن المطبخ، وزمن التسليم والتسوية، والزمن الكلي.</p></article>
+        <article class="tile rise" style="--i:4"><span class="tag">أداء</span><h3>تحليل الموظف الشهري</h3><p>عدد الطلبات، ومتوسط زمن التحضير، والمبالغ المحصّلة، وتوزيع يومي لكل شهر.</p></article>
+        <article class="tile rise" style="--i:5"><span class="tag">حسابات</span><h3>دخول باسم مستخدم</h3><p>المدير ينشئ حساب الموظف بكلمة مرور مبدئية، ويعيد تعيينها له عند الحاجة، بدون بريد إلكتروني.</p></article>
+        <article class="tile rise" style="--i:6"><span class="tag">انتشار</span><h3>موقع وطلب أونلاين</h3><p>منيو QR لكل طاولة، وموقع عام للمطعم، وطلبات استلام وتوصيل من نفس النظام.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · Packages -->
+  <section class="slide" data-title="الباقات">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">الباقات</p>
+        <h2 class="title">ثلاث باقات. النظام نفسه، والفرق في الحجم.</h2>
+      </div>
+      <div class="rise" style="--i:1">
+        <div class="terms" role="group" aria-label="مدة الاشتراك" id="terms"></div>
+      </div>
+      <div class="pkgs" id="pkgs"></div>
+      <p class="fine rise" style="--i:5">السعر الإجمالي = السعر الشهري × عدد شهور المدة. الأسعار بالجنيه المصري.</p>
+    </div>
+  </section>
+
+  <!-- 6 · Comparison -->
+  <section class="slide" data-title="المقارنة">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">المقارنة</p>
+        <h2 class="title">الباقات الثلاث جنبًا إلى جنب</h2>
+        <p class="lead" style="margin-top:8px">مرّر المؤشر على صف لتتبّعه عبر الباقات.</p>
+      </div>
+      <div class="table-wrap rise" style="--i:1" tabindex="0" role="region" aria-label="جدول مقارنة الباقات">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col" style="--c:var(--tier-1)">أساسي<small>كافيه أو مطعم واحد</small></th>
+              <th scope="col" class="col-hot" style="--c:var(--tier-2)">نمو<small>عدة فروع</small></th>
+              <th scope="col" style="--c:var(--tier-3)">احترافي<small>سلسلة فروع</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>السعر الشهري (ج.م)</td><td><span class="num">2,500</span></td><td class="col-hot"><span class="num">3,500</span></td><td><span class="num">6,000</span></td></tr>
+            <tr><td>السعر السنوي (ج.م)</td><td><span class="num">30,000</span></td><td class="col-hot"><span class="num">42,000</span></td><td><span class="num">72,000</span></td></tr>
+            <tr class="group"><td colspan="4">الحجم</td></tr>
+            <tr><td>عدد الفروع</td><td><span class="num">1</span></td><td class="col-hot"><span class="num">5</span></td><td><span class="num">50</span></td></tr>
+            <tr><td>عدد المستخدمين</td><td><span class="num">5</span></td><td class="col-hot"><span class="num">25</span></td><td><span class="num">200</span></td></tr>
+            <tr><td>أصناف المنيو</td><td><span class="num">1,000</span></td><td class="col-hot"><span class="num">20,000</span></td><td><span class="num">200,000</span></td></tr>
+            <tr><td>تكلفة الفرع عند الحد الأقصى (ج.م)</td><td><span class="num">2,500</span></td><td class="col-hot"><span class="num">700</span></td><td><span class="num">120</span></td></tr>
+            <tr class="group"><td colspan="4">النظام</td></tr>
+            <tr><td>شاشات الكاشير والمطبخ والباريستا والكابتن والطاولات</td><td class="yes">✓</td><td class="yes col-hot">✓</td><td class="yes">✓</td></tr>
+            <tr><td>منيو QR وطلب أونلاين وموقع المطعم</td><td class="yes">✓</td><td class="yes col-hot">✓</td><td class="yes">✓</td></tr>
+            <tr><td>الخزينة والتقارير والإيصالات</td><td class="yes">✓</td><td class="yes col-hot">✓</td><td class="yes">✓</td></tr>
+            <tr><td>من فعل ماذا وزمن الأوردر وأداء الموظف</td><td class="yes">✓</td><td class="yes col-hot">✓</td><td class="yes">✓</td></tr>
+            <tr><td>إخفاء عبارة «مدعوم بواسطة LocalBasic»</td><td class="no">—</td><td class="no col-hot">—</td><td class="yes">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · Fit finder -->
+  <section class="slide" data-title="أي باقة تناسبك">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">أي باقة تناسبك</p>
+        <h2 class="title">حرّك المؤشرات لنشاطك أنت</h2>
+      </div>
+      <div class="finder rise" style="--i:1">
+        <div class="inputs">
+          <div class="field"><label for="inBranches">عدد الفروع <output id="outBranches">1</output></label><input id="inBranches" type="range" min="1" max="60" value="1"></div>
+          <div class="field"><label for="inStaff">عدد الموظفين الذين يدخلون النظام <output id="outStaff">4</output></label><input id="inStaff" type="range" min="1" max="250" value="4"></div>
+          <div class="field"><label for="inItems">أصناف المنيو <output id="outItems">250</output></label><input id="inItems" type="range" min="0" max="11" step="1" value="2" aria-valuetext="250 صنف"></div>
+        </div>
+        <div>
+          <div class="verdict" aria-live="polite">
+            <small id="verdictSmall">الأنسب لك</small>
+            <strong id="verdictName">أساسي</strong>
+            <span id="verdictPrice"></span>
+          </div>
+          <div class="bars" id="bars" aria-label="تكلفة الفرع الواحد في كل باقة"></div>
+          <p class="fine" style="margin-top:12px">الأشرطة تُظهر تكلفة الفرع الواحد شهريًا لو اخترت هذه الباقة. الباقة التي لا تكفي أرقامك تظهر باهتة.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · Close -->
+  <section class="slide deep" data-title="الخطوة التالية">
+    <div class="inner">
+      <div class="rise" style="--i:0">
+        <p class="eyebrow">الخطوة التالية</p>
+        <h2 class="title">نفهم نشاطك، نعرض النظام، ونجهّز مساحتك</h2>
+      </div>
+      <div class="points">
+        <div class="point rise" style="--i:1"><b>عرض عملي</b><span>نفتح النظام معك على مطعمك أنت.</span></div>
+        <div class="point rise" style="--i:2"><b>اختيار الباقة</b><span>من 2,500 إلى 6,000 جنيه شهريًا بحسب فروعك.</span></div>
+        <div class="point rise" style="--i:3"><b>تجهيز المساحة</b><span>ننشئ حساب المالك بكلمة مرور مؤقتة، وتغيّرها عند أول دخول.</span></div>
+      </div>
+      <a class="cta rise" style="--i:4" href="https://wa.me/201041165669?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A5%D9%86%D8%B4%D8%A7%D8%A1%20%D8%AD%D8%B3%D8%A7%D8%A8%20%D8%AC%D8%AF%D9%8A%D8%AF%20%D9%88%D8%B4%D8%B1%D8%A7%D8%A1%20%D8%A7%D9%84%D8%AE%D8%AF%D9%85%D8%A9%20%D9%84%D9%85%D9%86%D8%B4%D8%A3%D8%AA%D9%8A" target="_blank" rel="noopener">ابدأ على واتساب</a>
+      <p class="contact-line rise" style="--i:5">واتساب: <span class="num">+20 104 116 5669</span> · local.basic@greenlightadvs.com</p>
+    </div>
+  </section>
+
+  <nav class="nav" aria-label="التنقل بين الشرائح">
+    <button id="prev" type="button" aria-label="الشريحة السابقة">▸ السابق</button>
+    <div class="dots" id="dots"></div>
+    <span class="counter num" id="counter">1 / 8</span>
+    <button id="next" type="button" aria-label="الشريحة التالية">التالي ◂</button>
+  </nav>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var fmt = function (n) { return Math.round(n).toLocaleString('en-US'); };
+
+  /* ---------- data: mirrors the plans in the platform ---------- */
+  var PLANS = [
+    { key: 'basic',  name: 'أساسي',   cls: 't1', color: 'var(--tier-1)', price: 2500, branches: 1,  staff: 5,   items: 1000,
+      fit: 'كافيه أو مطعم بفرع واحد يبدأ بنظام كامل.', white: false },
+    { key: 'growth', name: 'نمو',     cls: 't2', color: 'var(--tier-2)', price: 3500, branches: 5,  staff: 25,  items: 20000,
+      fit: 'مطعم يتوسع إلى عدة فروع ويحتاج فريقًا أكبر.', white: false },
+    { key: 'scale',  name: 'احترافي', cls: 't3', color: 'var(--tier-3)', price: 6000, branches: 50, staff: 200, items: 200000,
+      fit: 'سلسلة فروع تريد النظام بهويتها دون علامة LocalBasic.', white: true }
+  ];
+  var TERMS = [
+    { label: 'شهري', months: 1 }, { label: '3 شهور', months: 3 },
+    { label: '6 شهور', months: 6 }, { label: 'سنوي', months: 12 }
+  ];
+  var FLOW = [
+    ['الضيف', 'يمسح رمز QR على الطاولة، أو يطلب أونلاين للاستلام أو التوصيل. لا يحتاج تطبيقًا.'],
+    ['الطلب', 'من الكاشير أو الكابتن أو الضيف نفسه. كلها تدخل المحرك نفسه، والأسعار تُحسب على الخادم.'],
+    ['المطبخ والبار', 'كل صنف يصل إلى شاشة الشيف أو الباريستا بحسب قسمه، وتتحدّث الشاشات تلقائيًا.'],
+    ['التقديم', 'الكابتن يسلّم الطلب ويغيّر حالته، فيعرف الكاشير أنه جاهز للحساب.'],
+    ['التحصيل', 'الكاشير يحصّل بخصم بصلاحية، وبطرق دفع متعددة، ويصدر الإيصال فورًا.'],
+    ['الإيصال', 'بون الحساب للعميل يُطبع على طابعة حرارية 80 مم من المتصفح مباشرة.'],
+    ['التقارير', 'مبيعات بالفترة والفرع، والأصناف الأكثر طلبًا، وحركة الخزينة، ومن نفّذ كل مرحلة وكم استغرقت.']
+  ];
+  var ROLES = [
+    { n: 'الكاشير', who: 'شاشة سريعة بأزرار كبيرة للمس.', pts: [
+      'إنشاء الطلب بالإضافات والأحجام وإرساله للمطبخ.',
+      'مراجعة طلبات الضيوف واعتمادها قبل وصولها إلى المطبخ.',
+      'التحصيل بطرق دفع متعددة، وخصم بصلاحية، وإيصال فوري.',
+      'طباعة بون الحساب للعميل من نفس الشاشة.'] },
+    { n: 'الشيف والباريستا', who: 'شاشتان منفصلتان، لكل منهما أصنافه.', pts: [
+      'الباريستا لا يرى طلبات الأكل، والشيف لا يرى المشروبات.',
+      'التذاكر بترتيب الوصول مع وقت كل واحدة.',
+      '«بدء التحضير» و«جاهز» بضغطة واحدة.',
+      'بلا أي مبالغ أو تقارير على الشاشة.'] },
+    { n: 'الكابتن', who: 'الصالة والطاولات بصلاحيات محدودة.', pts: [
+      'خريطة الصالة بحالات واضحة: متاحة، مشغولة، تنتظر الدفع.',
+      'فتح الطلب والإضافة عليه من الطاولة.',
+      'تسليم الطلب للضيف وتحديث حالته.'] },
+    { n: 'المالك والمدير', who: 'الصورة الكاملة للفروع والفريق والمال.', pts: [
+      'تقارير المبيعات والأصناف الأكثر طلبًا لكل فرع.',
+      'خزينة ومصروفات بقيود لا تُعدَّل ولا تُحذف.',
+      'حسابات الموظفين، وإعادة تعيين كلمة المرور، وصلاحيات لكل دور وفرع.',
+      'من فعل ماذا في كل طلب، وأداء كل موظف شهريًا، وسجل النشاط.'] },
+    { n: 'الضيف', who: 'من هاتفه، بدون تطبيق.', pts: [
+      'منيو QR خاص بكل طاولة.',
+      'طلب أونلاين للاستلام أو التوصيل.',
+      'تتبّع حالة الطلب لحظة بلحظة.'] }
+  ];
+
+  /* ---------- deck navigation ---------- */
+  var slides = [].slice.call(document.querySelectorAll('.slide'));
+  var dotsEl = document.getElementById('dots');
+  var counter = document.getElementById('counter');
+  var prev = document.getElementById('prev'), next = document.getElementById('next');
+  var idx = 0;
+  slides.forEach(function (s, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('aria-label', 'الشريحة ' + (i + 1) + ': ' + s.dataset.title);
+    b.addEventListener('click', function () { go(i); });
+    dotsEl.appendChild(b);
+  });
+  function go(i) {
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach(function (s, k) {
+      var on = k === i;
+      if (on && !s.classList.contains('on')) { s.scrollTop = 0; }
+      s.classList.toggle('on', on);
+      if (on) { s.removeAttribute('inert'); s.removeAttribute('aria-hidden'); } else { s.setAttribute('inert', ''); s.setAttribute('aria-hidden', 'true'); }
+    });
+    [].forEach.call(dotsEl.children, function (d, k) { if (k === i) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current'); });
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+    prev.disabled = i === 0; next.disabled = i === slides.length - 1;
+    idx = i;
+    try { history.replaceState(null, '', '#s' + (i + 1)); } catch (e) {}
+    if (i === 1) startFlow(); else stopFlow();
+    if (i === 4) renderPkgs(true);
+    if (i === 6) renderFinder();
+  }
+  prev.addEventListener('click', function () { go(idx - 1); });
+  next.addEventListener('click', function () { go(idx + 1); });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    // RTL deck: the left arrow moves forward, the right arrow moves back.
+    if (e.key === 'ArrowLeft' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(idx + 1); }
+    else if (e.key === 'ArrowRight' || e.key === 'PageUp') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'Home') go(0); else if (e.key === 'End') go(slides.length - 1);
+  });
+  var tx = null;
+  document.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; tx = null;
+    if (Math.abs(dx) > 70) go(dx > 0 ? idx + 1 : idx - 1);
+  }, { passive: true });
+
+  /* ---------- order cycle ---------- */
+  var flowEl = document.getElementById('flow'), flowBar = document.getElementById('flowBar'), flowNote = document.getElementById('flowNote');
+  var steps = [], cur = 0, timer = null;
+  FLOW.forEach(function (f, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'step'; b.setAttribute('role', 'tab');
+    b.innerHTML = '<span class="dot num">' + (i + 1) + '</span><span class="t">' + f[0] + '</span>';
+    b.addEventListener('click', function () { stopFlow(true); showStep(i); });
+    flowEl.appendChild(b); steps.push(b);
+  });
+  function showStep(i) {
+    cur = i;
+    steps.forEach(function (s, k) { s.setAttribute('aria-selected', k === i ? 'true' : 'false'); s.classList.toggle('done', k < i); });
+    flowNote.innerHTML = '<h3></h3><p></p>';
+    flowNote.firstChild.textContent = FLOW[i][0]; flowNote.lastChild.textContent = FLOW[i][1];
+    flowBar.style.width = (88 * (i / (FLOW.length - 1))) + '%';
+  }
+  var userTookOver = false;
+  function startFlow() {
+    stopFlow(); showStep(0);
+    if (reduce || userTookOver) return;
+    timer = setInterval(function () { showStep((cur + 1) % FLOW.length); }, 2600);
+  }
+  function stopFlow(user) { if (user) userTookOver = true; if (timer) { clearInterval(timer); timer = null; } }
+  showStep(0);
+
+  /* ---------- role tabs ---------- */
+  var tabsEl = document.getElementById('roleTabs'), panelEl = document.getElementById('rolePanel');
+  var tabBtns = [];
+  ROLES.forEach(function (r, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.setAttribute('role', 'tab'); b.textContent = r.n;
+    b.addEventListener('click', function () { showRole(i); });
+    tabsEl.appendChild(b); tabBtns.push(b);
+  });
+  function showRole(i) {
+    tabBtns.forEach(function (b, k) { b.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    var r = ROLES[i];
+    panelEl.innerHTML = '<div><h3></h3><p class="who"></p></div><ul class="checks"></ul>';
+    panelEl.querySelector('h3').textContent = r.n;
+    panelEl.querySelector('.who').textContent = r.who;
+    var ul = panelEl.querySelector('ul');
+    r.pts.forEach(function (p, k) { var li = document.createElement('li'); li.style.setProperty('--i', k); li.textContent = p; ul.appendChild(li); });
+  }
+  showRole(0);
+
+  /* ---------- packages ---------- */
+  var termsEl = document.getElementById('terms'), pkgsEl = document.getElementById('pkgs');
+  var term = 0, shown = [0, 0, 0], termBtns = [];
+  TERMS.forEach(function (t, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'term'; b.textContent = t.label;
+    b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    b.addEventListener('click', function () { term = i; termBtns.forEach(function (x, k) { x.setAttribute('aria-pressed', k === i ? 'true' : 'false'); }); updatePrices(); });
+    termsEl.appendChild(b); termBtns.push(b);
+  });
+  PLANS.forEach(function (p, i) {
+    var el = document.createElement('article');
+    el.className = 'pkg rise ' + p.cls; el.style.setProperty('--i', i + 2);
+    el.innerHTML =
+      '<h3></h3><p class="fit"></p>' +
+      '<div class="price"><span class="big num" data-price></span><span class="cur">ج.م</span></div>' +
+      '<p class="price-sub" data-sub></p>' +
+      '<ul>' +
+      '<li><span>الفروع</span><b class="num">' + fmt(p.branches) + '</b></li>' +
+      '<li><span>المستخدمون</span><b class="num">' + fmt(p.staff) + '</b></li>' +
+      '<li><span>أصناف المنيو</span><b class="num">' + fmt(p.items) + '</b></li>' +
+      '<li><span>إخفاء علامة LocalBasic</span><b>' + (p.white ? '✓' : '—') + '</b></li>' +
+      '</ul>';
+    el.querySelector('h3').textContent = p.name; el.querySelector('.fit').textContent = p.fit;
+    pkgsEl.appendChild(el);
+  });
+  function tween(i, to, node, animate) {
+    var from = shown[i]; shown[i] = to;
+    if (!animate || reduce || from === to) { node.textContent = fmt(to); return; }
+    var t0 = performance.now(), dur = 500;
+    (function step(now) {
+      var k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      node.textContent = fmt(from + (to - from) * e);
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+  function updatePrices(fromZero) {
+    var months = TERMS[term].months;
+    [].forEach.call(pkgsEl.children, function (el, i) {
+      if (fromZero) shown[i] = 0;
+      tween(i, PLANS[i].price * months, el.querySelector('[data-price]'), true);
+      el.querySelector('[data-sub]').textContent = months === 1 ? 'في الشهر' : 'لمدة ' + months + ' شهور · ' + fmt(PLANS[i].price) + ' ج.م في الشهر';
+    });
+  }
+  function renderPkgs(fromZero) { updatePrices(fromZero); }
+  updatePrices(false);
+
+  /* ---------- fit finder ---------- */
+  var inB = document.getElementById('inBranches'), inS = document.getElementById('inStaff'), inI = document.getElementById('inItems');
+  var oB = document.getElementById('outBranches'), oS = document.getElementById('outStaff'), oI = document.getElementById('outItems');
+  var vName = document.getElementById('verdictName'), vPrice = document.getElementById('verdictPrice'), vSmall = document.getElementById('verdictSmall');
+  var barsEl = document.getElementById('bars');
+  PLANS.forEach(function (p) {
+    var row = document.createElement('div'); row.className = 'barrow'; row.style.setProperty('--c', p.color); row.dataset.key = p.key;
+    row.innerHTML = '<span></span><div class="track"><div class="fill"></div></div><span class="val num"></span>';
+    row.firstChild.textContent = p.name; barsEl.appendChild(row);
+  });
+  var ITEM_STOPS = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000, 200000];
+  function fits(p, b, s, it) { return b <= p.branches && s <= p.staff && it <= p.items; }
+  function renderFinder() {
+    var b = +inB.value, s = +inS.value, it = ITEM_STOPS[+inI.value];
+    oB.textContent = fmt(b); oS.textContent = fmt(s); oI.textContent = fmt(it); inI.setAttribute('aria-valuetext', fmt(it) + ' صنف');
+    var pick = PLANS.filter(function (p) { return fits(p, b, s, it); })[0];
+    if (pick) {
+      vSmall.textContent = 'الأنسب لك'; vName.textContent = pick.name;
+      vPrice.textContent = fmt(pick.price) + ' ج.م شهريًا · ' + fmt(pick.price / b) + ' ج.م لكل فرع';
+    } else {
+      vSmall.textContent = 'أكبر من الباقات المعتادة'; vName.textContent = 'نجهّز لك عرضًا خاصًا';
+      vPrice.textContent = 'راسلنا على واتساب لنحدد الباقة المناسبة.';
+    }
+    var costs = PLANS.map(function (p) { return p.price / b; }), max = Math.max.apply(null, costs);
+    [].forEach.call(barsEl.children, function (row, i) {
+      var ok = fits(PLANS[i], b, s, it);
+      row.classList.toggle('off', !ok);
+      row.querySelector('.fill').style.width = (costs[i] / max * 100) + '%';
+      row.querySelector('.val').textContent = ok ? fmt(costs[i]) + ' ج.م / فرع' : 'لا تكفي أرقامك';
+    });
+  }
+  [inB, inS, inI].forEach(function (el) { el.addEventListener('input', renderFinder); });
+  renderFinder();
+
+  /* ---------- cover backdrop: slow drifting order tickets ---------- */
+  (function () {
+    var c = document.getElementById('bg'); if (!c || reduce || !c.getContext) return;
+    var g = c.getContext('2d'), W = 0, H = 0, tickets = [];
+    function size() { W = c.width = c.offsetWidth; H = c.height = c.offsetHeight; }
+    size(); window.addEventListener('resize', size);
+    for (var i = 0; i < 14; i++) tickets.push({ x: Math.random(), y: Math.random(), w: 60 + Math.random() * 50, h: 80 + Math.random() * 60, s: .02 + Math.random() * .04, r: (Math.random() - .5) * .5 });
+    function frame() {
+      if (!slides[0].classList.contains('on')) { requestAnimationFrame(frame); return; }
+      g.clearRect(0, 0, W, H);
+      tickets.forEach(function (t) {
+        t.y -= t.s / 60; if (t.y < -.25) { t.y = 1.2; t.x = Math.random(); }
+        g.save(); g.translate(t.x * W, t.y * H); g.rotate(t.r);
+        g.fillStyle = 'rgba(255,255,255,.07)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1;
+        g.fillRect(-t.w / 2, -t.h / 2, t.w, t.h); g.strokeRect(-t.w / 2, -t.h / 2, t.w, t.h);
+        g.fillStyle = 'rgba(255,255,255,.22)';
+        for (var k = 0; k < 4; k++) g.fillRect(-t.w / 2 + 8, -t.h / 2 + 14 + k * 14, (t.w - 16) * (k % 2 ? .6 : .9), 4);
+        g.restore();
+      });
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  var m = /^#s(\d+)$/.exec(location.hash || '');
+  go(m ? +m[1] - 1 : 0);
+})();
+</script>
