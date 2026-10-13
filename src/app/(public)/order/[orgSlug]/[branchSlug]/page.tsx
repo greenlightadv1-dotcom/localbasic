@@ -5,6 +5,7 @@ import { getWebsite } from '@/modules/restaurant/website/service';
 import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { StoreHeader } from '@/components/menu/food-ui';
+import { ProfileHeaderButton } from '@/components/menu/customer-profile';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from './storefront';
 
@@ -65,6 +66,7 @@ export default async function OrderPage({
           logoUrl={info.logoUrl}
           description={site?.tagline ?? site?.about ?? null}
           chips={[info.branchName]}
+          action={<ProfileHeaderButton />}
         />
         <Storefront
           orgSlug={params.orgSlug}

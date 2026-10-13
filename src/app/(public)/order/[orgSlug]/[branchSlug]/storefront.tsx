@@ -9,6 +9,8 @@ import { cn } from '@/lib/cn';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { CustomerProfileSheet, StoreBottomNav, useProfileSheet } from '@/components/menu/customer-profile';
+import type { ProfileAddress, ReorderLine } from '@/modules/restaurant/customer/types';
 import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
@@ -254,6 +256,41 @@ export function Storefront({
     () => new Map(items.map((i) => [i.variantId, i])), [items],
   );
 
+  // ---- guest profile: reorder + saved addresses -------------------------
+  const profileSheet = useProfileSheet();
+  const [activeOrders, setActiveOrders] = useState(0);
+  const [addressPrefill, setAddressPrefill] = useState<{ n: number; a: ProfileAddress } | null>(null);
+
+  /** Adds a past order's lines to the cart; unavailable items are skipped. */
+  function reorder(past: ReorderLine[]): { added: number; skipped: number } {
+    const knownModifiers = new Set(modifierGroups.flatMap((g) => g.modifiers.map((m) => m.id)));
+    const next = [...lines];
+    let added = 0;
+    let skipped = 0;
+    for (const l of past) {
+      if (!byVariant.has(l.variantId)) { skipped += 1; continue; }
+      const modifierIds = l.modifierIds.filter((id) => knownModifiers.has(id));
+      const at = next.findIndex(
+        (x) => x.variantId === l.variantId && x.modifierIds.slice().sort().join() === modifierIds.slice().sort().join(),
+      );
+      if (at >= 0) next[at] = { ...next[at]!, quantity: next[at]!.quantity + l.quantity };
+      else next.push({ variantId: l.variantId, quantity: l.quantity, modifierIds, note: l.note ?? undefined });
+      added += 1;
+    }
+    if (added > 0) {
+      setLines(next);
+      repriceWith(next, fulfillment);
+      setCartOpen(true);
+    }
+    return { added, skipped };
+  }
+
+  function applyAddress(a: ProfileAddress) {
+    if (deliveryEnabled) changeFulfillment('delivery');
+    setAddressPrefill((p) => ({ n: (p?.n ?? 0) + 1, a }));
+    setCartOpen(true);
+  }
+
   // Categories in first-seen order — the order the menu screen shows them in,
   // since both read sort_order off the same restaurant_categories table. The
   // rail's round icon is the category's first item photo.
@@ -316,8 +353,18 @@ export function Storefront({
     item.variantName !== 'default' ? `${item.productName} — ${item.variantName}` : item.productName;
 
   return (
-    <div className="pb-28">
+    <div className="pb-40">
       <OrderStatusBanner scopeKey={`${orgSlug}/${branchSlug}`} loadStatus={loadStatus} />
+      <StoreBottomNav cartCount={itemCount} onCart={() => setCartOpen(true)} hasActiveOrder={activeOrders > 0} />
+      {profileSheet.open ? (
+        <CustomerProfileSheet
+          scope={{ kind: 'slug', orgSlug }}
+          onClose={() => profileSheet.setOpen(false)}
+          onReorder={reorder}
+          onUseAddress={applyAddress}
+          onActiveOrders={setActiveOrders}
+        />
+      ) : null}
       <CategoryRail categories={categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }))} />
 
       {categories.map((c) => (
@@ -526,21 +573,21 @@ export function Storefront({
               <>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-semibold text-fg">العنوان</span>
-                  <input name="address" required maxLength={500} className={FIELD} />
+                  <input key={`a${addressPrefill?.n ?? 0}`} name="address" required maxLength={500} defaultValue={addressPrefill?.a.address} className={FIELD} />
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-semibold text-fg">المدينة</span>
-                    <input name="city" maxLength={120} className={FIELD} />
+                    <input key={`c${addressPrefill?.n ?? 0}`} name="city" maxLength={120} defaultValue={addressPrefill?.a.city ?? undefined} className={FIELD} />
                   </label>
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-semibold text-fg">المنطقة</span>
-                    <input name="area" maxLength={120} className={FIELD} />
+                    <input key={`r${addressPrefill?.n ?? 0}`} name="area" maxLength={120} defaultValue={addressPrefill?.a.area ?? undefined} className={FIELD} />
                   </label>
                 </div>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-semibold text-fg">علامة مميزة</span>
-                  <input name="landmark" maxLength={240} className={FIELD} />
+                  <input key={`l${addressPrefill?.n ?? 0}`} name="landmark" maxLength={240} defaultValue={addressPrefill?.a.landmark ?? undefined} className={FIELD} />
                 </label>
               </>
             ) : null}

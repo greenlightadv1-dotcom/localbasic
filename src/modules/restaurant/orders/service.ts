@@ -550,7 +550,53 @@ export type PaymentResult = {
  * so a tampered order row or a client-sent figure changes nothing about what
  * is charged.
  */
+/** What a reward code is worth on this order, without using it. */
+export async function checkCoupon(
+  ctx: TenantContext,
+  input: { orderId: string; couponCode: string },
+): Promise<{ valueCents: number }> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .rpc('restaurant_coupon_check', { p_org: ctx.organizationId, p_order: input.orderId, p_code: input.couponCode })
+    .single();
+  if (error?.code === '42501') throw new AppError('forbidden');
+  if (error) throw mapOrderError(error, 'checkCoupon');
+  return { valueCents: Number((data as unknown as { out_value_cents: number }).out_value_cents) };
+}
+
 export async function payOrder(
+  ctx: TenantContext,
+  input: {
+    orderId: string; method: string; tenderedCents: number; discountCents: number; couponCode?: string;
+  },
+): Promise<PaymentResult> {
+  const supabase = createSupabaseServerClient();
+
+  // A reward coupon is redeemed first, then paid with its value as the
+  // discount; if the payment is refused the coupon is handed back, so a failed
+  // sale never burns the customer's reward.
+  let couponValue = 0;
+  if (input.couponCode) {
+    const { data: redeemed, error: redeemError } = await supabase.rpc('restaurant_coupon_redeem', {
+      p_org: ctx.organizationId, p_order: input.orderId, p_code: input.couponCode,
+    });
+    if (redeemError?.code === '42501') throw new AppError('forbidden');
+    if (redeemError) throw mapOrderError(redeemError, 'payOrder coupon');
+    couponValue = Number(redeemed);
+  }
+  try {
+    return await payOrderCore(ctx, { ...input, discountCents: input.discountCents + couponValue });
+  } catch (error) {
+    if (input.couponCode) {
+      await supabase.rpc('restaurant_coupon_release', {
+        p_org: ctx.organizationId, p_order: input.orderId, p_code: input.couponCode,
+      });
+    }
+    throw error;
+  }
+}
+
+async function payOrderCore(
   ctx: TenantContext,
   input: { orderId: string; method: string; tenderedCents: number; discountCents: number },
 ): Promise<PaymentResult> {

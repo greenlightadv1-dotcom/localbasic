@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Minus, Trash2, Search, ReceiptText, X, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import type { FloorTable } from '@/modules/restaurant/tables/service';
 import type { CashierOrder } from '@/modules/restaurant/orders/service';
 import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas';
 import {
-  createOrderAction, payOrderAction, setOrderStatusAction, verifyGuestOrderAction,
+  createOrderAction, payOrderAction, checkCouponAction, setOrderStatusAction, verifyGuestOrderAction,
 } from '../restaurant-actions';
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -99,6 +99,10 @@ export function CashierTerminal({
   const [settling, setSettling] = useState<CashierOrder | null>(null);
   const [tendered, setTendered] = useState('');
   const [discount, setDiscount] = useState('');
+  // A customer's loyalty reward code, checked against this order before paying.
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState<{ code: string; valueCents: number } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [method, setMethod] = useState('cash');
   const [receipt, setReceipt] = useState<{
     invoiceId: string;
@@ -303,6 +307,30 @@ export function CashierTerminal({
     return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
   }
 
+  // A checked code belongs to one order: opening another starts clean.
+  useEffect(() => {
+    setCouponCode('');
+    setCoupon(null);
+    setCouponError(null);
+  }, [settling?.id]);
+
+  function checkCoupon() {
+    if (!settling || couponCode.trim().length < 4) return;
+    setCouponError(null);
+    startTransition(async () => {
+      const res = await checkCouponAction(
+        { organizationSlug, branchSlug },
+        { orderId: settling.id, couponCode: couponCode.trim() },
+      );
+      if (!res.ok) {
+        setCoupon(null);
+        setCouponError(res.error);
+        return;
+      }
+      setCoupon({ code: couponCode.trim().toUpperCase(), valueCents: res.data.valueCents });
+    });
+  }
+
   function settle() {
     if (!settling) return;
     startTransition(async () => {
@@ -313,6 +341,7 @@ export function CashierTerminal({
           method,
           tenderedCents: parseAmount(tendered) || settling.totalCents,
           discountCents: canDiscount ? parseAmount(discount) : 0,
+          couponCode: canDiscount && coupon ? coupon.code : undefined,
         },
       );
 
@@ -341,6 +370,9 @@ export function CashierTerminal({
       setSettling(null);
       setTendered('');
       setDiscount('');
+      setCouponCode('');
+      setCoupon(null);
+      setCouponError(null);
       router.refresh();
     });
   }
@@ -877,6 +909,32 @@ export function CashierTerminal({
                 dir="ltr"
                 placeholder="0.00"
               />
+            </div>
+          )}
+          {canDiscount && (
+            <div>
+              <label htmlFor="pay-coupon" className="mb-1 block text-sm font-medium">
+                كود مكافأة العميل (اختياري)
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="pay-coupon"
+                  value={couponCode}
+                  onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCoupon(null); setCouponError(null); }}
+                  dir="ltr"
+                  placeholder="LB-XXXXXX"
+                  maxLength={20}
+                />
+                <Button type="button" variant="outline" onClick={checkCoupon} disabled={isPending || couponCode.trim().length < 4}>
+                  تحقق
+                </Button>
+              </div>
+              {coupon ? (
+                <p className="mt-1 text-sm font-semibold text-success" role="status">
+                  ✓ خصم المكافأة {formatMoney(coupon.valueCents, currency)} سيُطبَّق عند التحصيل
+                </p>
+              ) : null}
+              {couponError ? <p className="mt-1 text-sm text-danger" role="alert">{couponError}</p> : null}
             </div>
           )}
         </div>
