@@ -30,6 +30,10 @@ const serverSchema = z.object({
   // recovery link for the one platform-owner address without sending email.
   // Absent by default, and the route answers 404 without it.
   ADMIN_BOOTSTRAP_SECRET: z.string().min(32).optional(),
+  // Encrypts stores' payment-gateway credentials (AES-256-GCM). 32+ chars.
+  // Unset: the payments page refuses to save credentials instead of storing
+  // them readable.
+  PAYMENT_CREDENTIALS_KEY: z.string().min(32).optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal('')),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional().or(z.literal('')),
 });

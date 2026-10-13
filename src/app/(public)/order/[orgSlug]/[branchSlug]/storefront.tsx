@@ -10,6 +10,8 @@ import { cn } from '@/lib/cn';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { PaymentOptionsList } from '@/components/menu/payment-options';
+import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 import {
@@ -48,6 +50,7 @@ export function Storefront({
   currency,
   pickupEnabled,
   deliveryEnabled,
+  paymentOptions,
 }: {
   orgSlug: string;
   branchSlug: string;
@@ -56,6 +59,7 @@ export function Storefront({
   currency: string;
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
+  paymentOptions: PaymentOptions;
 }) {
   // Only the options the branch actually offers. The server refuses anything
   // else regardless, so this is presentation, not enforcement.
@@ -526,6 +530,8 @@ export function Storefront({
               <input name="note" maxLength={500} className={FIELD} />
             </label>
 
+            <PaymentOptionsList options={paymentOptions} />
+
             {verification ? (
               <GuestVerifySheet
                 code={verification.code}
@@ -540,11 +546,11 @@ export function Storefront({
                 disabled={isSubmitting}
                 className="h-14 w-full rounded-full bg-primary text-base font-extrabold text-primary-fg transition-opacity disabled:opacity-50"
               >
-                {isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب (الدفع نقدًا)'}
+                {isSubmitting ? 'جارٍ إرسال الطلب…' : 'تأكيد الطلب'}
               </button>
             ) : null}
             <p className="text-center text-xs text-muted">
-              الدفع نقدًا عند الاستلام. الأسعار تُحسب على الخادم.
+              الأسعار تُحسب على الخادم.
             </p>
           </form>
         </BottomSheet>

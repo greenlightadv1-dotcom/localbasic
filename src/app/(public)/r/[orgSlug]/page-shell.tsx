@@ -14,6 +14,7 @@ import { PoweredBy } from '@/components/brand/logo';
 import {
   CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
 } from '@/components/menu/food-ui';
+import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
 
 /**
@@ -119,10 +120,11 @@ export async function RestaurantSite({
   }
 
   const canOrder = b_canOrder(branch);
-  const [menu, info, readOnly] = await Promise.all([
+  const [menu, info, readOnly, paymentOptions] = await Promise.all([
     canOrder ? getOnlineMenu({ orgSlug, branchSlug: branch.slug }).catch(() => null) : null,
     canOrder ? getStorefront({ orgSlug, branchSlug: branch.slug }).catch(() => null) : null,
     canOrder ? null : getMenu(orgSlug, branch.slug),
+    getPublicPaymentOptions(orgSlug),
   ]);
 
   const ordering = canOrder && menu && info && menu.items.length > 0;
@@ -144,6 +146,7 @@ export async function RestaurantSite({
           currency={info.currency}
           pickupEnabled={info.pickupEnabled}
           deliveryEnabled={info.deliveryEnabled}
+          paymentOptions={paymentOptions}
         />
       ) : (
         <ReadOnlyMenu categories={readOnly ?? []} currency={site.currency} />

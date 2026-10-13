@@ -69,6 +69,7 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
     modules: ['restaurant'],
   },
   { href: '/settings/online-ordering', label: 'الطلب أونلاين', icon: 'ShoppingBag', permission: 'settings.manage' },
+  { href: '/settings/payments', label: 'المدفوعات', icon: 'CreditCard', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
   // Retail's online store toggle — a naming collision with "site" in Arabic
   // only ("store" vs "site"), unrelated to the website builder above. Shown

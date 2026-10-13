@@ -21,6 +21,8 @@ import type {
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
+import { PaymentOptionsList } from '@/components/menu/payment-options';
+import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 import { placeGuestOrderAction, getOrderVerificationInfoAction } from './actions';
@@ -48,10 +50,12 @@ export function GuestMenu({
   token,
   context,
   menu,
+  paymentOptions,
 }: {
   token: string;
   context: PublicContext;
   menu: PublicCategory[];
+  paymentOptions: PaymentOptions;
 }) {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -451,6 +455,8 @@ export function GuestMenu({
               <p className="text-xs text-muted">
                 الإجمالي النهائي يُحتسب من المطعم وقد يشمل الضريبة والخدمة.
               </p>
+
+              <PaymentOptionsList options={paymentOptions} />
 
               {verification ? (
                 <GuestVerifySheet

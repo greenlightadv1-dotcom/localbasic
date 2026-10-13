@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { AppError } from '@/lib/errors';
 import { getPublicContext, getPublicMenu } from '@/modules/restaurant/public/service';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
+import { getPublicPaymentOptionsByToken } from '@/modules/restaurant/payments/service';
 import { GuestMenu } from './guest-menu';
 
 export const dynamic = 'force-dynamic';
@@ -41,14 +42,17 @@ export default async function PublicMenuPage({ params }: { params: { token: stri
     throw error;
   }
 
-  const menu = await getPublicMenu(params.token);
+  const [menu, paymentOptions] = await Promise.all([
+    getPublicMenu(params.token),
+    getPublicPaymentOptionsByToken(params.token),
+  ]);
 
   return (
     <div
       className="min-h-dvh bg-bg text-fg"
       style={brandThemeVars(context.primaryColor, context.secondaryColor) as React.CSSProperties}
     >
-      <GuestMenu token={params.token} context={context} menu={menu} />
+      <GuestMenu token={params.token} context={context} menu={menu} paymentOptions={paymentOptions} />
     </div>
   );
 }

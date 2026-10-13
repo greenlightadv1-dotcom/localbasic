@@ -5,6 +5,7 @@ import { getWebsite } from '@/modules/restaurant/website/service';
 import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { StoreHeader } from '@/components/menu/food-ui';
+import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from './storefront';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +41,11 @@ export default async function OrderPage({
   const table = await resolveTableCode(searchParams.table);
   if (table) redirect(`/p/${table}`);
 
-  const [menu, info, site] = await Promise.all([
+  const [menu, info, site, paymentOptions] = await Promise.all([
     getOnlineMenu({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }).catch(() => null),
     getStorefront({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }),
     getWebsite(params.orgSlug).catch(() => null),
+    getPublicPaymentOptions(params.orgSlug),
   ]);
 
   if (!menu || menu.items.length === 0 || !info) notFound();
@@ -72,6 +74,7 @@ export default async function OrderPage({
           currency={info.currency}
           pickupEnabled={info.pickupEnabled}
           deliveryEnabled={info.deliveryEnabled}
+          paymentOptions={paymentOptions}
         />
       </div>
     </div>
