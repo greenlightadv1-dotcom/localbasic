@@ -3251,6 +3251,9 @@ export type Database = {
       restaurant_customer_directory: { Args: Record<string, unknown>; Returns: Json };
       restaurant_category_delete: { Args: Record<string, unknown>; Returns: number };
       restaurant_menu_reset: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_receipt_settings_get: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_receipt_settings_save: { Args: Record<string, unknown>; Returns: undefined };
+      restaurant_receipt_header: { Args: Record<string, unknown>; Returns: Json };
       restaurant_customer_reset: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_stock: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_get: { Args: Record<string, unknown>; Returns: Json };

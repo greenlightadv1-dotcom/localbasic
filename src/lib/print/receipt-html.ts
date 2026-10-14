@@ -35,6 +35,17 @@ export type ReceiptData = {
   paidCents: number;
   /** Hide the "powered by" line (white-label plans). */
   whiteLabel: boolean;
+  /**
+   * The store's official details (Settings → الإيصال). All optional: a store
+   * that has not filled them in prints exactly as before.
+   */
+  legalName?: string | null;
+  commercialRegistration?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  /** Up to four lines each; newlines are kept, everything else is escaped. */
+  headerNote?: string | null;
+  footerNote?: string | null;
 };
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -57,6 +68,11 @@ export function escapeHtml(value: string): string {
 
 const e = escapeHtml;
 
+/** Escapes each line, then joins with <br> — the only markup a note produces. */
+function lines(value: string): string {
+  return value.split('\n').map(e).join('<br>');
+}
+
 export function buildReceiptHtml(r: ReceiptData): string {
   const money = (cents: number) => e(formatMoney(cents, r.currency));
   const when = e(
@@ -65,6 +81,11 @@ export function buildReceiptHtml(r: ReceiptData): string {
     }),
   );
   const due = r.totalCents - r.paidCents;
+  const legal = r.legalName && r.legalName !== r.businessName ? r.legalName : null;
+  const ids = [
+    r.commercialRegistration ? `س.ت: <span dir="ltr">${e(r.commercialRegistration)}</span>` : '',
+    r.taxId ? `رقم التسجيل الضريبي: <span dir="ltr">${e(r.taxId)}</span>` : '',
+  ].filter(Boolean).join(' · ');
 
   const items = r.items
     .map(
@@ -100,13 +121,19 @@ export function buildReceiptHtml(r: ReceiptData): string {
   .row { display: flex; justify-content: space-between; gap: 6px; }
   .total { font-size: 15px; font-weight: 700; border-top: 1px solid #000; margin-top: 4px; padding-top: 4px; }
   .fine { font-size: 9px; line-height: 1.5; opacity: .75; }
+  .ids { font-size: 10px; }
+  .note { margin-top: 6px; font-size: 11px; }
   @media screen { body { border: 1px solid #ccc; margin-top: 8px; } }
 </style></head>
 <body>
   <div class="c">
     <h1>${e(r.businessName)}</h1>
+    ${legal ? `<div class="muted">${e(legal)}</div>` : ''}
     <div>${e(r.branchName)}</div>
+    ${r.address ? `<div class="muted">${e(r.address)}</div>` : ''}
     ${r.phone ? `<div class="muted" dir="ltr">${e(r.phone)}</div>` : ''}
+    ${ids ? `<div class="muted ids">${ids}</div>` : ''}
+    ${r.headerNote ? `<div class="note">${lines(r.headerNote)}</div>` : ''}
     <div style="margin-top:6px;font-weight:700">إيصال ${e(r.number)}</div>
     ${r.orderNumber ? `<div class="muted">طلب #${e(r.orderNumber)}${r.tableName ? ` · طاولة ${e(r.tableName)}` : ''}</div>` : ''}
     <div class="muted">${when}</div>
@@ -122,7 +149,7 @@ export function buildReceiptHtml(r: ReceiptData): string {
   ${due > 0 ? `<div class="row total"><span>المتبقي</span><span>${money(due)}</span></div>` : ''}
   <div class="sep"></div>
   <p class="fine">${e(RECEIPT_DISCLAIMER_AR)}</p>
-  <div class="c muted" style="margin-top:6px">شكرًا لزيارتكم</div>
+  <div class="c muted" style="margin-top:6px">${r.footerNote ? lines(r.footerNote) : 'شكرًا لزيارتكم'}</div>
   ${r.whiteLabel ? '' : '<div class="c fine">مدعوم بواسطة LocalBasic</div>'}
 </body></html>`;
 }
