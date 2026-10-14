@@ -1,7 +1,8 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { toAppError } from '@/lib/errors';
+import { AppError, toAppError } from '@/lib/errors';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { requirePermission } from '@/modules/core/tenancy/context';
 
@@ -39,6 +40,9 @@ export async function getOrderVerificationInfo(token: string): Promise<OrderVeri
   const { data, error } = await supabase
     .rpc('restaurant_order_verification_info', { p_token: token })
     .single();
+  // An unknown, expired or revoked token: the guest's saved pending order is
+  // gone, which the page must be able to tell apart from a passing error.
+  if (error?.code === '23514' && /order not found/.test(error.message ?? '')) throw new AppError('not_found');
   if (error) throw toAppError(error, 'getOrderVerificationInfo');
   const row = data as unknown as {
     out_status: string; out_code: string | null; out_whatsapp: string | null; out_expires_at: string | null;
@@ -74,4 +78,41 @@ export async function verifyFromWhatsAppWebhook(
   if (error) throw toAppError(error, 'verifyFromWhatsAppWebhook');
   const row = data as unknown as { out_matched: boolean; out_order_number: string | null };
   return { matched: row.out_matched, orderNumber: row.out_order_number };
+}
+
+export type VerificationCheck =
+  | { ok: true; data: OrderVerificationInfo }
+  | { ok: false; code: 'not_found' | 'rate_limited' | 'failed'; error: string };
+
+/** Status tokens are opaque URL-safe strings; anything else is refused unread. */
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,200}$/;
+
+/**
+ * The one public read behind "has my WhatsApp message arrived yet?", used
+ * right after checkout, by the manual "تحقق الآن" button, when the guest
+ * returns to the tab, and by the gentle poll while the sheet is open.
+ *
+ * Rate limited per token (the poll runs every few seconds; 40/min leaves room
+ * for focus and manual checks but stops a script hammering one order) and per
+ * IP (looser, since a whole restaurant's guests can share one address). It
+ * reveals only what the token holder already saw at checkout: the status,
+ * the code they were shown, the store's WhatsApp number and the code's expiry
+ * — never the phone, the name or the device.
+ */
+export async function checkVerificationStatus(token: unknown, ip: string): Promise<VerificationCheck> {
+  if (typeof token !== 'string' || !TOKEN_SHAPE.test(token)) {
+    return { ok: false, code: 'not_found', error: 'الطلب غير موجود.' };
+  }
+  if (!checkRateLimit(`verify-status:${token}`, RATE_LIMITS.verificationStatus).ok ||
+      !checkRateLimit(`verify-status-ip:${ip}`, RATE_LIMITS.verificationStatusIp).ok) {
+    return { ok: false, code: 'rate_limited', error: 'محاولات كثيرة. انتظر قليلًا.' };
+  }
+  try {
+    return { ok: true, data: await getOrderVerificationInfo(token) };
+  } catch (error) {
+    const e = toAppError(error, 'checkVerificationStatus');
+    if (e.code === 'not_found') return { ok: false, code: 'not_found', error: 'الطلب غير موجود.' };
+    if (e.code === 'rate_limited') return { ok: false, code: 'rate_limited', error: e.message };
+    return { ok: false, code: 'failed', error: 'تعذّر التحقق من حالة الطلب.' };
+  }
 }

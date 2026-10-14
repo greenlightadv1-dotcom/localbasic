@@ -1,9 +1,10 @@
 'use server';
 
+import { getClientIp } from '@/lib/action';
 import { revalidatePath } from 'next/cache';
 import { placeOnlineOrder, quoteCart, cancelOrder, editOrder } from '@/modules/restaurant/online/service';
 import { AppError } from '@/lib/errors';
-import { getOrderVerificationInfo } from '@/modules/restaurant/guest-verification/service';
+import { checkVerificationStatus } from '@/modules/restaurant/guest-verification/service';
 
 /** Parses the cart + contact fields every checkout submission carries. */
 function checkoutInputFromForm(formData: FormData) {
@@ -120,9 +121,5 @@ export async function quoteCartAction(input: {
  * order's own status token, nothing else.
  */
 export async function getOrderVerificationInfoAction(token: string) {
-  try {
-    return { ok: true as const, data: await getOrderVerificationInfo(token) };
-  } catch (error) {
-    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر التحقق من حالة الطلب.' };
-  }
+  return checkVerificationStatus(token, getClientIp());
 }

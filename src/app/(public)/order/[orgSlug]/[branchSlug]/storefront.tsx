@@ -8,7 +8,6 @@ import type { MenuItem, ModifierGroup, Quote } from '@/modules/restaurant/online
 import { cn } from '@/lib/cn';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
-import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { CustomerProfileSheet, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
 import { StoreToaster } from '@/components/menu/store-toast';
 import { LiquidTransitions } from '@/components/menu/liquid';
@@ -21,7 +20,7 @@ import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
-import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
+import { usePendingVerification } from '@/modules/restaurant/guest-verification/use-pending-verification';
 import {
   BottomSheet, CartBar, CategorySection, FoodCard, FoodGrid,
 } from '@/components/menu/food-ui';
@@ -109,25 +108,11 @@ export function Storefront({
   const formRef = useRef<HTMLFormElement>(null);
   const [deviceId, setDeviceId] = useState('');
   const [isSubmitting, startSubmitTransition] = useTransition();
-  const [checkingStatus, setCheckingStatus] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  // Set once the order exists and is still 'pending_verification' — its
-  // presence is what switches the panel from the cart form to the WhatsApp
-  // sheet. token is kept alongside it so the realtime subscription and the
-  // eventual redirect both have it.
-  const [verification, setVerification] = useState<
-    { token: string; code: string; whatsappUrl: string } | null
-  >(null);
 
   useEffect(() => {
     setDeviceId(getDeviceId());
   }, []);
-
-  // The gateway webhook (0086) advances a verified order to 'new' from the
-  // outside; this is what notices without the customer doing anything.
-  useOrderStatusBroadcast(verification?.token ?? null, (status) => {
-    if (status === 'new') finishOrder(verification!.token);
-  });
 
   /**
    * The order exists and is past verification: keep the guest on the menu,
@@ -135,7 +120,6 @@ export function Storefront({
    * a separate tracking page.
    */
   function finishOrder(token: string) {
-    setVerification(null);
     setLines([]);
     setQuote(null);
     setQuoteError(null);
@@ -143,6 +127,15 @@ export function Storefront({
     rememberActiveOrder(`${orgSlug}/${branchSlug}`, token);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // Survives a refresh or a return from WhatsApp: restores the pending order,
+  // re-checks on return to the tab, polls gently, and listens on realtime.
+  const verify = usePendingVerification({
+    scopeKey: `${orgSlug}/${branchSlug}`,
+    check: getOrderVerificationInfoAction,
+    onConfirmed: finishOrder,
+  });
+  const verification = verify.pending;
 
   const loadStatus = useCallback(async (token: string) => {
     const info = await getOrderVerificationInfoAction(token);
@@ -175,29 +168,12 @@ export function Storefront({
         return;
       }
       const info = await getOrderVerificationInfoAction(placed.data.token);
-      if (info.ok && info.data.status === 'pending_verification' && info.data.code) {
-        setVerification({
-          token: placed.data.token,
-          code: info.data.code,
-          whatsappUrl: buildWhatsAppVerifyUrl(info.data.code),
-        });
-        return;
-      }
+      if (verify.begin(placed.data.token, info.ok ? info.data : null)) return;
       finishOrder(placed.data.token);
     });
   }
 
-  function recheckVerification() {
-    if (!verification) return;
-    setCheckingStatus(true);
-    startSubmitTransition(async () => {
-      const info = await getOrderVerificationInfoAction(verification.token);
-      setCheckingStatus(false);
-      if (info.ok && info.data.status !== 'pending_verification') {
-        finishOrder(verification.token);
-      }
-    });
-  }
+
 
   // One key per checkout attempt, so a double-click or a retry is recognised
   // server-side as the same attempt rather than a second order.
@@ -627,9 +603,10 @@ export function Storefront({
               <GuestVerifySheet
                 code={verification.code}
                 whatsappUrl={verification.whatsappUrl}
-                checking={checkingStatus}
-                error={null}
-                onRecheck={recheckVerification}
+                checking={verify.checking}
+                error={verify.error}
+                expired={verify.expired}
+                onRecheck={verify.recheck}
               />
             ) : lines.length > 0 ? (
               <button

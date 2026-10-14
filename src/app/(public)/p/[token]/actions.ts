@@ -5,7 +5,7 @@ import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { AppError } from '@/lib/errors';
 import { publicOrderSchema } from '@/modules/restaurant/orders/schemas';
 import { placePublicOrder } from '@/modules/restaurant/public/service';
-import { getOrderVerificationInfo } from '@/modules/restaurant/guest-verification/service';
+import { checkVerificationStatus } from '@/modules/restaurant/guest-verification/service';
 
 /**
  * Guest order placement.
@@ -44,9 +44,5 @@ export const placeGuestOrderAction = definePublicAction({
  * (the WhatsApp sheet) or already 'new' (go straight to tracking).
  */
 export async function getOrderVerificationInfoAction(statusToken: string) {
-  try {
-    return { ok: true as const, data: await getOrderVerificationInfo(statusToken) };
-  } catch (error) {
-    return { ok: false as const, error: error instanceof AppError ? error.message : 'تعذّر التحقق من حالة الطلب.' };
-  }
+  return checkVerificationStatus(statusToken, getClientIp());
 }
