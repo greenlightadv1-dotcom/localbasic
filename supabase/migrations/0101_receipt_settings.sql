@@ -34,7 +34,7 @@ returns boolean language sql immutable set search_path = '' as $$
   select p_value is null or (
         length(p_value) <= p_max
     and (case when p_multiline then replace(p_value, E'\n', '') else p_value end) !~ '[[:cntrl:]]'
-    and p_value !~ E'[‪-‮⁦-⁩]'
+    and p_value !~ E'[\u202A-\u202E\u2066-\u2069]'
     and (not p_multiline or array_length(string_to_array(p_value, E'\n'), 1) <= 4)
   );
 $$;

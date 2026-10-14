@@ -59,7 +59,7 @@ begin
   foreach bad in array array[
     format('select public.restaurant_receipt_settings_save(%L, %L, %L, null, null, null, null, null, null, null)', org_a, br_a, repeat('x', 121)),
     format('select public.restaurant_receipt_settings_save(%L, %L, %L, null, null, null, null, null, null, null)', org_a, br_a, E'line\nbreak'),
-    format('select public.restaurant_receipt_settings_save(%L, %L, %L, null, null, null, null, null, null, null)', org_a, br_a, E'abc‮dcba'),
+    format('select public.restaurant_receipt_settings_save(%L, %L, %L, null, null, null, null, null, null, null)', org_a, br_a, E'abc\u202Edcba'),
     format('select public.restaurant_receipt_settings_save(%L, %L, null, %L, null, null, null, null, null, null)', org_a, br_a, '<script>'),
     format('select public.restaurant_receipt_settings_save(%L, %L, null, null, %L, null, null, null, null, null)', org_a, br_a, '123;drop'),
     format('select public.restaurant_receipt_settings_save(%L, %L, null, null, null, %L, null, null, null, null)', org_a, br_a, E'1\n2\n3\n4\n5'),
