@@ -52,6 +52,19 @@ const config: Config = {
         'sheet-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
         'slide-down': { from: { opacity: '0', transform: 'translateY(-12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
         pop: { '0%': { transform: 'scale(1)' }, '40%': { transform: 'scale(1.3)' }, '100%': { transform: 'scale(1)' } },
+        // The splash logo hops, then squashes as it lands.
+        'bounce-soft': {
+          '0%, 100%': { transform: 'translateY(0) scale(1, 1)' },
+          '45%': { transform: 'translateY(-26px) scale(0.97, 1.04)' },
+          '70%': { transform: 'translateY(0) scale(1.06, 0.93)' },
+          '85%': { transform: 'translateY(-5px) scale(1, 1)' },
+        },
+        'shadow-squash': {
+          '0%, 100%': { transform: 'scaleX(1)', opacity: '0.28' },
+          '45%': { transform: 'scaleX(0.6)', opacity: '0.12' },
+          '70%': { transform: 'scaleX(1.12)', opacity: '0.34' },
+        },
+        'fade-up': { from: { opacity: '0', transform: 'translateY(14px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
       },
       animation: {
         'fade-in': 'fade-in 140ms ease-out',
@@ -59,6 +72,9 @@ const config: Config = {
         'sheet-up': 'sheet-up 300ms cubic-bezier(0.22, 1, 0.36, 1)',
         'slide-down': 'slide-down 220ms ease-out',
         pop: 'pop 260ms ease-out',
+        'bounce-soft': 'bounce-soft 1.5s ease-in-out infinite',
+        'shadow-squash': 'shadow-squash 1.5s ease-in-out infinite',
+        'fade-up': 'fade-up 600ms ease-out both',
       },
     },
   },

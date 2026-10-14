@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { Minus, Plus, Search } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
 import {
-  BottomSheet, CartBar, CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
+  BottomSheet, CartBar, CategorySection, FoodCard, FoodGrid, StoreHeader,
 } from '@/components/menu/food-ui';
 import type {
   PublicCategory,
@@ -21,6 +21,9 @@ import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geol
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { CustomerProfileSheet, ProfileHeaderButton, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
 import { StoreToaster } from '@/components/menu/store-toast';
+import { LiquidTransitions, StoreSplash } from '@/components/menu/liquid';
+import { MenuFilterBar } from '@/components/menu/menu-filter-bar';
+import { useMenuFilter } from '@/components/menu/menu-filter';
 import { loyaltyPerk, type LoyaltyPublic } from '@/modules/restaurant/customer/perk';
 import { formatPrice } from '@/lib/price';
 import type { ReorderLine } from '@/modules/restaurant/customer/types';
@@ -63,7 +66,6 @@ export function GuestMenu({
   paymentOptions: PaymentOptions;
   loyalty: LoyaltyPublic | null;
 }) {
-  const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [picking, setPicking] = useState<{ product: PublicProduct; variant: PublicVariant } | null>(
@@ -167,20 +169,18 @@ export function GuestMenu({
     }
   }, []);
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return menu;
-    return menu
-      .map((category) => ({
-        ...category,
-        products: category.products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(term) ||
-            (p.description ?? '').toLowerCase().includes(term),
-        ),
-      }))
-      .filter((category) => category.products.length > 0);
-  }, [menu, search]);
+  const sections = useMemo(
+    () =>
+      menu.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        imageUrl: c.image_url ?? c.products.find((p) => p.image_url)?.image_url ?? null,
+        items: c.products,
+      })),
+    [menu],
+  );
+  const filter = useMenuFilter(sections, (p: PublicProduct) => `${p.name} ${p.description ?? ''}`);
 
   const cartCount = cart.reduce((sum, l) => sum + l.quantity, 0);
   const cartTotal = cart.reduce(
@@ -304,12 +304,6 @@ export function GuestMenu({
     });
   }
 
-  const rail = filtered.map((c) => ({
-    id: c.id,
-    name: c.name,
-    imageUrl: c.image_url ?? c.products.find((p) => p.image_url)?.image_url ?? null,
-  }));
-
   /** Quick add: one size adds straight away; several sizes ask which. */
   function quickAdd(product: PublicProduct) {
     const available = product.variants.filter((v) => v.available);
@@ -328,6 +322,8 @@ export function GuestMenu({
     <main className="mx-auto max-w-2xl pb-40">
       <OrderStatusBanner scopeKey={`table/${token}`} loadStatus={loadStatus} />
       <StoreToaster />
+      <LiquidTransitions />
+      <StoreSplash scopeKey={`table/${token}`} name={context.organizationName} logoUrl={context.logoUrl} tagline={`${context.branchName} · طاولة ${context.tableName}`} />
       <StoreBottomNav cartCount={cartCount} onCart={() => context.orderingEnabled && setCartOpen(true)} />
       {profileSheet.open ? (
         <CustomerProfileSheet
@@ -345,24 +341,12 @@ export function GuestMenu({
         action={<ProfileHeaderButton />}
       />
 
-      <div className="px-4 pb-3">
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute inset-y-0 start-3.5 my-auto h-4 w-4 text-muted"
-            aria-hidden="true"
-          />
-          <label htmlFor="guest-search" className="sr-only">
-            ابحث في المنيو
-          </label>
-          <Input
-            id="guest-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث في المنيو…"
-            className="h-12 rounded-full ps-10"
-          />
-        </div>
-      </div>
+      <MenuFilterBar
+        categories={sections.map((c) => ({ id: c.id, name: c.name }))}
+        selected={filter.selected} onSelect={filter.setSelected}
+        query={filter.query} onQuery={filter.setQuery}
+        resultCount={filter.count} filtering={filter.filtering} onClear={filter.clear}
+      />
 
       {!context.orderingEnabled && (
         <div className="px-4 pb-2">
@@ -370,15 +354,10 @@ export function GuestMenu({
         </div>
       )}
 
-      <CategoryRail categories={rail} />
-
-      {filtered.length === 0 ? (
-        <p className="px-4 py-16 text-center text-sm text-muted">لا توجد أصناف مطابقة.</p>
-      ) : (
-        filtered.map((category) => (
-          <CategorySection key={category.id} id={category.id} name={category.name} description={category.description}>
+      {filter.visible.map((category) => (
+          <CategorySection key={`${filter.selected}:${category.id}`} id={category.id} name={category.name} description={category.description}>
             <FoodGrid>
-              {category.products.map((product) => (
+              {category.items.map((product) => (
                 <FoodCard
                   key={product.id}
                   name={product.name}
@@ -394,8 +373,7 @@ export function GuestMenu({
               ))}
             </FoodGrid>
           </CategorySection>
-        ))
-      )}
+      ))}
 
       {!context.whiteLabel && (
         <div className="px-4 pb-6 pt-6 text-center">

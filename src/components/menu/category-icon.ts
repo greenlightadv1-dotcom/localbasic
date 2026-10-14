@@ -14,7 +14,7 @@ import {
  */
 
 /** Lowercase, and fold the Arabic spellings that vary (hamza forms, ta marbuta, yaa, diacritics). */
-function normalize(text: string): string {
+export function normalizeArabic(text: string): string {
   return text
     .toLowerCase()
     .replace(/[ً-ٰٟـ]/g, '')
@@ -46,7 +46,7 @@ const RULES: [RegExp, LucideIcon][] = [
 
 export function iconForCategory(name: string | null | undefined): LucideIcon {
   if (!name) return UtensilsCrossed;
-  const text = normalize(name);
+  const text = normalizeArabic(name);
   for (const [pattern, icon] of RULES) if (pattern.test(text)) return icon;
   return UtensilsCrossed;
 }

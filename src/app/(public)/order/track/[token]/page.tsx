@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getOrderByToken, getStatusTheme } from '@/modules/restaurant/online/service';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
+import { LiquidTransitions } from '@/components/menu/liquid';
 import { EditWindow } from './track';
 import { OrderProgress } from './order-progress';
 
@@ -32,6 +33,7 @@ export default async function TrackPage({ params }: { params: { token: string } 
       className="mx-auto min-h-dvh max-w-lg bg-bg px-4 py-10 text-fg sm:px-6"
       style={brandThemeVars(theme?.primaryColor, theme?.secondaryColor) as React.CSSProperties}
     >
+      <LiquidTransitions />
       <p className="text-sm text-muted">طلب رقم</p>
       <h1 className="mb-4 text-2xl font-extrabold text-fg" dir="ltr">{order.number}</h1>
 

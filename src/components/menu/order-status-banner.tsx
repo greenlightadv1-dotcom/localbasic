@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { X } from 'lucide-react';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 import { cn } from '@/lib/cn';
+import { LiquidLink } from '@/components/menu/liquid';
 
 /**
  * The guest's live order status, as a slim banner pinned to the top of the
@@ -134,12 +134,12 @@ export function OrderStatusBanner({
     >
       <div className="mx-auto flex max-w-2xl items-center gap-3">
         <p className="min-w-0 flex-1 truncate font-semibold">{view.label}</p>
-        <Link
+        <LiquidLink
           href={`/order/track/${token}`}
           className="shrink-0 text-xs font-semibold text-primary underline underline-offset-2"
         >
           تفاصيل
-        </Link>
+        </LiquidLink>
         {finished ? (
           <button type="button" onClick={dismiss} aria-label="إغلاق" className="shrink-0 text-muted">
             <X className="h-4 w-4" aria-hidden="true" />

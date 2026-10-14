@@ -1,6 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { toAppError } from '@/lib/errors';
+import { AppError, toAppError } from '@/lib/errors';
 import type { CustomerProfile, ProfileScope } from './types';
 
 type Raw = {
@@ -42,7 +42,14 @@ export async function getCustomerProfile(
     scope.kind === 'slug'
       ? await supabase.rpc('customer_profile', { p_org_slug: scope.orgSlug, p_device_id: deviceId, p_phone: phone })
       : await supabase.rpc('customer_profile_by_token', { p_token: scope.token, p_device_id: deviceId, p_phone: phone });
-  if (error) throw toAppError(error, 'getCustomerProfile');
+  if (error) {
+    // A read-only lookup must never turn into a user-facing "unexpected
+    // error": whatever went wrong (the function is not deployed yet, the
+    // database hiccuped), the guest simply has no profile to show right now.
+    // Logged, so the cause is still visible server-side.
+    console.error('[localbasic] getCustomerProfile unavailable', error);
+    return { verified: false, unavailable: true };
+  }
 
   const raw = data as unknown as Raw | null;
   if (!raw?.verified) return { verified: false };
@@ -86,6 +93,18 @@ export async function getCustomerProfile(
   };
 }
 
+/**
+ * The claim function raises its own user-facing reasons in Arabic ("not enough
+ * points", "confirm your number first"). Those pass through; anything else —
+ * constraint text, a missing function — stays the generic error.
+ */
+function claimError(error: { code?: string; message?: string }): AppError {
+  const safe = ['23514', '42501'].includes(error.code ?? '') && /[\u0600-\u06FF]/.test(error.message ?? '');
+  return safe
+    ? new AppError('validation', error.message)
+    : toAppError(error, 'claimReward');
+}
+
 /** Spends points on one reward coupon. The database re-checks everything. */
 export async function claimReward(
   scope: ProfileScope,
@@ -97,7 +116,7 @@ export async function claimReward(
     scope.kind === 'slug'
       ? await supabase.rpc('customer_claim_reward', { p_org_slug: scope.orgSlug, p_device_id: deviceId, p_phone: phone })
       : await supabase.rpc('customer_claim_reward_by_token', { p_token: scope.token, p_device_id: deviceId, p_phone: phone });
-  if (error) throw toAppError(error, 'claimReward');
+  if (error) throw claimError(error);
   const row = data as unknown as { code: string; value_cents: number; expires_at: string } | null;
   if (!row) throw toAppError(new Error('empty claim'), 'claimReward');
   return { code: row.code, valueCents: Number(row.value_cents), expiresAt: row.expires_at };

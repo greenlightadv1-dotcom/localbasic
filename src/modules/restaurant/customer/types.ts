@@ -31,7 +31,12 @@ export type ProfileAddress = {
 export type ProfileCoupon = { code: string; valueCents: number; expiresAt: string };
 
 export type CustomerProfile =
-  | { verified: false }
+  /**
+   * Nothing to show: a phone this device is not verified for, a number nobody
+   * has ordered with, or (`unavailable`) a lookup that could not run at all.
+   * Never an error — the sheet shows a calm empty state.
+   */
+  | { verified: false; unavailable?: boolean }
   | {
       verified: true;
       name: string | null;

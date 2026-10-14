@@ -11,6 +11,9 @@ import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geol
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { CustomerProfileSheet, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
 import { StoreToaster } from '@/components/menu/store-toast';
+import { LiquidTransitions } from '@/components/menu/liquid';
+import { MenuFilterBar } from '@/components/menu/menu-filter-bar';
+import { useMenuFilter } from '@/components/menu/menu-filter';
 import { loyaltyPerk, type LoyaltyPublic } from '@/modules/restaurant/customer/perk';
 import { formatPrice } from '@/lib/price';
 import type { ProfileAddress, ReorderLine } from '@/modules/restaurant/customer/types';
@@ -20,7 +23,7 @@ import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
 import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
 import {
-  BottomSheet, CartBar, CategoryRail, CategorySection, FoodCard, FoodGrid,
+  BottomSheet, CartBar, CategorySection, FoodCard, FoodGrid,
 } from '@/components/menu/food-ui';
 
 type Line = { variantId: string; quantity: number; modifierIds: string[]; note?: string };
@@ -311,6 +314,8 @@ export function Storefront({
     return [...seen.values()];
   }, [items]);
 
+  const filter = useMenuFilter(categories, (i: MenuItem) => `${i.productName} ${i.variantName} ${i.description ?? ''}`);
+
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
   const countFor = (variantId: string) =>
     lines.filter((l) => l.variantId === variantId).reduce((n, l) => n + l.quantity, 0);
@@ -361,6 +366,7 @@ export function Storefront({
     <div className="pb-40">
       <OrderStatusBanner scopeKey={`${orgSlug}/${branchSlug}`} loadStatus={loadStatus} />
       <StoreToaster />
+      <LiquidTransitions />
       <StoreBottomNav cartCount={itemCount} onCart={() => setCartOpen(true)} />
       {profileSheet.open ? (
         <CustomerProfileSheet
@@ -372,10 +378,15 @@ export function Storefront({
           onUseAddress={applyAddress}
         />
       ) : null}
-      <CategoryRail categories={categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }))} />
+      <MenuFilterBar
+        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        selected={filter.selected} onSelect={filter.setSelected}
+        query={filter.query} onQuery={filter.setQuery}
+        resultCount={filter.count} filtering={filter.filtering} onClear={filter.clear}
+      />
 
-      {categories.map((c) => (
-        <CategorySection key={c.id} id={c.id} name={c.name}>
+      {filter.visible.map((c) => (
+        <CategorySection key={`${filter.selected}:${c.id}`} id={c.id} name={c.name}>
           <FoodGrid>
             {c.items.map((item) => (
               <FoodCard

@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import Link from 'next/link';
-import { Check, Copy, Gift, MapPin, Receipt, RotateCcw, ShoppingBag, UserRound, UtensilsCrossed } from 'lucide-react';
+import { Check, Copy, Gift, MapPin, Receipt, RotateCcw, Search, ShoppingBag, UserRound, UtensilsCrossed } from 'lucide-react';
 import { BottomSheet } from '@/components/menu/food-ui';
+import { LiquidLink } from '@/components/menu/liquid';
+import { focusMenuSearch } from '@/components/menu/menu-filter-bar';
 import { showStoreToast } from '@/components/menu/store-toast';
 import { cn } from '@/lib/cn';
 import { formatPrice } from '@/lib/price';
@@ -149,6 +150,10 @@ export function StoreBottomNav({ cartCount, onCart }: { cartCount: number; onCar
           <UtensilsCrossed className="h-5 w-5" aria-hidden="true" />
           القائمة
         </button>
+        <button type="button" className={tab} onClick={focusMenuSearch}>
+          <Search className="h-5 w-5" aria-hidden="true" />
+          بحث
+        </button>
         <button type="button" className={tab} onClick={onCart}>
           <span className="relative">
             <ShoppingBag className="h-5 w-5" aria-hidden="true" />
@@ -287,12 +292,12 @@ function ActiveOrderCard({ order, currency }: { order: ProfileOrder; currency: s
           </p>
         </div>
         {order.token ? (
-          <Link
+          <LiquidLink
             href={`/order/track/${order.token}`}
             className="shrink-0 rounded-full border border-primary/40 px-3 py-1.5 text-xs font-bold text-primary active:scale-95"
           >
             تفاصيل
-          </Link>
+          </LiquidLink>
         ) : null}
       </div>
 
@@ -592,6 +597,8 @@ export function CustomerProfileSheet({
   const [profile, setProfile] = useState<CustomerProfile | null>(initial ?? null);
   const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
+  // True once the guest has typed a number and we looked it up.
+  const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [claiming, startClaim] = useTransition();
@@ -639,7 +646,13 @@ export function CustomerProfileSheet({
     const n = typed.trim();
     if (n.length < 6) return;
     setPhone(n);
+    setAttempted(true);
     void load(deviceId, n);
+  }
+
+  function retry() {
+    const n = (phone || typed).trim();
+    if (n.length >= 6) void load(deviceId, n);
   }
 
   function claim() {
@@ -694,6 +707,19 @@ export function CustomerProfileSheet({
               اطلب أول طلب وأكّد رقمك عبر واتساب، وسيظهر هنا سجل طلباتك وعناوينك ونقاطك.
               لحمايتك لا يُعرض شيء إلا على جهاز تم تأكيده لهذا الرقم.
             </p>
+            {profile && !profile.verified && profile.unavailable ? (
+              <div className="rounded-2xl bg-primary-soft p-3 text-sm text-fg" role="status" data-testid="profile-unavailable">
+                <p className="font-semibold">تعذّر تحميل حسابك الآن.</p>
+                <p className="text-xs text-muted">لا تقلق، طلباتك محفوظة. حاول مرة أخرى بعد قليل.</p>
+                <button type="button" onClick={retry} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold text-primary-fg active:scale-95">
+                  إعادة المحاولة
+                </button>
+              </div>
+            ) : attempted && !loading && !error ? (
+              <p className="rounded-2xl bg-primary-soft p-3 text-sm font-semibold text-fg" role="status" data-testid="profile-not-found">
+                لم نجد طلبات مؤكدة لهذا الرقم على هذا الجهاز. إذا طلبت من جهاز آخر، أكّد رقمك عبر واتساب عند أول طلب هنا.
+              </p>
+            ) : null}
             <form onSubmit={lookUp} className="flex gap-2">
               <input
                 type="tel" inputMode="tel" dir="ltr" value={typed} onChange={(e) => setTyped(e.target.value)}
@@ -704,7 +730,7 @@ export function CustomerProfileSheet({
                 عرض
               </button>
             </form>
-            {error ? <p className="text-xs text-danger">{error}</p> : null}
+            {error ? <p className="text-xs text-danger" role="alert">{error}</p> : null}
           </div>
         ) : null}
 
