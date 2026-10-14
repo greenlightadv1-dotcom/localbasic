@@ -3248,6 +3248,8 @@ export type Database = {
       restaurant_coupon_release: { Args: Record<string, unknown>; Returns: Json };
       loyalty_public_info: { Args: Record<string, unknown>; Returns: Json };
       loyalty_public_info_by_token: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_customer_directory: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_customer_reset: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_stock: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_get: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_save: { Args: Record<string, unknown>; Returns: Json };
