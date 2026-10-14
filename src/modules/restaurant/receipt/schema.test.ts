@@ -20,7 +20,7 @@ describe('receiptSettingsSchema', () => {
   it.each([
     ['legalName', 'x'.repeat(121)],
     ['legalName', 'a\nb'],
-    ['legalName', 'abc‮dcba'],
+    ['legalName', 'abc\u202Edcba'],
     ['branchAddress', 'tab\there'],
     ['commercialRegistration', '<script>'],
     ['taxId', '123;drop table'],

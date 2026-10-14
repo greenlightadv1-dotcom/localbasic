@@ -12,7 +12,7 @@ import { z } from 'zod';
  * never trusted: the receipt template escapes every value.
  */
 const CONTROL = /[\u0000-\u001F\u007F]/;
-const BIDI = /[‪-‮⁦-⁩]/;
+const BIDI = /[\u202A-\u202E\u2066-\u2069]/;
 const UNSAFE = 'يحتوي على رموز غير مسموحة';
 
 function line(max: number) {
