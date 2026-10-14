@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation';
 import { Users } from 'lucide-react';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
+import { toDataUnavailable } from '@/lib/errors';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { listCustomerDirectory } from '@/modules/restaurant/customers/service';
 import { PageHeader } from '@/components/patterns/page-header';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/patterns/states';
+import { DataUnavailable } from '@/components/patterns/data-unavailable';
 import { CustomerDirectory } from './directory';
 
 export const metadata = { title: 'العملاء' };
@@ -22,7 +24,18 @@ export default async function CustomersPage({
   // Restaurants: every guest who ever ordered, grouped by phone, with their
   // spend, points and bound devices.
   if (ctx.enabledModules.includes('restaurant')) {
-    const { rows, truncated } = await listCustomerDirectory(ctx);
+    let directory: Awaited<ReturnType<typeof listCustomerDirectory>>;
+    try {
+      directory = await listCustomerDirectory(ctx);
+    } catch (error) {
+      return (
+        <div className="space-y-5">
+          <PageHeader title="العملاء" />
+          <DataUnavailable error={error} />
+        </div>
+      );
+    }
+    const { rows, truncated } = directory;
     return (
       <div className="space-y-5">
         <PageHeader title="العملاء" description="كل من طلب من المتجر أو الكاشير، مجمَّعين برقم الهاتف" />
@@ -41,7 +54,7 @@ export default async function CustomersPage({
 
   // Other verticals keep the plain list of registered customers.
   const supabase = createSupabaseServerClient();
-  const { data: customers } = await supabase
+  const { data: customers, error: customersError } = await supabase
     .from('customers')
     .select('id, name, phone, email, created_at')
     .eq('organization_id', ctx.organizationId)
@@ -49,6 +62,14 @@ export default async function CustomersPage({
     .order('name')
     .limit(200);
 
+  if (customersError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="العملاء" />
+        <DataUnavailable error={toDataUnavailable(customersError, 'customers list')} />
+      </div>
+    );
+  }
   const rows = customers ?? [];
 
   return (

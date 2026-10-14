@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { AppError, toAppError } from '@/lib/errors';
+import { AppError, toAppError, toDataUnavailable } from '@/lib/errors';
 import { sealSecret, SecretBoxUnavailableError } from '@/lib/crypto/secret-box';
 import { requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 import { GATEWAYS, ONLINE_CHECKOUT_LIVE, isGatewayKey, type GatewayKey } from './gateways';
@@ -35,7 +35,7 @@ export async function getPaymentSettings(ctx: TenantContext): Promise<PaymentSet
   const { data, error } = await supabase
     .rpc('restaurant_payment_settings_get', { p_org: ctx.organizationId })
     .single();
-  if (error) throw toAppError(error, 'getPaymentSettings');
+  if (error) throw toDataUnavailable(error, 'getPaymentSettings');
   const row = data as unknown as {
     out_cash_enabled: boolean; out_online_enabled: boolean; out_gateway: string | null;
     out_public_config: Record<string, string>; out_has_secret: boolean;

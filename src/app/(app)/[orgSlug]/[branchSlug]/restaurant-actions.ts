@@ -22,6 +22,8 @@ import {
   createMenuProduct,
   updateMenuProduct,
   deleteMenuProduct,
+  deleteCategory,
+  resetMenu,
   setProductActive,
   setProductBestSeller,
   setProductImage,
@@ -84,6 +86,26 @@ export const createMenuCategoryAction = defineTenantAction({
   handler: async ({ ctx, input }) => {
     const result = await createCategory(ctx, input);
     revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu');
+    return result;
+  },
+});
+
+export const deleteMenuCategoryAction = defineTenantAction({
+  schema: z.object({ id: z.string().uuid() }),
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    await deleteCategory(ctx, input.id);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
+    return { ok: true };
+  },
+});
+
+export const resetMenuAction = defineTenantAction({
+  schema: z.object({ keepCategories: z.boolean().default(false) }),
+  permission: 'restaurant.menu.manage',
+  handler: async ({ ctx, input }) => {
+    const result = await resetMenu(ctx, input.keepCategories);
+    revalidateBranch(ctx.organizationSlug, ctx.branchSlug, '/menu', '/cashier');
     return result;
   },
 });
