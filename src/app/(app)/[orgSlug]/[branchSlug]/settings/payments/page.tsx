@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { getPaymentSettings } from '@/modules/restaurant/payments/service';
+import { PageHeader } from '@/components/patterns/page-header';
+import { DataUnavailable } from '@/components/patterns/data-unavailable';
 import { PaymentsForm } from './form';
 
 export const metadata = { title: 'المدفوعات' };
@@ -16,7 +18,17 @@ export default async function PaymentsSettingsPage({
   if (!can(ctx, 'settings.manage')) notFound();
   if (!ctx.enabledModules.includes('restaurant')) notFound();
 
-  const settings = await getPaymentSettings(ctx);
+  let settings: Awaited<ReturnType<typeof getPaymentSettings>>;
+  try {
+    settings = await getPaymentSettings(ctx);
+  } catch (error) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="المدفوعات" />
+        <DataUnavailable error={error} />
+      </div>
+    );
+  }
   return <PaymentsForm
       scope={{ organizationSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug }}
       settings={settings}

@@ -26,6 +26,8 @@ import {
   setCategoryStationAction,
   updateMenuProductAction,
   deleteMenuProductAction,
+  deleteMenuCategoryAction,
+  resetMenuAction,
 } from '../restaurant-actions';
 
 const STATION_KIND_LABELS: Record<string, string> = { kitchen: 'مطبخ', bar: 'بار' };
@@ -69,6 +71,9 @@ export function MenuManager({
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<MenuItem | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<{ id: string; name: string } | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [keepCategories, setKeepCategories] = useState(false);
   const scope = { organizationSlug, branchSlug };
 
   function addCategory(formData: FormData) {
@@ -224,11 +229,35 @@ export function MenuManager({
                   إضافة
                 </Button>
               </form>
+              {(categories.length > 0 || menu.length > 0) && (
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-danger"
+                    data-testid="menu-reset"
+                    onClick={() => setResetOpen(true)}
+                  >
+                    تفريغ المنيو بالكامل
+                  </Button>
+                </div>
+              )}
               {categories.length > 0 && (
                 <ul className="mt-3 flex flex-wrap gap-1.5">
                   {categories.map((c) => (
                     <li key={c.id} className="flex items-center gap-1">
                       <Badge>{c.name}</Badge>
+                      <button
+                        type="button"
+                        title="حذف التصنيف"
+                        aria-label={`حذف التصنيف ${c.name}`}
+                        disabled={isPending}
+                        onClick={() => setDeletingCategory({ id: c.id, name: c.name })}
+                        className="text-xs text-muted hover:text-danger"
+                      >
+                        ✕
+                      </button>
                       {canManage ? (
                         <button
                           type="button"
@@ -916,6 +945,49 @@ export function MenuManager({
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={deletingCategory !== null}
+        title={`حذف التصنيف ${deletingCategory?.name ?? ''}`}
+        description="تبقى الأصناف داخل هذا التصنيف وتظهر بدون تصنيف إلى أن تنقلها."
+        confirmLabel="حذف التصنيف"
+        busy={isPending}
+        onCancel={() => setDeletingCategory(null)}
+        onConfirm={() => {
+          if (!deletingCategory) return;
+          const { id } = deletingCategory;
+          startTransition(async () => {
+            const result = await deleteMenuCategoryAction(scope, { id });
+            if (!result.ok) { toast.error(result.error); return; }
+            toast.success('تم حذف التصنيف');
+            setDeletingCategory(null);
+            router.refresh();
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={resetOpen}
+        title="تفريغ المنيو بالكامل"
+        description="سيتم حذف كل الأصناف والباقات ليبدأ المنيو من الصفر. الطلبات السابقة وتقاريرها تبقى كما هي. لا يمكن التراجع عن هذا الإجراء."
+        confirmLabel="تفريغ المنيو"
+        busy={isPending}
+        onCancel={() => setResetOpen(false)}
+        onConfirm={() =>
+          startTransition(async () => {
+            const result = await resetMenuAction(scope, { keepCategories });
+            if (!result.ok) { toast.error(result.error); return; }
+            toast.success(`تم تفريغ المنيو (${result.data.products} صنف)`);
+            setResetOpen(false);
+            router.refresh();
+          })
+        }
+      >
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={keepCategories} onChange={(e) => setKeepCategories(e.target.checked)} />
+          الإبقاء على التصنيفات
+        </label>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={deleting !== null}

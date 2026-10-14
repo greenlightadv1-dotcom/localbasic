@@ -433,3 +433,28 @@ export async function getMenuProduct(ctx: TenantContext, productId: string) {
   if (!data) throw notFound();
   return data;
 }
+
+/** Removes one category. Its products stay and show as uncategorised. */
+export async function deleteCategory(ctx: TenantContext, categoryId: string): Promise<void> {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('restaurant_category_delete', { p_org: ctx.organizationId, p_id: categoryId });
+  if (error) throw toAppError(error, 'deleteCategory');
+}
+
+/**
+ * Starts the menu over: every product and bundle is soft-deleted, and the
+ * categories are removed unless asked to stay. Past orders keep their
+ * snapshots, so history is untouched.
+ */
+export async function resetMenu(
+  ctx: TenantContext,
+  keepCategories: boolean,
+): Promise<{ products: number; bundles: number; categories: number }> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .rpc('restaurant_menu_reset', { p_org: ctx.organizationId, p_keep_categories: keepCategories })
+    .single();
+  if (error) throw toAppError(error, 'resetMenu');
+  const row = data as unknown as { out_products_removed: number; out_bundles_removed: number; out_categories_removed: number };
+  return { products: Number(row.out_products_removed), bundles: Number(row.out_bundles_removed), categories: Number(row.out_categories_removed) };
+}

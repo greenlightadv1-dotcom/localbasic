@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { toAppError } from '@/lib/errors';
+import { toAppError, toDataUnavailable } from '@/lib/errors';
 import { requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 
 export type DirectoryRow = {
@@ -28,7 +28,7 @@ export async function listCustomerDirectory(ctx: TenantContext): Promise<{ rows:
     p_org: ctx.organizationId,
     p_limit: LIMIT + 1,
   });
-  if (error) throw toAppError(error, 'listCustomerDirectory');
+  if (error) throw toDataUnavailable(error, 'listCustomerDirectory');
 
   const raw = (data ?? []) as unknown as {
     out_phone: string; out_name: string; out_orders: number; out_spent_cents: number;
