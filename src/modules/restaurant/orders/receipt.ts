@@ -4,6 +4,7 @@ import { AppError, toAppError } from '@/lib/errors';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { getBranding } from '@/modules/core/branding/service';
 import type { ReceiptData } from '@/lib/print/receipt-html';
+import { getReceiptHeader } from '@/modules/restaurant/receipt/service';
 
 /**
  * Everything the printed receipt says, read from `invoices`, `invoice_items`
@@ -24,7 +25,7 @@ export async function getReceiptData(ctx: TenantContext, invoiceId: string): Pro
   if (error) throw toAppError(error, 'getReceiptData');
   if (!invoice) throw new AppError('not_found');
 
-  const [{ data: items }, { data: payments }, { data: order }, branding] = await Promise.all([
+  const [{ data: items }, { data: payments }, { data: order }, branding, header] = await Promise.all([
     supabase
       .from('invoice_items')
       .select('description, quantity, total_cents')
@@ -43,6 +44,7 @@ export async function getReceiptData(ctx: TenantContext, invoiceId: string): Pro
       .eq('invoice_id', invoice.id)
       .maybeSingle(),
     getBranding(ctx),
+    getReceiptHeader(ctx),
   ]);
 
   const tableName = order?.table_id
@@ -55,8 +57,8 @@ export async function getReceiptData(ctx: TenantContext, invoiceId: string): Pro
 
   return {
     businessName: branding.displayName,
-    branchName: ctx.branchName,
-    phone: branding.phone,
+    branchName: header?.branchName ?? ctx.branchName,
+    phone: header?.phone ?? branding.phone,
     number: invoice.number,
     orderNumber: order?.number ?? null,
     tableName,
@@ -78,5 +80,11 @@ export async function getReceiptData(ctx: TenantContext, invoiceId: string): Pro
     })),
     paidCents: invoice.paid_cents,
     whiteLabel: branding.whiteLabel,
+    legalName: header?.legalName ?? null,
+    commercialRegistration: header?.commercialRegistration ?? null,
+    taxId: header?.taxId ?? null,
+    address: header?.address ?? null,
+    headerNote: header?.headerNote ?? null,
+    footerNote: header?.footerNote ?? null,
   };
 }

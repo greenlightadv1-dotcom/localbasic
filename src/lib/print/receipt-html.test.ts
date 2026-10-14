@@ -97,3 +97,51 @@ describe('escapeHtml', () => {
     expect(escapeHtml(`<a href="x">&'`)).toBe('&lt;a href=&quot;x&quot;&gt;&amp;&#39;');
   });
 });
+
+describe('buildReceiptHtml — official store details', () => {
+  const html = buildReceiptHtml({
+    ...BASE,
+    legalName: 'شركة الحارة للمطاعم',
+    commercialRegistration: '12345',
+    taxId: '123-456-789',
+    address: '12 شارع التحرير، الدقي',
+    headerNote: 'أهلًا بكم\nمفتوح يوميًا',
+    footerNote: 'نسعد بزيارتكم مرة أخرى',
+  });
+
+  it('prints the legal name, address, registration and tax numbers', () => {
+    expect(html).toContain('شركة الحارة للمطاعم');
+    expect(html).toContain('12 شارع التحرير، الدقي');
+    expect(html).toContain('س.ت: <span dir="ltr">12345</span>');
+    expect(html).toContain('رقم التسجيل الضريبي: <span dir="ltr">123-456-789</span>');
+  });
+
+  it('keeps note line breaks and lets the footer replace the thank-you line', () => {
+    expect(html).toContain('أهلًا بكم<br>مفتوح يوميًا');
+    expect(html).toContain('نسعد بزيارتكم مرة أخرى');
+    expect(html).not.toContain('شكرًا لزيارتكم');
+  });
+
+  it('still carries the legal disclaimer: a tax ID does not make it a tax invoice', () => {
+    expect(html).toContain('ليس فاتورة ضريبية');
+  });
+
+  it('omits the legal name when it repeats the business name, and prints as before when unset', () => {
+    expect(buildReceiptHtml({ ...BASE, legalName: BASE.businessName })).toBe(buildReceiptHtml(BASE));
+    expect(buildReceiptHtml({ ...BASE, legalName: null, taxId: null, headerNote: null })).toBe(buildReceiptHtml(BASE));
+  });
+
+  it('escapes every new field — no markup from the settings reaches the document', () => {
+    const attack = '<img src=x onerror=alert(1)>"\'&';
+    const out = buildReceiptHtml({
+      ...BASE,
+      legalName: attack, commercialRegistration: attack, taxId: attack,
+      address: attack, headerNote: `${attack}\n${attack}`, footerNote: attack,
+    });
+    expect(out).not.toContain('<img');
+    expect(out).not.toContain('onerror=alert(1)>');
+    expect(out).toContain('&lt;img src=x onerror=alert(1)&gt;&quot;&#39;&amp;');
+    // The only tags a note produces are <br>.
+    expect(out).toContain('&amp;<br>&lt;img');
+  });
+});
