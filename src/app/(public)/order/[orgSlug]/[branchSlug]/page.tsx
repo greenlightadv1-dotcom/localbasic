@@ -5,6 +5,7 @@ import { getWebsite } from '@/modules/restaurant/website/service';
 import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { StoreHeader } from '@/components/menu/food-ui';
+import { StoreSplash } from '@/components/menu/liquid';
 import { ProfileHeaderButton } from '@/components/menu/customer-profile';
 import { getPublicLoyalty } from '@/modules/restaurant/customer/service';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
@@ -62,6 +63,12 @@ export default async function OrderPage({
       className="min-h-dvh bg-bg text-fg"
       style={brandThemeVars(info.primaryColor, info.secondaryColor) as React.CSSProperties}
     >
+      <StoreSplash
+        scopeKey={`${params.orgSlug}/${params.branchSlug}`}
+        name={info.organizationName}
+        logoUrl={info.logoUrl}
+        tagline={site?.tagline ?? site?.about ?? null}
+      />
       <div className="mx-auto max-w-2xl">
         <StoreHeader
           name={info.organizationName}

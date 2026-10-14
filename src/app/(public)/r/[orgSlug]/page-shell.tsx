@@ -5,16 +5,17 @@ import { Phone, MapPin, Clock } from 'lucide-react';
 import { clientEnv } from '@/lib/env';
 import {
   getWebsite, getBranches, getMenu, WEEKDAYS_AR,
-  type Website, type PublicBranch, type MenuCategory,
+  type Website, type PublicBranch,
 } from '@/modules/restaurant/website/service';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
 import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { PoweredBy } from '@/components/brand/logo';
 import {
-  CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
+  StoreHeader,
 } from '@/components/menu/food-ui';
-import { formatPrice } from '@/lib/price';
+import { StoreSplash } from '@/components/menu/liquid';
+import { ReadOnlyMenu } from './read-only-menu';
 import { getPublicLoyalty } from '@/modules/restaurant/customer/service';
 import { ProfileHeaderButton } from '@/components/menu/customer-profile';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
@@ -135,6 +136,12 @@ export async function RestaurantSite({
 
   return (
     <Shell vars={vars} whiteLabel={site.whiteLabel}>
+      <StoreSplash
+        scopeKey={`${orgSlug}/${branch.slug}`}
+        name={site.organizationName}
+        logoUrl={site.logoUrl}
+        tagline={description}
+      />
       <StoreHeader
         name={site.organizationName}
         logoUrl={site.logoUrl}
@@ -179,44 +186,6 @@ function Shell({
           </div>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-/** The menu without ordering: a branch that is not taking orders online. */
-function ReadOnlyMenu({ categories, currency }: { categories: MenuCategory[]; currency: string }) {
-  if (categories.length === 0) {
-    return <p className="px-4 py-16 text-center text-sm text-muted">المنيو غير متاح حاليًا.</p>;
-  }
-  return (
-    <div className="pb-8">
-      <p className="mx-4 mb-1 rounded-[14px] bg-primary-soft px-4 py-2.5 text-sm font-semibold text-primary">
-        الطلب أونلاين غير متاح الآن في هذا الفرع. تفضّل بزيارتنا.
-      </p>
-      <CategoryRail
-        categories={categories.map((c) => ({
-          id: c.id ?? '__uncategorised__',
-          name: c.name,
-          imageUrl: c.products.find((p) => p.imageUrl)?.imageUrl ?? null,
-        }))}
-      />
-      {categories.map((c) => (
-        <CategorySection key={c.id ?? '__uncategorised__'} id={c.id ?? '__uncategorised__'} name={c.name}>
-          <FoodGrid>
-            {c.products.map((p) => (
-              <FoodCard
-                key={p.productId}
-                name={p.name}
-                description={p.description}
-                priceLabel={`${p.variants.length > 1 ? 'من ' : ''}${formatPrice(p.fromPriceCents, currency)}`}
-                imageUrl={p.imageUrl}
-                categoryName={c.name}
-                canOrder={false}
-              />
-            ))}
-          </FoodGrid>
-        </CategorySection>
-      ))}
     </div>
   );
 }

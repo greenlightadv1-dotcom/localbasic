@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   calls: [] as { fn: string; args: Record<string, unknown> }[],
   data: null as unknown,
+  error: null as { code?: string; message?: string } | null,
 }));
 
 vi.mock('server-only', () => ({}));
@@ -10,7 +11,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServerClient: () => ({
     rpc: async (fn: string, args: Record<string, unknown>) => {
       h.calls.push({ fn, args });
-      return { data: h.data, error: null };
+      return { data: h.error ? null : h.data, error: h.error };
     },
   }),
 }));
@@ -18,6 +19,7 @@ vi.mock('@/lib/supabase/server', () => ({
 beforeEach(() => {
   h.calls.length = 0;
   h.data = null;
+  h.error = null;
 });
 
 describe('getCustomerProfile', () => {
@@ -60,5 +62,33 @@ describe('getCustomerProfile', () => {
     expect(p.loyalty).toMatchObject({ enabled: true, balance: 10, rewardPoints: 30, rewardValueCents: 2000 });
     expect(p.coupons[0]).toEqual({ code: 'LB-ABCDEF', valueCents: 2000, expiresAt: '2026-12-01T00:00:00Z' });
     expect(p.addresses[0]).toMatchObject({ address: '12 شارع', city: 'القاهرة' });
+  });
+});
+
+describe('a lookup that cannot run', () => {
+  it('is an empty profile, not an error (e.g. the function is not deployed yet)', async () => {
+    h.error = { code: 'PGRST202', message: 'Could not find the function public.customer_profile' };
+    const { getCustomerProfile } = await import('./service');
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(await getCustomerProfile({ kind: 'slug', orgSlug: 'x' }, 'device-12345', '01012345678')).toEqual({
+      verified: false, unavailable: true,
+    });
+    quiet.mockRestore();
+  });
+});
+
+describe('claimReward errors', () => {
+  it('passes the database\'s own Arabic reason through', async () => {
+    h.error = { code: '23514', message: 'رصيد النقاط غير كافٍ' };
+    const { claimReward } = await import('./service');
+    await expect(claimReward({ kind: 'slug', orgSlug: 'x' }, 'device-12345', '0101234567')).rejects.toThrow('رصيد النقاط غير كافٍ');
+  });
+
+  it('keeps anything else generic', async () => {
+    h.error = { code: '23514', message: 'new row violates check constraint "restaurant_loyalty_coupons_points_cost_check"' };
+    const { claimReward } = await import('./service');
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(claimReward({ kind: 'slug', orgSlug: 'x' }, 'device-12345', '0101234567')).rejects.toThrow('حدث خطأ غير متوقع');
+    quiet.mockRestore();
   });
 });
