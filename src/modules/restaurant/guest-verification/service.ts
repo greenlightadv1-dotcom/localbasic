@@ -1,5 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { toAppError } from '@/lib/errors';
 import type { TenantContext } from '@/modules/core/tenancy/context';
 import { requirePermission } from '@/modules/core/tenancy/context';
@@ -62,7 +63,9 @@ export async function verifyFromWhatsAppWebhook(
   code: string,
   phone: string,
 ): Promise<{ matched: boolean; orderNumber: string | null }> {
-  const supabase = createSupabaseServerClient();
+  // Service role only (0099): the shared-secret check in the webhook route is
+  // what authorises this call, so it must not be reachable with the anon key.
+  const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .rpc('restaurant_whatsapp_verify_webhook', {
       p_branch_code: branchCode, p_code: code, p_phone: phone,
