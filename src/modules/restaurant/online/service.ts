@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/action';
-import { AppError } from '@/lib/errors';
+import { AppError, guestFacingDbError } from '@/lib/errors';
 import {
   quoteInput, checkoutInput, editInput, cancelInput, orderToken, storefront,
 } from './schemas';
@@ -184,7 +184,7 @@ export async function quoteCart(input: unknown): Promise<Quote> {
     p_items: toDbItems(parsed.data.items),
     p_fulfillment: parsed.data.fulfillment,
   });
-  if (error) throw new AppError('validation', error.message);
+  if (error) throw guestFacingDbError(error, 'priceOnlineCart');
 
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, number & string> | undefined;
   if (!row) throw new AppError('validation', 'تعذّر تسعير السلة');
@@ -252,7 +252,7 @@ export async function placeOnlineOrder(input: unknown): Promise<PlacedOrder> {
     // No account layer any more — every checkout is a guest one.
     p_saved_address_id: null,
   });
-  if (error) throw new AppError('validation', error.message);
+  if (error) throw guestFacingDbError(error, 'placeOnlineOrder');
 
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, string> | undefined;
   if (!row) throw new AppError('validation', 'تعذّر إنشاء الطلب');
@@ -346,7 +346,7 @@ export async function editOrder(input: unknown): Promise<{ number: string; total
     p_token: parsed.data.token,
     p_items: toDbItems(parsed.data.items),
   });
-  if (error) throw new AppError('validation', error.message);
+  if (error) throw guestFacingDbError(error, 'editOnlineOrder');
 
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, string> | undefined;
   if (!row) throw new AppError('validation', 'تعذّر تعديل الطلب');
@@ -363,7 +363,7 @@ export async function cancelOrder(input: unknown): Promise<void> {
     p_token: parsed.data.token,
     p_reason: parsed.data.reason || null,
   });
-  if (error) throw new AppError('validation', error.message);
+  if (error) throw guestFacingDbError(error, 'cancelOnlineOrder');
 }
 
 export type StatusTheme = {

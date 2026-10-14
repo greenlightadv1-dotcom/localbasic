@@ -203,7 +203,9 @@ export async function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set(
     'Permissions-Policy',
-    'camera=(self), microphone=(), geolocation=(), payment=()',
+    // geolocation=(self): the guest checkout's geofence asks for the device's
+    // position; () disabled the API on every page, so no location ever arrived.
+    'camera=(self), microphone=(), geolocation=(self), payment=()',
   );
   if (!isDev) {
     response.headers.set(

@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/action';
-import { AppError } from '@/lib/errors';
+import { AppError, guestFacingDbError } from '@/lib/errors';
 import {
   checkoutInput, orderToken, quoteInput, storefrontInput,
   type CheckoutInput, type QuoteInput,
@@ -235,7 +235,7 @@ export async function placeOrder(input: CheckoutInput): Promise<PlacedOrder> {
     p_address_line: v.addressLine || null,
     p_landmark: v.landmark || null,
   });
-  if (error) throw new AppError('validation', error.message);
+  if (error) throw guestFacingDbError(error, 'retailPlaceOrder');
 
   type Row = {
     out_order_id: string; out_number: string; out_token: string; out_total_cents: number;

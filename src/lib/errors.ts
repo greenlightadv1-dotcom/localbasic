@@ -66,6 +66,7 @@ export const conflict = (message: string) => new AppError('conflict', message);
  */
 export function toAppError(error: unknown, context: string): AppError {
   if (error instanceof AppError) return error;
+  if (isRateLimitedDbError(error)) return rateLimited(error as { message?: string });
   console.error(`[localbasic] ${context}`, error);
   return new AppError('internal', undefined, { cause: error });
 }
@@ -106,4 +107,44 @@ export function toDataUnavailable(error: { code?: string; message?: string } | n
     return new DataUnavailableError('denied', 'لا تملك صلاحية عرض هذه البيانات.', error);
   }
   return new DataUnavailableError('failed', 'تعذّر تحميل البيانات حاليًا. حاول مرة أخرى بعد قليل.', error);
+}
+
+/**
+ * SQLSTATE raised by the database's own abuse limits (0100). Those limits run
+ * inside the anonymous functions, so they hold even for callers who skip
+ * Next.js and hit the REST API directly.
+ */
+export const DB_RATE_LIMITED = 'LB429';
+
+/** The database's own Arabic reason when it gave one ("verify your number first"), else the default. */
+function rateLimited(error: { message?: string }): AppError {
+  return new AppError('rate_limited', /[\u0600-\u06FF]/.test(error.message ?? '') ? error.message : undefined);
+}
+
+function isRateLimitedDbError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === DB_RATE_LIMITED;
+}
+
+/** Text Postgres itself generates: table, column and constraint names, SQL fragments. */
+const INTERNAL_DETAIL = /relation|column|constraint|violates|duplicate key|syntax|does not exist|permission denied|invalid input|null value|operator|function /i;
+
+/**
+ * For errors from a public (guest-facing) checkout function. Messages the
+ * function raises on purpose ("order below the minimum") reach the guest;
+ * anything Postgres generated is logged and replaced, so a guest never sees
+ * table names, constraint names or SQL.
+ */
+export function guestFacingDbError(
+  error: { code?: string; message?: string },
+  context: string,
+  fallback = 'تعذّر إتمام الطلب. حاول مرة أخرى.',
+): AppError {
+  if (error.code === DB_RATE_LIMITED) return rateLimited(error);
+  const message = error.message ?? '';
+  const raisedOnPurpose = ['22023', '23514', 'P0001'].includes(error.code ?? '');
+  if (message && raisedOnPurpose && !INTERNAL_DETAIL.test(message)) {
+    return new AppError('validation', message);
+  }
+  console.error(`[localbasic] ${context}`, error);
+  return new AppError('validation', fallback);
 }
