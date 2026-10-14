@@ -67,6 +67,12 @@ export const RATE_LIMITS = {
   // afford to be generous (a product-image screen can fire many in one
   // session) while still capping a runaway client.
   mediaUpload: { limit: 60, windowMs: 10 * 60_000 },
+  // "Has my WhatsApp message arrived?" — read by an order's own status token.
+  // The open sheet polls every few seconds, plus a check on every return to
+  // the tab; per token that stays well under 40/min. Per IP it is looser,
+  // because a whole restaurant's guests can sit behind one address.
+  verificationStatus: { limit: 40, windowMs: 60_000 },
+  verificationStatusIp: { limit: 300, windowMs: 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 export function checkRateLimit(key: string, rule: RateLimitRule): { ok: boolean; retryAfterMs: number } {

@@ -18,7 +18,6 @@ import type {
 } from '@/modules/restaurant/public/service';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
-import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
 import { CustomerProfileSheet, ProfileHeaderButton, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
 import { StoreToaster } from '@/components/menu/store-toast';
 import { LiquidTransitions, StoreSplash } from '@/components/menu/liquid';
@@ -31,7 +30,7 @@ import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-
 import { PaymentOptionsList } from '@/components/menu/payment-options';
 import type { PaymentOptions } from '@/modules/restaurant/payments/options';
 import { GuestVerifySheet } from '@/modules/restaurant/guest-verification/verify-sheet';
-import { useOrderStatusBroadcast } from '@/modules/restaurant/guest-verification/use-order-status';
+import { usePendingVerification } from '@/modules/restaurant/guest-verification/use-pending-verification';
 import { placeGuestOrderAction, getOrderVerificationInfoAction } from './actions';
 
 type CartLine = {
@@ -83,22 +82,24 @@ export function GuestMenu({
   // null: order not placed yet, or already verified and on its way to
   // tracking. Set once a placed order comes back 'pending_verification' —
   // cleared the moment realtime (or a manual recheck) reports it's past that.
-  const [verification, setVerification] = useState<{ token: string; code: string; whatsappUrl: string } | null>(null);
-  const [checkingStatus, setCheckingStatus] = useState(false);
-
-  useOrderStatusBroadcast(verification?.token ?? null, (status) => {
-    if (status !== 'pending_verification') finishOrder(verification!.token);
-  });
 
   /** Past verification: stay on the menu and pin the live status banner. */
   function finishOrder(orderToken: string) {
-    setVerification(null);
     setCart([]);
     setNote('');
     setCartOpen(false);
     rememberActiveOrder(`table/${token}`, orderToken);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // Survives a refresh or a return from WhatsApp: restores the pending order,
+  // re-checks on return to the tab, polls gently, and listens on realtime.
+  const verify = usePendingVerification({
+    scopeKey: `table/${token}`,
+    check: getOrderVerificationInfoAction,
+    onConfirmed: finishOrder,
+  });
+  const verification = verify.pending;
 
   const loadStatus = useCallback(async (orderToken: string) => {
     const info = await getOrderVerificationInfoAction(orderToken);
@@ -278,31 +279,14 @@ export function GuestMenu({
       }
 
       const info = await getOrderVerificationInfoAction(result.data.statusToken);
-      if (info.ok && info.data.status === 'pending_verification' && info.data.code) {
-        setVerification({
-          token: result.data.statusToken,
-          code: info.data.code,
-          whatsappUrl: buildWhatsAppVerifyUrl(info.data.code),
-        });
-        return;
-      }
+      if (verify.begin(result.data.statusToken, info.ok ? info.data : null)) return;
       // Same tracking page and live realtime status an online order gets
       // (0076) — the guest never sees a dead-end "order received" screen.
       finishOrder(result.data.statusToken);
     });
   }
 
-  function recheckVerification() {
-    if (!verification) return;
-    setCheckingStatus(true);
-    startTransition(async () => {
-      const info = await getOrderVerificationInfoAction(verification.token);
-      setCheckingStatus(false);
-      if (info.ok && info.data.status !== 'pending_verification') {
-        finishOrder(verification.token);
-      }
-    });
-  }
+
 
   /** Quick add: one size adds straight away; several sizes ask which. */
   function quickAdd(product: PublicProduct) {
@@ -525,9 +509,10 @@ export function GuestMenu({
                 <GuestVerifySheet
                   code={verification.code}
                   whatsappUrl={verification.whatsappUrl}
-                  checking={checkingStatus}
-                  error={null}
-                  onRecheck={recheckVerification}
+                  checking={verify.checking}
+                  error={verify.error}
+                  expired={verify.expired}
+                  onRecheck={verify.recheck}
                 />
               ) : (
                 <Button size="touch" block disabled={isPending} onClick={submit}>

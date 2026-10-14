@@ -17,37 +17,48 @@ export function GuestVerifySheet({
   whatsappUrl,
   checking,
   error,
+  expired = false,
   onRecheck,
 }: {
   code: string;
   whatsappUrl: string;
   checking: boolean;
   error: string | null;
+  /** The code can no longer be sent; the cashier can still confirm by hand. */
+  expired?: boolean;
   onRecheck: () => void;
 }) {
   return (
     <div className="space-y-3 rounded-[18px] border border-line bg-elevated p-4">
       <p className="text-sm font-semibold text-fg">تأكيد رقم الهاتف</p>
-      <p className="text-sm text-muted">
-        هذه أول مرة تطلب فيها من هذا الجهاز. اضغط الزر لفتح واتساب وإرسال الرمز إلى المطعم —
-        سيُرسل طلبك للمراجعة تلقائيًا بمجرد وصول الرسالة. طلباتك القادمة من هذا الجهاز لن
-        تحتاج هذه الخطوة مرة أخرى.
-      </p>
+      {expired ? null : (
+        <p className="text-sm text-muted">
+          هذه أول مرة تطلب فيها من هذا الجهاز. اضغط الزر لفتح واتساب وإرسال الرمز إلى المطعم —
+          سيُرسل طلبك للمراجعة تلقائيًا بمجرد وصول الرسالة. طلباتك القادمة من هذا الجهاز لن
+          تحتاج هذه الخطوة مرة أخرى.
+        </p>
+      )}
       <p className="rounded-[13px] border border-line bg-surface p-3 text-center font-reem text-2xl tracking-[0.3em] text-fg">
         {code}
       </p>
-      <a
-        href={whatsappUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex h-11 w-full items-center justify-center rounded-[13px] bg-[#25D366] text-sm font-extrabold text-white"
-      >
-        فتح واتساب وإرسال الرمز
-      </a>
+      {expired ? (
+        <p className="rounded-[13px] bg-surface p-3 text-sm text-fg" data-testid="verify-expired">
+          انتهت صلاحية هذا الرمز. طلبك محفوظ — يمكن للمطعم تأكيده يدويًا، وسيتحدث هنا تلقائيًا.
+        </p>
+      ) : (
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-11 w-full items-center justify-center rounded-[13px] bg-[#25D366] text-sm font-extrabold text-white"
+        >
+          فتح واتساب وإرسال الرمز
+        </a>
+      )}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <p className="flex items-center justify-center gap-2 text-xs text-muted" aria-live="polite">
         <span className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
-        في انتظار التحقق…
+        {expired ? 'في انتظار تأكيد المطعم…' : 'في انتظار التحقق… يمكنك العودة لهذه الصفحة في أي وقت'}
       </p>
       <button
         type="button"
