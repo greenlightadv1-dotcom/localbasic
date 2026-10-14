@@ -2,9 +2,11 @@ import { notFound } from 'next/navigation';
 import { Users } from 'lucide-react';
 import { resolveTenantContext, can } from '@/modules/core/tenancy/context';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { listCustomerDirectory } from '@/modules/restaurant/customers/service';
 import { PageHeader } from '@/components/patterns/page-header';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/patterns/states';
+import { CustomerDirectory } from './directory';
 
 export const metadata = { title: 'العملاء' };
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,27 @@ export default async function CustomersPage({
   const ctx = await resolveTenantContext(params.orgSlug, params.branchSlug);
   if (!can(ctx, 'customer.read')) notFound();
 
+  // Restaurants: every guest who ever ordered, grouped by phone, with their
+  // spend, points and bound devices.
+  if (ctx.enabledModules.includes('restaurant')) {
+    const { rows, truncated } = await listCustomerDirectory(ctx);
+    return (
+      <div className="space-y-5">
+        <PageHeader title="العملاء" description="كل من طلب من المتجر أو الكاشير، مجمَّعين برقم الهاتف" />
+        <CustomerDirectory
+          rows={rows}
+          truncated={truncated}
+          currency={ctx.currency}
+          orgSlug={ctx.organizationSlug}
+          storeName={ctx.organizationName}
+          canManage={can(ctx, 'customer.update')}
+          scope={{ organizationSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug }}
+        />
+      </div>
+    );
+  }
+
+  // Other verticals keep the plain list of registered customers.
   const supabase = createSupabaseServerClient();
   const { data: customers } = await supabase
     .from('customers')
