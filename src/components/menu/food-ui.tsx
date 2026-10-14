@@ -244,7 +244,7 @@ export function FoodCard({
   count?: number;
 }) {
   return (
-    <li className="flex flex-col overflow-hidden rounded-lg border border-line bg-elevated shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)]">
+    <li className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-[0_6px_18px_rgb(var(--lb-primary)/0.07)] transition-transform duration-150 active:scale-[0.98]">
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-surface">
         <ImageOrIcon
           src={imageUrl}
@@ -261,9 +261,9 @@ export function FoodCard({
             type="button"
             onClick={onAdd}
             aria-label={`أضف ${name} للسلة`}
-            className="absolute bottom-1.5 end-1.5 flex h-8 min-w-8 items-center justify-center gap-1 rounded-full bg-primary px-2 text-sm font-extrabold text-primary-fg shadow-md transition-transform active:scale-90"
+            className="absolute bottom-1.5 end-1.5 flex h-9 min-w-9 items-center justify-center gap-1 rounded-full bg-primary px-2.5 text-sm font-extrabold text-primary-fg shadow-[0_4px_12px_rgb(var(--lb-primary)/0.4)] transition-transform duration-150 hover:scale-105 active:scale-90"
           >
-            {count > 0 ? <span className="lb-numeric">{count}</span> : null}
+            {count > 0 ? <span key={count} className="lb-numeric animate-pop">{count}</span> : null}
             <Plus className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : null}
@@ -299,30 +299,58 @@ export function CategorySection({
 // Sticky cart bar
 // ---------------------------------------------------------------------------
 export function CartBar({
-  count, totalLabel, onClick, label = 'عرض السلة',
-}: { count: number; totalLabel: string | null; onClick: () => void; label?: string }) {
+  count, totalLabel, onClick, label = 'عرض السلة', perk,
+}: {
+  count: number;
+  totalLabel: string | null;
+  onClick: () => void;
+  label?: string;
+  /** A loyalty line with an optional progress bar (see loyaltyPerk). */
+  perk?: { text: string; progress: number | null; reached: boolean } | null;
+}) {
   if (count <= 0) return null;
   return (
     <div
-      className="fixed inset-x-0 z-30 px-4 pt-3"
+      className="fixed inset-x-0 z-30 animate-sheet-up px-4 pt-3"
       // Sits above the 56px bottom nav (StoreBottomNav) and its safe-area inset.
       style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))', paddingBottom: '10px' }}
     >
-      <button
-        type="button"
-        onClick={onClick}
-        data-testid="cart-bar"
-        className="mx-auto flex h-14 w-full max-w-2xl items-center gap-3 rounded-full bg-primary px-5 text-primary-fg shadow-[0_10px_30px_rgb(var(--lb-primary)/0.35)] transition-transform active:scale-[0.98]"
-      >
-        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-          <ShoppingBag className="h-5 w-5" aria-hidden="true" />
-          <span className="lb-numeric absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bg px-1 text-[11px] font-extrabold text-primary">
-            {count}
+      <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] bg-primary text-primary-fg shadow-[0_10px_30px_rgb(var(--lb-primary)/0.35)]">
+        {perk ? (
+          <div className="px-5 pt-2.5" data-testid="cart-perk">
+            <p className={cn('truncate text-[12px] font-bold', perk.reached ? 'text-primary-fg' : 'opacity-90')}>
+              {perk.text}
+            </p>
+            {perk.progress !== null ? (
+              <div
+                role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(perk.progress * 100)}
+                aria-label="التقدم نحو المكافأة"
+                className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/25"
+              >
+                <div
+                  className={cn('h-full rounded-full bg-white transition-[width] duration-500 ease-out', perk.reached && 'animate-pulse')}
+                  style={{ width: `${Math.round(perk.progress * 100)}%` }}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onClick}
+          data-testid="cart-bar"
+          className="flex h-14 w-full items-center gap-3 px-5 transition-transform active:scale-[0.99]"
+        >
+          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+            <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+            <span key={count} className="lb-numeric absolute -end-1 -top-1 flex h-5 min-w-5 animate-pop items-center justify-center rounded-full bg-bg px-1 text-[11px] font-extrabold text-primary">
+              {count}
+            </span>
           </span>
-        </span>
-        <span className="flex-1 text-start text-base font-bold">{label}</span>
-        {totalLabel ? <span className="lb-numeric text-base font-extrabold">{totalLabel}</span> : null}
-      </button>
+          <span className="flex-1 text-start text-base font-bold">{label}</span>
+          {totalLabel ? <span className="lb-numeric text-base font-extrabold">{totalLabel}</span> : null}
+        </button>
+      </div>
     </div>
   );
 }
@@ -350,15 +378,16 @@ export function BottomSheet({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex animate-fade-in flex-col justify-end bg-black/45 backdrop-blur-[2px]" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="mx-auto max-h-[92dvh] w-full max-w-2xl animate-fade-in overflow-y-auto rounded-t-[26px] bg-bg p-4 shadow-[0_-12px_40px_rgba(0,0,0,.25)]"
+        className="mx-auto max-h-[92dvh] w-full max-w-2xl animate-sheet-up overflow-y-auto overscroll-contain rounded-t-[28px] bg-bg px-4 pb-4 pt-2 shadow-[0_-12px_40px_rgba(0,0,0,.25)]"
         style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
       >
+        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-line" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-extrabold text-fg">{title}</h2>
           <button

@@ -5,7 +5,6 @@ import { Minus, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/field';
 import { Alert } from '@/components/ui/alert';
-import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { PoweredBy } from '@/components/brand/logo';
 import {
@@ -20,7 +19,10 @@ import type {
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
-import { CustomerProfileSheet, ProfileHeaderButton, StoreBottomNav, useProfileSheet } from '@/components/menu/customer-profile';
+import { CustomerProfileSheet, ProfileHeaderButton, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
+import { StoreToaster } from '@/components/menu/store-toast';
+import { loyaltyPerk, type LoyaltyPublic } from '@/modules/restaurant/customer/perk';
+import { formatPrice } from '@/lib/price';
 import type { ReorderLine } from '@/modules/restaurant/customer/types';
 import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
@@ -53,11 +55,13 @@ export function GuestMenu({
   context,
   menu,
   paymentOptions,
+  loyalty,
 }: {
   token: string;
   context: PublicContext;
   menu: PublicCategory[];
   paymentOptions: PaymentOptions;
+  loyalty: LoyaltyPublic | null;
 }) {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -101,7 +105,7 @@ export function GuestMenu({
 
   // ---- guest profile: reorder -------------------------------------------
   const profileSheet = useProfileSheet();
-  const [activeOrders, setActiveOrders] = useState(0);
+  const snapshot = useGuestSnapshot({ kind: 'token', token });
 
   /** Adds a past order's lines to the cart; unavailable items are skipped. */
   function reorder(past: ReorderLine[]): { added: number; skipped: number } {
@@ -142,7 +146,6 @@ export function GuestMenu({
         }
         return next;
       });
-      setCartOpen(true);
     }
     return { added, skipped };
   }
@@ -324,17 +327,15 @@ export function GuestMenu({
   return (
     <main className="mx-auto max-w-2xl pb-40">
       <OrderStatusBanner scopeKey={`table/${token}`} loadStatus={loadStatus} />
-      <StoreBottomNav
-        cartCount={cartCount}
-        onCart={() => context.orderingEnabled && setCartOpen(true)}
-        hasActiveOrder={activeOrders > 0}
-      />
+      <StoreToaster />
+      <StoreBottomNav cartCount={cartCount} onCart={() => context.orderingEnabled && setCartOpen(true)} />
       {profileSheet.open ? (
         <CustomerProfileSheet
           scope={{ kind: 'token', token }}
           onClose={() => profileSheet.setOpen(false)}
+          initial={snapshot.profile}
           onReorder={reorder}
-          onActiveOrders={setActiveOrders}
+          onOpenCart={() => context.orderingEnabled && setCartOpen(true)}
         />
       ) : null}
       <StoreHeader
@@ -382,7 +383,7 @@ export function GuestMenu({
                   key={product.id}
                   name={product.name}
                   description={product.description}
-                  priceLabel={`${product.variants.length > 1 ? 'من ' : ''}${formatMoney(fromPrice(product), context.currency)}`}
+                  priceLabel={`${product.variants.length > 1 ? 'من ' : ''}${formatPrice(fromPrice(product), context.currency)}`}
                   imageUrl={product.image_url}
                   categoryName={category.name}
                   soldOut={product.variants.every((v) => !v.available)}
@@ -406,9 +407,14 @@ export function GuestMenu({
       {context.orderingEnabled && !cartOpen && (
         <CartBar
           count={cartCount}
-          totalLabel={formatMoney(cartTotal, context.currency)}
+          totalLabel={formatPrice(cartTotal, context.currency)}
           onClick={() => setCartOpen(true)}
           label="عرض الطلب"
+          perk={loyaltyPerk({
+            cartCents: cartTotal,
+            loyalty,
+            balance: snapshot.profile?.verified ? snapshot.profile.loyalty.balance : null,
+          })}
         />
       )}
 
@@ -434,7 +440,7 @@ export function GuestMenu({
                       )}
                     </div>
                     <span className="lb-numeric font-semibold">
-                      {formatMoney(
+                      {formatPrice(
                         Math.round(
                           (line.variant.price_cents +
                             line.modifiers.reduce((s, m) => s + m.price_cents, 0)) *
@@ -529,7 +535,7 @@ export function GuestMenu({
 
               <div className="flex justify-between border-t border-line pt-3 text-base font-bold">
                 <span>الإجمالي</span>
-                <span className="lb-numeric">{formatMoney(cartTotal, context.currency)}</span>
+                <span className="lb-numeric">{formatPrice(cartTotal, context.currency)}</span>
               </div>
               <p className="text-xs text-muted">
                 الإجمالي النهائي يُحتسب من المطعم وقد يشمل الضريبة والخدمة.
@@ -577,7 +583,7 @@ export function GuestMenu({
                 >
                   <span>{variant.name !== 'default' ? variant.name : choosingVariant.name}</span>
                   <span className="lb-numeric text-primary">
-                    {variant.available ? formatMoney(variant.price_cents, context.currency) : 'نفد'}
+                    {variant.available ? formatPrice(variant.price_cents, context.currency) : 'نفد'}
                   </span>
                 </button>
               </li>
@@ -637,7 +643,7 @@ export function GuestMenu({
                           </span>
                           {modifier.price_cents > 0 && (
                             <span className="lb-numeric text-muted">
-                              +{formatMoney(modifier.price_cents, context.currency)}
+                              +{formatPrice(modifier.price_cents, context.currency)}
                             </span>
                           )}
                         </label>

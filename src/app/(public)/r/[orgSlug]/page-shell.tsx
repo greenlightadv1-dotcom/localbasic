@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { Phone, MapPin, Clock } from 'lucide-react';
 import { clientEnv } from '@/lib/env';
 import {
-  getWebsite, getBranches, getMenu, formatMoney, WEEKDAYS_AR,
+  getWebsite, getBranches, getMenu, WEEKDAYS_AR,
   type Website, type PublicBranch, type MenuCategory,
 } from '@/modules/restaurant/website/service';
 import { getOnlineMenu, getStorefront } from '@/modules/restaurant/online/service';
@@ -14,6 +14,8 @@ import { PoweredBy } from '@/components/brand/logo';
 import {
   CategoryRail, CategorySection, FoodCard, FoodGrid, StoreHeader,
 } from '@/components/menu/food-ui';
+import { formatPrice } from '@/lib/price';
+import { getPublicLoyalty } from '@/modules/restaurant/customer/service';
 import { ProfileHeaderButton } from '@/components/menu/customer-profile';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from '../../order/[orgSlug]/[branchSlug]/storefront';
@@ -121,11 +123,12 @@ export async function RestaurantSite({
   }
 
   const canOrder = b_canOrder(branch);
-  const [menu, info, readOnly, paymentOptions] = await Promise.all([
+  const [menu, info, readOnly, paymentOptions, loyalty] = await Promise.all([
     canOrder ? getOnlineMenu({ orgSlug, branchSlug: branch.slug }).catch(() => null) : null,
     canOrder ? getStorefront({ orgSlug, branchSlug: branch.slug }).catch(() => null) : null,
     canOrder ? null : getMenu(orgSlug, branch.slug),
     getPublicPaymentOptions(orgSlug),
+    getPublicLoyalty({ kind: 'slug', orgSlug }),
   ]);
 
   const ordering = canOrder && menu && info && menu.items.length > 0;
@@ -149,6 +152,7 @@ export async function RestaurantSite({
           pickupEnabled={info.pickupEnabled}
           deliveryEnabled={info.deliveryEnabled}
           paymentOptions={paymentOptions}
+          loyalty={loyalty}
         />
       ) : (
         <ReadOnlyMenu categories={readOnly ?? []} currency={site.currency} />
@@ -204,7 +208,7 @@ function ReadOnlyMenu({ categories, currency }: { categories: MenuCategory[]; cu
                 key={p.productId}
                 name={p.name}
                 description={p.description}
-                priceLabel={`${p.variants.length > 1 ? 'من ' : ''}${formatMoney(p.fromPriceCents, currency)}`}
+                priceLabel={`${p.variants.length > 1 ? 'من ' : ''}${formatPrice(p.fromPriceCents, currency)}`}
                 imageUrl={p.imageUrl}
                 categoryName={c.name}
                 canOrder={false}

@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { getPublicContext, getPublicMenu } from '@/modules/restaurant/public/service';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { getPublicPaymentOptionsByToken } from '@/modules/restaurant/payments/service';
+import { getPublicLoyalty } from '@/modules/restaurant/customer/service';
 import { GuestMenu } from './guest-menu';
 
 export const dynamic = 'force-dynamic';
@@ -42,9 +43,10 @@ export default async function PublicMenuPage({ params }: { params: { token: stri
     throw error;
   }
 
-  const [menu, paymentOptions] = await Promise.all([
+  const [menu, paymentOptions, loyalty] = await Promise.all([
     getPublicMenu(params.token),
     getPublicPaymentOptionsByToken(params.token),
+    getPublicLoyalty({ kind: 'token', token: params.token }),
   ]);
 
   return (
@@ -52,7 +54,7 @@ export default async function PublicMenuPage({ params }: { params: { token: stri
       className="min-h-dvh bg-bg text-fg"
       style={brandThemeVars(context.primaryColor, context.secondaryColor) as React.CSSProperties}
     >
-      <GuestMenu token={params.token} context={context} menu={menu} paymentOptions={paymentOptions} />
+      <GuestMenu token={params.token} context={context} menu={menu} paymentOptions={paymentOptions} loyalty={loyalty} />
     </div>
   );
 }
