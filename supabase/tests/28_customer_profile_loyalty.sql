@@ -67,9 +67,18 @@ begin
     assert false, 'claim must fail while loyalty is disabled';
   exception when check_violation then null; end;
 
+  -- The rules are public only once the owner switches the program on (0096).
+  select count(*) into n from public.loyalty_public_info('l28alpha');
+  assert n = 0, 'rules must not be exposed while the program is off';
+
   perform auth.login_as(u_a);
   perform public.restaurant_loyalty_settings_save(org_a, true, 1000, 30, 2000, 90);
   perform auth.logout();
+
+  select count(*) into n from public.loyalty_public_info('l28alpha') where out_reward_points = 30 and out_cents_per_point = 1000;
+  assert n = 1, 'anon reads the rules once the program is on';
+  select count(*) into n from public.loyalty_public_info('l28beta');
+  assert n = 0, 'another store''s program stays private';
 
   begin
     perform public.customer_claim_reward('l28alpha', 'device-stranger-1', '01012345678');

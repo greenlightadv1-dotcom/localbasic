@@ -102,3 +102,29 @@ export async function claimReward(
   if (!row) throw toAppError(new Error('empty claim'), 'claimReward');
   return { code: row.code, valueCents: Number(row.value_cents), expiresAt: row.expires_at };
 }
+
+/**
+ * The store's loyalty rules, readable before a guest is recognised. Null when
+ * the program is off or the lookup fails — the cart bar then simply shows no
+ * loyalty line.
+ */
+export async function getPublicLoyalty(scope: ProfileScope): Promise<{
+  enabled: true; centsPerPoint: number; rewardPoints: number; rewardValueCents: number;
+} | null> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } =
+    scope.kind === 'slug'
+      ? await supabase.rpc('loyalty_public_info', { p_org_slug: scope.orgSlug })
+      : await supabase.rpc('loyalty_public_info_by_token', { p_token: scope.token });
+  if (error) return null;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { out_cents_per_point: number; out_reward_points: number; out_reward_value_cents: number }
+    | undefined;
+  if (!row) return null;
+  return {
+    enabled: true,
+    centsPerPoint: row.out_cents_per_point,
+    rewardPoints: row.out_reward_points,
+    rewardValueCents: Number(row.out_reward_value_cents),
+  };
+}

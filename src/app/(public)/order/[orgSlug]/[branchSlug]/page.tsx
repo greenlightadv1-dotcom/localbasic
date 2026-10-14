@@ -6,6 +6,7 @@ import { resolveTableCode } from '@/modules/restaurant/public/table-entry';
 import { brandThemeVars } from '@/lib/theme/brand-theme';
 import { StoreHeader } from '@/components/menu/food-ui';
 import { ProfileHeaderButton } from '@/components/menu/customer-profile';
+import { getPublicLoyalty } from '@/modules/restaurant/customer/service';
 import { getPublicPaymentOptions } from '@/modules/restaurant/payments/service';
 import { Storefront } from './storefront';
 
@@ -42,11 +43,12 @@ export default async function OrderPage({
   const table = await resolveTableCode(searchParams.table);
   if (table) redirect(`/p/${table}`);
 
-  const [menu, info, site, paymentOptions] = await Promise.all([
+  const [menu, info, site, paymentOptions, loyalty] = await Promise.all([
     getOnlineMenu({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }).catch(() => null),
     getStorefront({ orgSlug: params.orgSlug, branchSlug: params.branchSlug }),
     getWebsite(params.orgSlug).catch(() => null),
     getPublicPaymentOptions(params.orgSlug),
+    getPublicLoyalty({ kind: 'slug', orgSlug: params.orgSlug }),
   ]);
 
   if (!menu || menu.items.length === 0 || !info) notFound();
@@ -77,6 +79,7 @@ export default async function OrderPage({
           pickupEnabled={info.pickupEnabled}
           deliveryEnabled={info.deliveryEnabled}
           paymentOptions={paymentOptions}
+          loyalty={loyalty}
         />
       </div>
     </div>

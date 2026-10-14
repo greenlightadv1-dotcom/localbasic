@@ -48,10 +48,17 @@ const config: Config = {
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         shimmer: { '100%': { transform: 'translateX(100%)' } },
+        // Sheets and bars rise into place; the add button pops when a count changes.
+        'sheet-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
+        'slide-down': { from: { opacity: '0', transform: 'translateY(-12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        pop: { '0%': { transform: 'scale(1)' }, '40%': { transform: 'scale(1.3)' }, '100%': { transform: 'scale(1)' } },
       },
       animation: {
         'fade-in': 'fade-in 140ms ease-out',
         shimmer: 'shimmer 1.4s infinite',
+        'sheet-up': 'sheet-up 300ms cubic-bezier(0.22, 1, 0.36, 1)',
+        'slide-down': 'slide-down 220ms ease-out',
+        pop: 'pop 260ms ease-out',
       },
     },
   },

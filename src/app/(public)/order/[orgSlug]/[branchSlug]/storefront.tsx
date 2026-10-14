@@ -9,7 +9,10 @@ import { cn } from '@/lib/cn';
 import { getDeviceId } from '@/modules/restaurant/guest-verification/device';
 import { getBrowserLocation } from '@/modules/restaurant/guest-verification/geolocation';
 import { buildWhatsAppVerifyUrl } from '@/modules/restaurant/guest-verification/whatsapp';
-import { CustomerProfileSheet, StoreBottomNav, useProfileSheet } from '@/components/menu/customer-profile';
+import { CustomerProfileSheet, StoreBottomNav, useGuestSnapshot, useProfileSheet } from '@/components/menu/customer-profile';
+import { StoreToaster } from '@/components/menu/store-toast';
+import { loyaltyPerk, type LoyaltyPublic } from '@/modules/restaurant/customer/perk';
+import { formatPrice } from '@/lib/price';
 import type { ProfileAddress, ReorderLine } from '@/modules/restaurant/customer/types';
 import { OrderStatusBanner, rememberActiveOrder } from '@/components/menu/order-status-banner';
 import { PaymentOptionsList } from '@/components/menu/payment-options';
@@ -23,7 +26,7 @@ import {
 type Line = { variantId: string; quantity: number; modifierIds: string[]; note?: string };
 
 function money(cents: number, currency: string) {
-  return `${(cents / 100).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ${currency}`;
+  return formatPrice(cents, currency);
 }
 
 const FIELD =
@@ -53,6 +56,7 @@ export function Storefront({
   pickupEnabled,
   deliveryEnabled,
   paymentOptions,
+  loyalty,
 }: {
   orgSlug: string;
   branchSlug: string;
@@ -62,6 +66,8 @@ export function Storefront({
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
   paymentOptions: PaymentOptions;
+  /** The store's loyalty rules (null when the program is off). */
+  loyalty: LoyaltyPublic | null;
 }) {
   // Only the options the branch actually offers. The server refuses anything
   // else regardless, so this is presentation, not enforcement.
@@ -258,7 +264,7 @@ export function Storefront({
 
   // ---- guest profile: reorder + saved addresses -------------------------
   const profileSheet = useProfileSheet();
-  const [activeOrders, setActiveOrders] = useState(0);
+  const snapshot = useGuestSnapshot({ kind: 'slug', orgSlug });
   const [addressPrefill, setAddressPrefill] = useState<{ n: number; a: ProfileAddress } | null>(null);
 
   /** Adds a past order's lines to the cart; unavailable items are skipped. */
@@ -280,7 +286,6 @@ export function Storefront({
     if (added > 0) {
       setLines(next);
       repriceWith(next, fulfillment);
-      setCartOpen(true);
     }
     return { added, skipped };
   }
@@ -355,14 +360,16 @@ export function Storefront({
   return (
     <div className="pb-40">
       <OrderStatusBanner scopeKey={`${orgSlug}/${branchSlug}`} loadStatus={loadStatus} />
-      <StoreBottomNav cartCount={itemCount} onCart={() => setCartOpen(true)} hasActiveOrder={activeOrders > 0} />
+      <StoreToaster />
+      <StoreBottomNav cartCount={itemCount} onCart={() => setCartOpen(true)} />
       {profileSheet.open ? (
         <CustomerProfileSheet
           scope={{ kind: 'slug', orgSlug }}
           onClose={() => profileSheet.setOpen(false)}
+          initial={snapshot.profile}
           onReorder={reorder}
+          onOpenCart={() => setCartOpen(true)}
           onUseAddress={applyAddress}
-          onActiveOrders={setActiveOrders}
         />
       ) : null}
       <CategoryRail categories={categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }))} />
@@ -390,6 +397,12 @@ export function Storefront({
         count={itemCount}
         totalLabel={quote ? money(quote.totalCents, quote.currency) : null}
         onClick={() => setCartOpen(true)}
+        perk={loyaltyPerk({
+          // The server quote when we have it; until it lands, the items' own prices.
+          cartCents: quote?.totalCents ?? lines.reduce((n, l) => n + (byVariant.get(l.variantId)?.priceCents ?? 0) * l.quantity, 0),
+          loyalty,
+          balance: snapshot.profile?.verified ? snapshot.profile.loyalty.balance : null,
+        })}
       />
 
       {picking ? (
