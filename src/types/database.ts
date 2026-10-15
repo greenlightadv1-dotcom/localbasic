@@ -1206,6 +1206,212 @@ export type Database = {
         };
         Relationships: [];
       };
+      inventory_items: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          unit: 'g' | 'ml' | 'pc';
+          avg_cost_cents: number;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_locations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          kind: 'warehouse' | 'kitchen' | 'bar' | 'transit' | 'waste';
+          created_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_par_levels: {
+        Row: {
+          location_id: string;
+          item_id: string;
+          organization_id: string;
+          min_qty: number;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_movements: {
+        Row: {
+          id: number;
+          organization_id: string;
+          branch_id: string;
+          location_id: string;
+          item_id: string;
+          qty: number;
+          unit_cost_cents: number;
+          reason: string;
+          doc_type: string | null;
+          doc_id: string | null;
+          ref_line: string | null;
+          note: string | null;
+          actor_id: string | null;
+          approved_by: string | null;
+          created_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_levels: {
+        Row: {
+          location_id: string;
+          item_id: string;
+          organization_id: string;
+          branch_id: string;
+          qty: number;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_alerts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          location_id: string;
+          item_id: string;
+          kind: 'low' | 'out';
+          qty: number;
+          min_qty: number;
+          opened_at: string;
+          resolved_at: string | null;
+          acknowledged_by: string | null;
+          acknowledged_at: string | null;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_recipe_lines: {
+        Row: {
+          id: string;
+          organization_id: string;
+          variant_id: string;
+          item_id: string;
+          qty: number;
+          location_kind: 'kitchen' | 'bar' | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_requests: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          location_id: string;
+          status: 'open' | 'fulfilled' | 'cancelled';
+          note: string | null;
+          requested_by: string;
+          created_at: string;
+          closed_at: string | null;
+          closed_by: string | null;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_request_lines: {
+        Row: {
+          request_id: string;
+          organization_id: string;
+          item_id: string;
+          qty: number;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_transfers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          number: string;
+          from_location_id: string;
+          to_location_id: string;
+          status: 'issued' | 'received' | 'disputed' | 'resolved' | 'cancelled';
+          request_id: string | null;
+          note: string | null;
+          issued_by: string;
+          issued_at: string;
+          received_by: string | null;
+          received_at: string | null;
+          resolved_by: string | null;
+          resolved_at: string | null;
+          resolution: 'found' | 'lost' | null;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_transfer_lines: {
+        Row: {
+          id: string;
+          transfer_id: string;
+          organization_id: string;
+          item_id: string;
+          issued_qty: number;
+          received_qty: number | null;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      inventory_waste: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          location_id: string;
+          item_id: string;
+          qty: number;
+          cost_cents: number;
+          reason: string;
+          note: string | null;
+          order_id: string | null;
+          recorded_by: string | null;
+          moved_stock: boolean;
+          created_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0102).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
       restaurant_branch_stock: {
         Row: {
           organization_id: string;
@@ -3254,6 +3460,26 @@ export type Database = {
       restaurant_receipt_settings_get: { Args: Record<string, unknown>; Returns: Json };
       restaurant_receipt_settings_save: { Args: Record<string, unknown>; Returns: undefined };
       restaurant_receipt_header: { Args: Record<string, unknown>; Returns: Json };
+      inventory_item_save: { Args: Record<string, unknown>; Returns: Json };
+      inventory_par_level_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_recipe_save: { Args: Record<string, unknown>; Returns: Json };
+      inventory_stock_in: { Args: Record<string, unknown>; Returns: Json };
+      inventory_request_create: { Args: Record<string, unknown>; Returns: Json };
+      inventory_request_cancel: { Args: Record<string, unknown>; Returns: Json };
+      inventory_issue: { Args: Record<string, unknown>; Returns: Json };
+      inventory_transfer_items: { Args: Record<string, unknown>; Returns: Json };
+      inventory_receive: { Args: Record<string, unknown>; Returns: Json };
+      inventory_transfer_cancel: { Args: Record<string, unknown>; Returns: Json };
+      inventory_record_waste: { Args: Record<string, unknown>; Returns: Json };
+      inventory_alert_ack: { Args: Record<string, unknown>; Returns: Json };
+      inventory_adjust: { Args: Record<string, unknown>; Returns: Json };
+      inventory_transfer_resolve: { Args: Record<string, unknown>; Returns: Json };
+      approval_set_pin: { Args: Record<string, unknown>; Returns: Json };
+      approval_pin_status: { Args: Record<string, unknown>; Returns: Json };
+      approval_approvers: { Args: Record<string, unknown>; Returns: Json };
+      approval_grant: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_cashier_zones: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_cashier_zone_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_customer_reset: { Args: Record<string, unknown>; Returns: Json };
       restaurant_set_stock: { Args: Record<string, unknown>; Returns: Json };
       restaurant_payment_settings_get: { Args: Record<string, unknown>; Returns: Json };

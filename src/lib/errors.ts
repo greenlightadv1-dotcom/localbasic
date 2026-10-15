@@ -12,6 +12,7 @@ export type AppErrorCode =
   | 'validation'
   | 'conflict'
   | 'rate_limited'
+  | 'approval_required'
   | 'internal';
 
 const STATUS: Record<AppErrorCode, number> = {
@@ -23,6 +24,7 @@ const STATUS: Record<AppErrorCode, number> = {
   validation: 422,
   conflict: 409,
   rate_limited: 429,
+  approval_required: 403,
   internal: 500,
 };
 
@@ -33,6 +35,7 @@ const PUBLIC_MESSAGE: Record<AppErrorCode, string> = {
   validation: 'تحقق من البيانات المدخلة.',
   conflict: 'هذه البيانات مستخدمة بالفعل.',
   rate_limited: 'محاولات كثيرة. برجاء المحاولة بعد قليل.',
+  approval_required: 'هذا الإجراء يحتاج موافقة المدير.',
   internal: 'حدث خطأ غير متوقع. تمت المحاولة وتسجيل المشكلة.',
 };
 
@@ -67,6 +70,7 @@ export const conflict = (message: string) => new AppError('conflict', message);
 export function toAppError(error: unknown, context: string): AppError {
   if (error instanceof AppError) return error;
   if (isRateLimitedDbError(error)) return rateLimited(error as { message?: string });
+  if (isApprovalRequiredDbError(error)) return new AppError('approval_required');
   console.error(`[localbasic] ${context}`, error);
   return new AppError('internal', undefined, { cause: error });
 }
@@ -147,4 +151,35 @@ export function guestFacingDbError(
   }
   console.error(`[localbasic] ${context}`, error);
   return new AppError('validation', fallback);
+}
+
+/**
+ * SQLSTATE raised when a sensitive action needs a manager's PIN (0103). The
+ * screens answer it by opening the approval dialog and retrying.
+ */
+export const DB_APPROVAL_REQUIRED = 'LB403';
+
+function isApprovalRequiredDbError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === DB_APPROVAL_REQUIRED;
+}
+
+/**
+ * For staff-facing database calls whose functions raise their own Arabic
+ * reasons ("الرصيد غير كافٍ في المخزن"). Those reach the screen; anything
+ * Postgres generated is logged and replaced; approval and rate limits keep
+ * their own codes.
+ */
+export function staffDbError(error: { code?: string; message?: string }, context: string): AppError {
+  if (error.code === DB_APPROVAL_REQUIRED) return new AppError('approval_required');
+  if (error.code === DB_RATE_LIMITED) return rateLimited(error);
+  const message = error.message ?? '';
+  // A refusal the function explained ("لا يمكن لنفس الشخص الصرف والاستلام")
+  // is shown; a bare "not permitted" stays the generic not-found answer.
+  if (error.code === '42501' || error.code === '28000') {
+    return /[\u0600-\u06FF]/.test(message) ? new AppError('forbidden', message) : toAppError(error, context);
+  }
+  if (/[\u0600-\u06FF]/.test(message) && !INTERNAL_DETAIL.test(message)) {
+    return new AppError('validation', message);
+  }
+  return toAppError(error, context);
 }

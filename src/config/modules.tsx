@@ -78,6 +78,8 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/payments', label: 'المدفوعات', icon: 'CreditCard', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/loyalty', label: 'المكافآت', icon: 'Gift', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/receipt', label: 'بيانات الإيصال', icon: 'Receipt', permission: 'settings.manage', modules: ['restaurant'] },
+  { href: '/settings/approval-pin', label: 'رمز الموافقة', icon: 'KeyRound', permission: 'approval.grant', modules: ['restaurant'] },
+  { href: '/settings/cashier-zones', label: 'مناطق الكاشير', icon: 'MapPinned', permission: 'member.manage', modules: ['restaurant'] },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
   // Retail's online store toggle — a naming collision with "site" in Arabic
   // only ("store" vs "site"), unrelated to the website builder above. Shown
@@ -103,6 +105,8 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
+      // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).
+      { href: '/stock', label: 'المخزن والخامات', icon: 'Warehouse', permission: 'inventory.read' },
       // Writes the catalog, so it lives under the menu rather than under the
       // Site Engine: a site's menu section reads these same tables live.
       { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },

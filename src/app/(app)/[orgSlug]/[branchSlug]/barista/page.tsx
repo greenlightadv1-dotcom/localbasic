@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { resolveTenantContext } from '@/modules/core/tenancy/context';
 import { listKitchenTickets } from '@/modules/restaurant/orders/service';
 import { listStations } from '@/modules/restaurant/stations/service';
+import { getStationView, type StationView } from '@/modules/restaurant/inventory/service';
+import { StationStock } from '@/components/inventory/station-stock';
 import { KitchenBoard } from '../kitchen/kitchen-board';
 
 export const metadata = { title: 'شاشة الباريستا' };
@@ -32,15 +34,36 @@ export default async function BaristaPage({
     listStations(ctx),
   ]);
 
+  // The station's own stock sits above its board. A failure here (stock not
+  // set up, or the migration not applied yet) must never take the board down.
+  let stock: StationView | null = null;
+  if (ctx.permissions.has('inventory.read')) {
+    stock = await getStationView(ctx, 'bar').catch(() => null);
+  }
+
   return (
-    <KitchenBoard
-      stationKind="bar"
-      tickets={tickets}
-      stations={stations}
-      canReassign={ctx.permissions.has('restaurant.menu.manage')}
-      organizationSlug={ctx.organizationSlug}
-      branchSlug={ctx.branchSlug}
-      branchId={ctx.branchId}
-    />
+    <div className="space-y-4">
+      {stock && (
+        <StationStock
+          scope={{ organizationSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug }}
+          branchId={ctx.branchId}
+          initial={stock}
+          can={{
+            receive: ctx.permissions.has('inventory.receive'),
+            request: ctx.permissions.has('inventory.request'),
+            waste: ctx.permissions.has('inventory.waste'),
+          }}
+        />
+      )}
+      <KitchenBoard
+        stationKind="bar"
+        tickets={tickets}
+        stations={stations}
+        canReassign={ctx.permissions.has('restaurant.menu.manage')}
+        organizationSlug={ctx.organizationSlug}
+        branchSlug={ctx.branchSlug}
+        branchId={ctx.branchId}
+      />
+    </div>
   );
 }

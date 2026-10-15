@@ -65,6 +65,16 @@ export const PERMISSIONS = [
   'restaurant.service.use',
   'restaurant.pos.use',
   'restaurant.pos.discount',
+  'restaurant.pos.oversee',
+  'approval.grant',
+  'inventory.read',
+  'inventory.manage',
+  'inventory.stock_in',
+  'inventory.issue',
+  'inventory.receive',
+  'inventory.request',
+  'inventory.waste',
+  'inventory.adjust',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
