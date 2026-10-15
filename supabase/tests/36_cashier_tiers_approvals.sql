@@ -196,5 +196,27 @@ begin
   assert (select count(*) from public.restaurant_orders where organization_id = org and table_id = tbl_b) > 0, 'zone lifted';
 
   perform auth.as_admin();
+
+  -- Role templates stay within their module (0104): cashier and storekeeper
+  -- exist for retail AND restaurant, and must not borrow from each other.
+  assert not exists (select 1 from public.roles r join public.role_permissions rp on rp.role_id = r.id
+                      where r.organization_id is null and r.module_key = 'retail'
+                        and (rp.permission_key like 'inventory.%' or rp.permission_key like 'restaurant.%'
+                             or rp.permission_key = 'approval.grant')),
+    'retail templates carry no restaurant or inventory keys';
+  assert not exists (select 1 from public.roles r join public.role_permissions rp on rp.role_id = r.id
+                      where r.module_key = 'restaurant' and r.key in ('main_cashier', 'storekeeper')
+                        and rp.permission_key like 'retail.%'),
+    'restaurant main_cashier / storekeeper carry no retail keys';
+  perform auth.login_as(u_mgr);
+  perform public.provision_workspace('R36 Shop', 'r36shop', 'retail');
+  perform auth.as_admin();
+  assert not exists (select 1 from public.roles r join public.organizations o on o.id = r.organization_id
+                       join public.role_permissions rp on rp.role_id = r.id
+                      where o.slug = 'r36shop' and r.key in ('cashier', 'storekeeper')
+                        and (rp.permission_key like 'inventory.%' or rp.permission_key = 'approval.grant'
+                             or rp.permission_key in ('restaurant.order.cancel', 'restaurant.pos.discount'))),
+    'a new retail store''s cashier and storekeeper get no restaurant or inventory keys';
+
   raise notice 'cashier tiers and approvals OK';
 end $$;

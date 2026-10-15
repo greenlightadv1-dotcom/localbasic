@@ -59,7 +59,7 @@ on conflict do nothing;
 insert into public.role_permissions (role_id, permission_key)
 select mc.id, rp.permission_key
   from public.roles mc
-  join public.roles c on c.organization_id is null and c.key = 'cashier'
+  join public.roles c on c.organization_id is null and c.key = 'cashier' and c.module_key = 'restaurant'
   join public.role_permissions rp on rp.role_id = c.id
  where mc.organization_id is null and mc.key = 'main_cashier'
 on conflict do nothing;
@@ -87,7 +87,9 @@ with grants(role_key, permission_key) as (values
 insert into public.role_permissions (role_id, permission_key)
 select r.id, g.permission_key
   from grants g
+  -- cashier and storekeeper also exist as RETAIL templates: only the restaurant ones (or shared ones).
   join public.roles r on r.organization_id is null and r.key = g.role_key
+                     and (r.module_key is null or r.module_key = 'restaurant')
 on conflict do nothing;
 
 -- Existing organizations: copy the two new roles, then bring every org copy
@@ -105,6 +107,7 @@ insert into public.role_permissions (role_id, permission_key)
 select org_role.id, tp.permission_key
   from public.roles org_role
   join public.roles tpl on tpl.organization_id is null and tpl.is_system and tpl.key = org_role.key
+                       and tpl.module_key is not distinct from org_role.module_key
   join public.role_permissions tp on tp.role_id = tpl.id
  where org_role.organization_id is not null
    and org_role.key in ('main_cashier', 'storekeeper', 'cashier', 'kitchen', 'barista', 'manager', 'admin')
