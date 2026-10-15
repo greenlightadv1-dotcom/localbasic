@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Sensitive actions that a manager approves with a PIN (0103). */
-export const APPROVAL_ACTIONS = ['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve'] as const;
+export const APPROVAL_ACTIONS = ['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve', 'table.merge', 'check.split'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
 export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
@@ -9,6 +9,8 @@ export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
   'order.discount': 'خصم على الطلب',
   'inventory.adjust': 'تسوية يدوية للمخزون',
   'inventory.resolve': 'تسوية فرق استلام',
+  'table.merge': 'دمج طاولات في فاتورة واحدة',
+  'check.split': 'تقسيم فاتورة',
 };
 
 export const grantSchema = z.object({

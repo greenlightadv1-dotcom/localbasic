@@ -102,7 +102,10 @@ export const MODULES: Record<string, ModuleDefinition> = {
       // tickets, rather than one shared board with a client-side filter tab.
       { href: '/kitchen', label: 'المطبخ (الشيف)', icon: 'ChefHat', permission: 'restaurant.kitchen.use' },
       { href: '/barista', label: 'الباريستا', icon: 'Coffee', permission: 'restaurant.bar.use' },
+      { href: '/kitchen/analytics', label: 'أداء المطبخ', icon: 'Timer', permission: 'restaurant.kitchen.analytics' },
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
+      // Live floor plan: colour-coded tables, transfer / merge / split, waiting list (0105).
+      { href: '/floor', label: 'مخطط الصالة', icon: 'Map', permission: 'restaurant.table.read' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
       // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).

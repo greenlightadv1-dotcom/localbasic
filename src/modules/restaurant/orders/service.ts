@@ -269,6 +269,8 @@ export type KitchenTicket = {
     tableName: string | null;
     note: string | null;
     placedAt: string;
+    /** When it reached the kitchen — the prep timer's zero. */
+    confirmedAt: string | null;
   };
   lines: {
     id: string;
@@ -281,6 +283,10 @@ export type KitchenTicket = {
     prepNotes: string | null;
     stationId: string | null;
     stationKind: string | null;
+    /** Per-line preparation state (0105): each station finishes its own lines. */
+    prepStatus: 'queued' | 'preparing' | 'ready';
+    prepStartedAt: string | null;
+    seatNo: number | null;
   }[];
 };
 
@@ -300,7 +306,7 @@ export async function listKitchenTickets(
 
   const { data: rows, error } = await supabase
     .from('restaurant_orders')
-    .select('id, number, status, table_id, note, placed_at')
+    .select('id, number, status, table_id, note, placed_at, confirmed_at')
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
     .in('status', statuses)
@@ -319,7 +325,7 @@ export async function listKitchenTickets(
   const [{ data: items }, { data: tables }] = await Promise.all([
     supabase
       .from('restaurant_order_items')
-      .select('id, order_id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind')
+      .select('id, order_id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind, prep_status, prep_started_at, seat_no')
       .in('order_id', orderIds)
       .order('position'),
     tableIds.length
@@ -371,6 +377,9 @@ export async function listKitchenTickets(
       prepNotes: i.variant_id ? (prepNotesByVariant.get(i.variant_id) ?? null) : null,
       stationId: i.station_id,
       stationKind: i.station_kind,
+      prepStatus: i.prep_status as KitchenTicket['lines'][number]['prepStatus'],
+      prepStartedAt: i.prep_started_at,
+      seatNo: i.seat_no,
     });
     linesByOrder.set(i.order_id, list);
   }
@@ -383,6 +392,7 @@ export async function listKitchenTickets(
       tableName: o.table_id ? (tableName.get(o.table_id) ?? null) : null,
       note: o.note,
       placedAt: o.placed_at,
+      confirmedAt: o.confirmed_at,
     },
     lines: linesByOrder.get(o.id) ?? [],
   }));

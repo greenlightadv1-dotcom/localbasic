@@ -1796,6 +1796,12 @@ export type Database = {
           created_at: string;
           station_id: string | null;
           station_kind: string | null;
+          prep_status: string;
+          prep_started_at: string | null;
+          prep_ready_at: string | null;
+          prepared_by: string | null;
+          seat_no: number | null;
+          split_from: string | null;
         };
         Insert: {
           id?: string;
@@ -1876,6 +1882,8 @@ export type Database = {
           location_status: string;
           verification_code: string | null;
           verification_code_expires_at: string | null;
+          split_from_order_id: string | null;
+          merged_into_order_id: string | null;
         };
         Insert: {
           id?: string;
@@ -2074,6 +2082,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
           created_by: string | null;
+          warn_after_min: number;
+          late_after_min: number;
         };
         Insert: {
           id?: string;
@@ -2105,6 +2115,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      restaurant_waitlist: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          kind: string;
+          guest_name: string;
+          guest_phone: string | null;
+          party_size: number;
+          reserved_for: string | null;
+          status: string;
+          table_id: string | null;
+          quoted_wait_min: number | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+          notified_at: string | null;
+          seated_at: string | null;
+          closed_at: string | null;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
       restaurant_tables: {
         Row: {
           id: string;
@@ -2120,6 +2154,12 @@ export type Database = {
           updated_at: string;
           created_by: string | null;
           deleted_at: string | null;
+          layout_x: number | null;
+          layout_y: number | null;
+          layout_w: number;
+          layout_h: number;
+          shape: string;
+          merged_into: string | null;
         };
         Insert: {
           id?: string;
@@ -3478,6 +3518,18 @@ export type Database = {
       approval_pin_status: { Args: Record<string, unknown>; Returns: Json };
       approval_approvers: { Args: Record<string, unknown>; Returns: Json };
       approval_grant: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_kds_bump: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_kitchen_analytics: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_floor_layout_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_table_transfer: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_table_merge: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_table_unmerge: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_check_split: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_order_item_set_seat: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_waitlist_estimate: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_waitlist_add: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_waitlist_action: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_station_timers_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_cashier_zones: { Args: Record<string, unknown>; Returns: Json };
       restaurant_cashier_zone_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_customer_reset: { Args: Record<string, unknown>; Returns: Json };
