@@ -497,7 +497,7 @@ export async function createOrder(
     })
     .single();
 
-  if (error?.code === '42501') throw new AppError('forbidden');
+  if (error?.code === '42501') throw forbiddenFrom(error);
   if (error) throw mapOrderError(error, 'createOrder');
 
   const row = data as unknown as {
@@ -523,7 +523,7 @@ export async function setOrderStatus(
     p_reason: reason ?? null,
   });
 
-  if (error?.code === '42501') throw new AppError('forbidden');
+  if (error?.code === '42501') throw forbiddenFrom(error);
   if (error) throw mapOrderError(error, 'setOrderStatus');
 
   // Confirmation is the moment staff commit to making the order, which is
@@ -559,7 +559,7 @@ export async function checkCoupon(
   const { data, error } = await supabase
     .rpc('restaurant_coupon_check', { p_org: ctx.organizationId, p_order: input.orderId, p_code: input.couponCode })
     .single();
-  if (error?.code === '42501') throw new AppError('forbidden');
+  if (error?.code === '42501') throw forbiddenFrom(error);
   if (error) throw mapOrderError(error, 'checkCoupon');
   return { valueCents: Number((data as unknown as { out_value_cents: number }).out_value_cents) };
 }
@@ -612,7 +612,7 @@ async function payOrderCore(
     })
     .single();
 
-  if (error?.code === '42501') throw new AppError('forbidden');
+  if (error?.code === '42501') throw forbiddenFrom(error);
   if (error) throw mapOrderError(error, 'payOrder');
 
   const row = data as unknown as {
@@ -639,6 +639,11 @@ async function payOrderCore(
  * The database raises business rules as check violations with a message meant
  * for a person. Those are safe to show; anything else is logged and replaced.
  */
+/** A refusal the database explained in Arabic ("هذا الطلب خارج منطقتك") is shown; a bare one stays generic. */
+function forbiddenFrom(error: { message?: string }): AppError {
+  return /[\u0600-\u06FF]/.test(error.message ?? '') ? new AppError('forbidden', error.message) : new AppError('forbidden');
+}
+
 function mapOrderError(error: { code?: string; message: string }, context: string): AppError {
   if (error.code === '23514' || error.code === 'P0001') {
     return new AppError('conflict', translateDbMessage(error.message));

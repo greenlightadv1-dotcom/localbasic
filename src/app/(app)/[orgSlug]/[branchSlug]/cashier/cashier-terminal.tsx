@@ -18,6 +18,7 @@ import { PrintReceiptButton } from '../print-receipt-button';
 import type { MenuItem } from '@/modules/restaurant/menu/service';
 import type { FloorTable } from '@/modules/restaurant/tables/service';
 import type { CashierOrder } from '@/modules/restaurant/orders/service';
+import { useApproval } from '@/components/patterns/approval-dialog';
 import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas';
 import {
   createOrderAction, payOrderAction, checkCouponAction, setOrderStatusAction, verifyGuestOrderAction,
@@ -84,6 +85,7 @@ export function CashierTerminal({
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
+  const approval = useApproval({ organizationSlug, branchSlug });
 
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -333,7 +335,12 @@ export function CashierTerminal({
 
   function settle() {
     if (!settling) return;
-    startTransition(async () => {
+    startTransition(() => runSettle());
+  }
+
+  async function runSettle(): Promise<void> {
+    if (!settling) return;
+    {
       const result = await payOrderAction(
         { organizationSlug, branchSlug },
         {
@@ -346,6 +353,11 @@ export function CashierTerminal({
       );
 
       if (!result.ok) {
+        // A manual discount needs a manager's PIN (0103): ask, then pay again.
+        if (result.code === 'approval_required') {
+          approval.request('order.discount', settling.id, parseAmount(discount), runSettle);
+          return;
+        }
         toast.error(result.error);
         return;
       }
@@ -374,17 +386,27 @@ export function CashierTerminal({
       setCoupon(null);
       setCouponError(null);
       router.refresh();
-    });
+    }
   }
 
   function cancelOrder() {
     if (!cancelling || !cancelReason.trim()) return;
-    startTransition(async () => {
+    startTransition(() => runCancel());
+  }
+
+  async function runCancel(): Promise<void> {
+    if (!cancelling || !cancelReason.trim()) return;
+    {
       const result = await setOrderStatusAction(
         { organizationSlug, branchSlug },
         { orderId: cancelling.id, status: 'cancelled', reason: cancelReason.trim() },
       );
       if (!result.ok) {
+        // Cancelling an order the kitchen already has needs a manager's PIN.
+        if (result.code === 'approval_required') {
+          approval.request('order.cancel', cancelling.id, null, runCancel);
+          return;
+        }
         toast.error(result.error);
         return;
       }
@@ -392,7 +414,7 @@ export function CashierTerminal({
       setCancelling(null);
       setCancelReason('');
       router.refresh();
-    });
+    }
   }
 
   return (
@@ -1023,6 +1045,7 @@ export function CashierTerminal({
           />
         )}
       </ConfirmDialog>
+      {approval.dialog}
     </div>
   );
 }
