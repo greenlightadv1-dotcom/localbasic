@@ -7,12 +7,14 @@ import { useToast } from '@/components/ui/toast';
 import { buildReceiptHtml } from '@/lib/print/receipt-html';
 import { printHtml } from '@/lib/print/print-html';
 import { getReceiptAction } from './restaurant-actions';
+import { trackPrintAction } from './risk-actions';
 
 /**
  * "طباعة الإيصال": fetches the receipt from the server (the database's own
  * record of the sale), formats it for an 80mm roll and opens the print dialog
  * for the device's receipt printer — without leaving the screen it is on, so
  * the cashier's cart, open dialogs and typed amounts stay exactly as they were.
+ * Each print is reported for the fraud-prevention counters (0108).
  */
 export function PrintReceiptButton({
   organizationSlug,
@@ -41,7 +43,11 @@ export function PrintReceiptButton({
         return;
       }
       const printed = await printHtml(buildReceiptHtml(result.data));
-      if (!printed.ok) toast.error(printed.error);
+      if (!printed.ok) { toast.error(printed.error); return; }
+      // Every print is counted (0108); from the second one it is a reprint on
+      // the cashier's risk score. Counting never blocks the print itself.
+      const tracked = await trackPrintAction({ organizationSlug, branchSlug }, { invoiceId, kind: 'receipt' });
+      if (tracked.ok && tracked.data.printCount > 1) toast.success(`إعادة طباعة (مرة ${tracked.data.printCount}) — سُجّلت في سجل المراجعة`);
     } catch {
       toast.error('تعذّر تجهيز الإيصال للطباعة. حاول مرة أخرى.');
     } finally {

@@ -117,6 +117,8 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/my-deliveries', label: 'رحلاتي', icon: 'Navigation', permission: 'restaurant.driver.use' },
       { href: '/promotions', label: 'العروض والولاء', icon: 'BadgePercent', permission: ['restaurant.promotion.manage', 'restaurant.loyalty.manage'] },
       { href: '/accounts', label: 'الحسابات الآجلة', icon: 'Building2', permission: 'restaurant.account.manage' },
+      // Fraud prevention: risk scores per cashier, flagged staff, resets (0108).
+      { href: '/audit/cashier-risk', label: 'مخاطر الكاشير', icon: 'ShieldAlert', permission: 'restaurant.audit.risk_view' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
       // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).
       { href: '/stock', label: 'المخزن والخامات', icon: 'Warehouse', permission: 'inventory.read' },

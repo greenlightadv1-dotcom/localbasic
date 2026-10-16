@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 /** Sensitive actions that a manager approves with a PIN (0103). */
 export const APPROVAL_ACTIONS = ['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve', 'table.merge', 'check.split',
-  'driver.payout', 'driver.shortage', 'driver.adjust', 'account.adjust', 'account.overlimit', 'loyalty.adjust'] as const;
+  'driver.payout', 'driver.shortage', 'driver.adjust', 'account.adjust', 'account.overlimit', 'loyalty.adjust',
+  'refund.daily_limit', 'discount.daily_limit'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
 export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
@@ -18,6 +19,8 @@ export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
   'account.adjust': 'تسوية حساب آجل',
   'account.overlimit': 'تجاوز حد الحساب الآجل',
   'loyalty.adjust': 'تعديل نقاط الولاء',
+  'refund.daily_limit': 'تجاوز حد الاسترداد اليومي',
+  'discount.daily_limit': 'تجاوز حد الخصم اليومي',
 };
 
 export const grantSchema = z.object({

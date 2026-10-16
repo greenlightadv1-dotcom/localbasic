@@ -1887,6 +1887,10 @@ export type Database = {
           external_source: string | null;
           external_ref: string | null;
           external_total_cents: number | null;
+          print_count: number;
+          is_voided_after_print: boolean;
+          bill_printed_at: string | null;
+          receipt_printed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -2302,6 +2306,48 @@ export type Database = {
         };
         Insert: { [key: string]: never };
         Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_cashier_risk_profiles: {
+        Row: {
+          organization_id: string;
+          user_id: string;
+          accumulated_risk_points: number;
+          is_flagged: boolean;
+          flagged_at: string | null;
+          daily_refund_limit_cents: number | null;
+          daily_discount_limit_cents: number | null;
+          tally_day: string | null;
+          refund_today_cents: number;
+          discount_today_cents: number;
+          last_reset_at: string | null;
+          last_reset_by: string | null;
+          last_reset_note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      restaurant_cashier_risk_logs: {
+        Row: {
+          id: number;
+          organization_id: string;
+          branch_id: string | null;
+          user_id: string;
+          event_type: 'void_after_print' | 'drawer_kick_no_sale' | 'reprint_receipt' | 'discount_over_limit' | 'refund_processed';
+          points: number;
+          order_id: string | null;
+          invoice_id: string | null;
+          amount_cents: number | null;
+          reason: string | null;
+          approved_by: string | null;
+          details: Json;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       restaurant_house_accounts: {
@@ -3737,6 +3783,12 @@ export type Database = {
       restaurant_intake_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotions_apply: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotion_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_order_print_track: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_drawer_open: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_refund_payment: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_risk_reset: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_risk_set_limits: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_risk_dashboard: { Args: Record<string, unknown>; Returns: Json };
       restaurant_loyalty_reward_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_loyalty_adjust: { Args: Record<string, unknown>; Returns: Json };
       restaurant_loyalty_staff_redeem: { Args: Record<string, unknown>; Returns: Json };

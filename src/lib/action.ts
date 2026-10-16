@@ -1,7 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { AppError, toAppError } from '@/lib/errors';
+import { AppError, toAppError, type ApprovalNeeded } from '@/lib/errors';
 import { checkRateLimit, RATE_LIMITS, type RateLimitRule } from '@/lib/rate-limit';
 import {
   requireUser,
@@ -18,7 +18,7 @@ import { requirePlatformAdmin, type PlatformContext } from '@/modules/platform/a
  */
 export type ActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; code: string; fieldErrors?: Record<string, string[]> };
+  | { ok: false; error: string; code: string; fieldErrors?: Record<string, string[]>; approval?: ApprovalNeeded };
 
 type TenantActionConfig<TSchema extends z.ZodTypeAny, TResult> = {
   /** Zod schema for the client input. Parsed before anything else runs. */
@@ -81,6 +81,7 @@ export function defineTenantAction<TSchema extends z.ZodTypeAny, TResult>(
         error: appError.message,
         code: appError.code,
         ...(appError.fieldErrors ? { fieldErrors: appError.fieldErrors } : {}),
+        ...(appError.approval ? { approval: appError.approval } : {}),
       };
     }
   };
@@ -122,6 +123,7 @@ export function defineUserAction<TSchema extends z.ZodTypeAny, TResult>(config: 
         error: appError.message,
         code: appError.code,
         ...(appError.fieldErrors ? { fieldErrors: appError.fieldErrors } : {}),
+        ...(appError.approval ? { approval: appError.approval } : {}),
       };
     }
   };
@@ -175,6 +177,7 @@ export function definePlatformAction<TSchema extends z.ZodTypeAny, TResult>(conf
         error: appError.message,
         code: appError.code,
         ...(appError.fieldErrors ? { fieldErrors: appError.fieldErrors } : {}),
+        ...(appError.approval ? { approval: appError.approval } : {}),
       };
     }
   };

@@ -42,6 +42,8 @@ export type OrderSummary = {
   guestVerified: boolean;
   locationStatus: 'inside' | 'nearby' | 'far' | 'unknown';
   locationDistanceM: number | null;
+  /** How many times its bill/receipt has been printed (0108); a printed order that is cancelled is a risk event. */
+  printCount: number;
 };
 
 const ACTIVE: OrderStatus[] = ['pending_verification', 'new', 'confirmed', 'preparing', 'ready', 'served'];
@@ -60,7 +62,7 @@ export async function listOrders(
   let query = supabase
     .from('restaurant_orders')
     .select(
-      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id, guest_verified, location_status, location_distance_m',
+      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id, guest_verified, location_status, location_distance_m, print_count',
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
@@ -133,6 +135,7 @@ export async function listOrders(
     guestVerified: o.guest_verified,
     locationStatus: o.location_status as OrderSummary['locationStatus'],
     locationDistanceM: o.location_distance_m,
+    printCount: o.print_count ?? 0,
   }));
 }
 

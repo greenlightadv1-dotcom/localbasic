@@ -79,6 +79,8 @@ export const PERMISSIONS = [
   'restaurant.loyalty.manage',
   'restaurant.account.manage',
   'restaurant.account.charge',
+  'restaurant.audit.risk_view',
+  'restaurant.audit.risk_reset',
   'approval.grant',
   'inventory.read',
   'inventory.manage',
