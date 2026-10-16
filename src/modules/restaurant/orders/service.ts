@@ -594,8 +594,16 @@ export async function payOrder(
     if (redeemError) throw mapOrderError(redeemError, 'payOrder coupon');
     couponValue = Number(redeemed);
   }
+  // Promotions applied to this order (0107) are part of its discount too;
+  // the database counts them, with coupons, as approved — only a manual
+  // amount on top asks for a manager's PIN.
+  const { data: promos } = await supabase
+    .from('restaurant_order_promotions')
+    .select('amount_cents')
+    .eq('order_id', input.orderId);
+  const promoValue = (promos ?? []).reduce((sum, p) => sum + Number(p.amount_cents), 0);
   try {
-    return await payOrderCore(ctx, { ...input, discountCents: input.discountCents + couponValue });
+    return await payOrderCore(ctx, { ...input, discountCents: input.discountCents + couponValue + promoValue });
   } catch (error) {
     if (input.couponCode) {
       await supabase.rpc('restaurant_coupon_release', {

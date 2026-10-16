@@ -78,6 +78,7 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/payments', label: 'المدفوعات', icon: 'CreditCard', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/loyalty', label: 'المكافآت', icon: 'Gift', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/receipt', label: 'بيانات الإيصال', icon: 'Receipt', permission: 'settings.manage', modules: ['restaurant'] },
+  { href: '/settings/integrations', label: 'تكامل الطلبات', icon: 'Plug', permission: 'restaurant.integration.manage', modules: ['restaurant'] },
   { href: '/settings/approval-pin', label: 'رمز الموافقة', icon: 'KeyRound', permission: 'approval.grant', modules: ['restaurant'] },
   { href: '/settings/cashier-zones', label: 'مناطق الكاشير', icon: 'MapPinned', permission: 'member.manage', modules: ['restaurant'] },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
@@ -107,6 +108,15 @@ export const MODULES: Record<string, ModuleDefinition> = {
       // Live floor plan: colour-coded tables, transfer / merge / split, waiting list (0105).
       { href: '/floor', label: 'مخطط الصالة', icon: 'Map', permission: 'restaurant.table.read' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
+      // Delivery & fleet, call center, CRM (0106/0107).
+      { href: '/call-center', label: 'الكول سنتر', icon: 'PhoneCall', permission: 'restaurant.callcenter.use' },
+      {
+        href: '/delivery', label: 'التوصيل والمناديب', icon: 'Bike',
+        permission: ['restaurant.delivery.manage', 'restaurant.driver.manage', 'restaurant.driver.settle'],
+      },
+      { href: '/my-deliveries', label: 'رحلاتي', icon: 'Navigation', permission: 'restaurant.driver.use' },
+      { href: '/promotions', label: 'العروض والولاء', icon: 'BadgePercent', permission: ['restaurant.promotion.manage', 'restaurant.loyalty.manage'] },
+      { href: '/accounts', label: 'الحسابات الآجلة', icon: 'Building2', permission: 'restaurant.account.manage' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
       // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).
       { href: '/stock', label: 'المخزن والخامات', icon: 'Warehouse', permission: 'inventory.read' },

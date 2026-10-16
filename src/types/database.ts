@@ -1884,6 +1884,9 @@ export type Database = {
           verification_code_expires_at: string | null;
           split_from_order_id: string | null;
           merged_into_order_id: string | null;
+          external_source: string | null;
+          external_ref: string | null;
+          external_total_cents: number | null;
         };
         Insert: {
           id?: string;
@@ -2134,6 +2137,204 @@ export type Database = {
           notified_at: string | null;
           seated_at: string | null;
           closed_at: string | null;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_delivery_zones: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          name: string;
+          fee_cents: number;
+          driver_fee_cents: number;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_drivers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          member_id: string | null;
+          name: string;
+          phone: string | null;
+          vehicle: string | null;
+          commission_mode: string;
+          commission_percent_bp: number;
+          commission_fixed_cents: number;
+          on_shift: boolean;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_delivery_jobs: {
+        Row: {
+          order_id: string;
+          organization_id: string;
+          branch_id: string;
+          zone_id: string | null;
+          driver_id: string | null;
+          status: string;
+          cash_to_collect_cents: number;
+          commission_cents: number;
+          assigned_at: string | null;
+          dispatched_at: string | null;
+          in_transit_at: string | null;
+          delivered_at: string | null;
+          returned_at: string | null;
+          return_reason: string | null;
+          settled_at: string | null;
+          settled_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_driver_ledger: {
+        Row: {
+          id: number;
+          organization_id: string;
+          branch_id: string;
+          driver_id: string;
+          kind: string;
+          amount_cents: number;
+          order_id: string | null;
+          note: string | null;
+          actor_id: string | null;
+          approved_by: string | null;
+          created_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_integrations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          name: string;
+          source: string;
+          key_hash: string;
+          key_prefix: string;
+          auto_confirm: boolean;
+          is_active: boolean;
+          last_used_at: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_loyalty_rewards: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          points_cost: number;
+          kind: string;
+          value_cents: number | null;
+          variant_id: string | null;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_promotions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string | null;
+          name: string;
+          kind: string;
+          is_active: boolean;
+          starts_at: string | null;
+          ends_at: string | null;
+          days_of_week: number[] | null;
+          start_time: string | null;
+          end_time: string | null;
+          percent_bp: number | null;
+          amount_cents: number | null;
+          product_ids: string[];
+          category_ids: string[];
+          buy_qty: number | null;
+          get_qty: number | null;
+          get_percent_bp: number | null;
+          code: string | null;
+          min_order_cents: number;
+          max_uses: number | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_order_promotions: {
+        Row: {
+          order_id: string;
+          promotion_id: string;
+          organization_id: string;
+          amount_cents: number;
+          code: string | null;
+          applied_by: string | null;
+          applied_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_house_accounts: {
+        Row: {
+          customer_id: string;
+          organization_id: string;
+          credit_limit_cents: number;
+          payment_terms_days: number;
+          contact_name: string | null;
+          note: string | null;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_account_entries: {
+        Row: {
+          id: number;
+          organization_id: string;
+          branch_id: string | null;
+          customer_id: string;
+          kind: string;
+          amount_cents: number;
+          order_id: string | null;
+          invoice_id: string | null;
+          note: string | null;
+          actor_id: string | null;
+          approved_by: string | null;
+          created_at: string;
         };
         Insert: { [key: string]: never };
         Update: { [key: string]: never };
@@ -3518,6 +3719,33 @@ export type Database = {
       approval_pin_status: { Args: Record<string, unknown>; Returns: Json };
       approval_approvers: { Args: Record<string, unknown>; Returns: Json };
       approval_grant: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_delivery_zone_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_driver_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_driver_shift: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_delivery_assign: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_delivery_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_driver_float: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_driver_settle: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_driver_adjust: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_callcenter_lookup: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_customer_upsert: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_customer_address_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_callcenter_place_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_integration_create: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_integration_set: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_intake_menu: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_intake_order: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_promotions_apply: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_promotion_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_loyalty_reward_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_loyalty_adjust: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_loyalty_staff_redeem: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_account_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_account_charge: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_account_payment: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_account_adjust: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_account_statement: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_accounts_list: { Args: Record<string, unknown>; Returns: Json };
       restaurant_kds_bump: { Args: Record<string, unknown>; Returns: Json };
       restaurant_kitchen_analytics: { Args: Record<string, unknown>; Returns: Json };
       restaurant_floor_layout_save: { Args: Record<string, unknown>; Returns: Json };

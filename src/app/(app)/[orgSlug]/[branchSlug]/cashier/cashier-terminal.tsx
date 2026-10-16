@@ -23,6 +23,7 @@ import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas
 import {
   createOrderAction, payOrderAction, checkCouponAction, setOrderStatusAction, verifyGuestOrderAction,
 } from '../restaurant-actions';
+import { applyPromotionsAction, chargeAccountAction, listChargeAccountsAction } from './settle-actions';
 
 const CHANNEL_LABELS: Record<string, string> = {
   qr: 'رمز QR', waiter: 'الكابتن', cashier: 'الكاشير', online: 'أونلاين',
@@ -67,6 +68,7 @@ export function CashierTerminal({
   currency,
   canDiscount,
   canCancel,
+  canCharge = false,
   branchId,
   organizationSlug,
   branchSlug,
@@ -78,6 +80,8 @@ export function CashierTerminal({
   currency: string;
   canDiscount: boolean;
   canCancel: boolean;
+  /** restaurant.account.charge: settle onto a house account (0107). */
+  canCharge?: boolean;
   branchId: string;
   organizationSlug: string;
   branchSlug: string;
@@ -314,7 +318,62 @@ export function CashierTerminal({
     setCouponCode('');
     setCoupon(null);
     setCouponError(null);
+    setPromoCode('');
+    setPromoApplied(null);
+    setChargeTo('');
   }, [settling?.id]);
+
+  // Promotions change the order's total on the server: keep the open dialog
+  // on the refreshed copy, not the one it was opened with.
+  useEffect(() => {
+    if (!settling) return;
+    const fresh = openOrders.find((o) => o.id === settling.id);
+    if (fresh && (fresh.totalCents !== settling.totalCents || fresh.paidCents !== settling.paidCents)) setSettling(fresh);
+  }, [openOrders, settling]);
+
+  // Promotions (happy hour, buy X get Y, and an optional promo code).
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplied, setPromoApplied] = useState<{ name: string; amountCents: number }[] | null>(null);
+
+  function applyPromotions() {
+    if (!settling) return;
+    startTransition(async () => {
+      const r = await applyPromotionsAction({ organizationSlug, branchSlug }, { orderId: settling.id, code: promoCode.trim() || undefined });
+      if (!r.ok) { toast.error(r.error); return; }
+      setPromoApplied(r.data.applied);
+      toast.success(r.data.applied.length ? `تم تطبيق ${r.data.applied.length} عرض` : 'لا توجد عروض سارية على هذا الطلب');
+      router.refresh();
+    });
+  }
+
+  // House accounts (credit sales).
+  const [accounts, setAccounts] = useState<{ customerId: string; name: string; limitCents: number; balanceCents: number }[] | null>(null);
+  const [chargeTo, setChargeTo] = useState('');
+  useEffect(() => {
+    if (!settling || !canCharge || accounts) return;
+    void listChargeAccountsAction({ organizationSlug, branchSlug }, {}).then((r) => setAccounts(r.ok ? r.data : []));
+  }, [settling, canCharge, accounts, organizationSlug, branchSlug]);
+
+  async function runCharge(): Promise<void> {
+    if (!settling || !chargeTo) return;
+    const r = await chargeAccountAction({ organizationSlug, branchSlug }, { orderId: settling.id, customerId: chargeTo });
+    if (!r.ok) {
+      // Over the credit limit: a manager's PIN for the excess.
+      if (r.code === 'approval_required') {
+        const account = accounts?.find((a) => a.customerId === chargeTo);
+        const due = settling.totalCents - settling.paidCents;
+        const excess = account ? Math.max(account.balanceCents + due - account.limitCents, 1) : due;
+        approval.request('account.overlimit', chargeTo, excess, runCharge);
+        return;
+      }
+      toast.error(r.error);
+      return;
+    }
+    toast.success(`سُجّل على الحساب — الرصيد الآن ${formatMoney(r.data.balanceCents, currency)}`);
+    setSettling(null);
+    setAccounts(null);
+    router.refresh();
+  }
 
   function checkCoupon() {
     if (!settling || couponCode.trim().length < 4) return;
@@ -957,6 +1016,43 @@ export function CashierTerminal({
                 </p>
               ) : null}
               {couponError ? <p className="mt-1 text-sm text-danger" role="alert">{couponError}</p> : null}
+            </div>
+          )}
+          <div className="rounded border border-line p-2">
+            <p className="mb-1 text-sm font-medium">العروض</p>
+            <div className="flex gap-2">
+              <Input
+                aria-label="كود العرض"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                dir="ltr"
+                placeholder="كود خصم (اختياري)"
+                maxLength={32}
+                data-testid="promo-code-input"
+              />
+              <Button type="button" variant="outline" onClick={applyPromotions} disabled={isPending} data-testid="apply-promotions">
+                تطبيق العروض
+              </Button>
+            </div>
+            {promoApplied && promoApplied.length > 0 && (
+              <ul className="mt-1 text-sm text-success" role="status">
+                {promoApplied.map((a) => <li key={a.name}>✓ {a.name}: {formatMoney(a.amountCents, currency)}</li>)}
+              </ul>
+            )}
+          </div>
+          {canCharge && accounts && accounts.length > 0 && (
+            <div className="rounded border border-line p-2">
+              <p className="mb-1 text-sm font-medium">على الحساب (آجل)</p>
+              <div className="flex gap-2">
+                <Select aria-label="الحساب" value={chargeTo} onChange={(e) => setChargeTo(e.target.value)} data-testid="charge-account">
+                  <option value="">— اختر الحساب —</option>
+                  {accounts.map((a) => <option key={a.customerId} value={a.customerId}>{a.name}</option>)}
+                </Select>
+                <Button type="button" variant="secondary" disabled={isPending || !chargeTo} onClick={() => startTransition(() => runCharge())} data-testid="charge-submit">
+                  تسجيل آجل
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-muted">يُصدر فاتورة على العميل ويُغلق الطلب دون تحصيل نقدي.</p>
             </div>
           )}
         </div>
