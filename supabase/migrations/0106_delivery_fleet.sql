@@ -112,7 +112,9 @@ returns text[] language sql immutable set search_path = '' as $$
   select array['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve',
                'table.merge', 'check.split',
                'driver.payout', 'driver.shortage', 'driver.adjust',
-               'account.adjust', 'account.overlimit', 'loyalty.adjust'];
+               'account.adjust', 'account.overlimit', 'loyalty.adjust',
+               -- Already added by 0108, which ran before this on the live database.
+               'refund.daily_limit', 'discount.daily_limit'];
 $$;
 
 alter table public.approval_grants drop constraint approval_grants_action_check;
