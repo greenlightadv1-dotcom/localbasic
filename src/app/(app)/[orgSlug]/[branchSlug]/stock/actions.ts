@@ -10,7 +10,7 @@ import * as inv from '@/modules/restaurant/inventory/service';
  * two-person rules, so these declarations are a first gate, not the boundary.
  */
 function refresh(orgSlug: string, branchSlug: string) {
-  for (const p of ['/stock', '/kitchen', '/barista']) revalidatePath(`/${orgSlug}/${branchSlug}${p}`);
+  for (const p of ['/stock', '/kitchen', '/barista', '/inventory/recipes', '/inventory/wastage', '/inventory/purchasing']) revalidatePath(`/${orgSlug}/${branchSlug}${p}`);
 }
 
 const done = (ctx: { organizationSlug: string; branchSlug: string }) => {

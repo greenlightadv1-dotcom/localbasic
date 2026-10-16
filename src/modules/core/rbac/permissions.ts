@@ -84,6 +84,7 @@ export const PERMISSIONS = [
   'approval.grant',
   'inventory.read',
   'inventory.manage',
+  'inventory.purchase',
   'inventory.stock_in',
   'inventory.issue',
   'inventory.receive',

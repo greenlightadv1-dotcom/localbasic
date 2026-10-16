@@ -122,6 +122,11 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
       // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).
       { href: '/stock', label: 'المخزن والخامات', icon: 'Warehouse', permission: 'inventory.read' },
+      // Costing, wastage, purchasing and menu engineering (0109), over the 0102 stock.
+      { href: '/inventory/recipes', label: 'الوصفات والتكلفة', icon: 'ChefHat', permission: 'inventory.read' },
+      { href: '/inventory/wastage', label: 'الهالك', icon: 'Trash2', permission: ['inventory.read', 'inventory.waste'] },
+      { href: '/inventory/purchasing', label: 'المشتريات والتنبيهات', icon: 'ShoppingCart', permission: ['inventory.read', 'inventory.purchase'] },
+      { href: '/analytics/menu-matrix', label: 'هندسة المنيو', icon: 'ScatterChart', permission: 'report.read' },
       // Writes the catalog, so it lives under the menu rather than under the
       // Site Engine: a site's menu section reads these same tables live.
       { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },

@@ -1214,6 +1214,8 @@ export type Database = {
           unit: 'g' | 'ml' | 'pc';
           avg_cost_cents: number;
           is_active: boolean;
+          /** 0109: whom automatic purchase orders go to. */
+          preferred_supplier_id: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -1242,6 +1244,8 @@ export type Database = {
           item_id: string;
           organization_id: string;
           min_qty: number;
+          /** 0109: how much to buy at the minimum; null = refill to twice the minimum. */
+          reorder_qty: number | null;
           updated_by: string | null;
           updated_at: string;
         };
@@ -2348,6 +2352,65 @@ export type Database = {
         };
         Insert: never;
         Update: never;
+        Relationships: [];
+      };
+      restaurant_suppliers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          phone: string | null;
+          notes: string | null;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0109).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_purchase_orders: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          number: string;
+          supplier_id: string | null;
+          status: 'draft' | 'sent' | 'received' | 'cancelled';
+          auto_generated: boolean;
+          note: string | null;
+          expected_on: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          sent_at: string | null;
+          sent_by: string | null;
+          received_at: string | null;
+          received_by: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+        };
+        // Written only through SECURITY DEFINER functions (0109).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_purchase_order_items: {
+        Row: {
+          id: string;
+          purchase_order_id: string;
+          organization_id: string;
+          item_id: string;
+          qty_ordered: number;
+          unit_cost_cents: number;
+          qty_received: number | null;
+          received_unit_cost_cents: number | null;
+        };
+        // Written only through SECURITY DEFINER functions (0109).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
         Relationships: [];
       };
       restaurant_house_accounts: {
@@ -3663,7 +3726,61 @@ export type Database = {
         ];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      /** 0109: read view over restaurant_recipe_lines (the BOM). */
+      restaurant_recipe_items: {
+        Row: {
+          id: string;
+          organization_id: string;
+          product_id: string;
+          variant_id: string;
+          inventory_item_id: string;
+          quantity: number;
+          unit: 'g' | 'ml' | 'pc';
+          location_kind: 'kitchen' | 'bar' | null;
+          unit_cost_cents: number;
+          line_cost_cents: number;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
+      /** 0109: read view over inventory_waste. */
+      restaurant_wastage_logs: {
+        Row: {
+          id: string;
+          organization_id: string;
+          branch_id: string;
+          location_kind: 'warehouse' | 'kitchen' | 'bar' | 'transit' | 'waste';
+          inventory_item_id: string;
+          quantity: number;
+          unit: 'g' | 'ml' | 'pc';
+          cost_cents: number;
+          reason: string;
+          note: string | null;
+          order_id: string | null;
+          moved_stock: boolean;
+          recorded_by: string | null;
+          created_at: string;
+        };
+        Relationships: [];
+      };
+      /** 0109: read view over inventory_par_levels with the balance. */
+      restaurant_inventory_thresholds: {
+        Row: {
+          location_id: string;
+          branch_id: string;
+          organization_id: string;
+          location_kind: 'warehouse' | 'kitchen' | 'bar' | 'transit' | 'waste';
+          inventory_item_id: string;
+          min_stock_qty: number;
+          reorder_qty: number | null;
+          on_hand_qty: number;
+          below_min: boolean;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       branch_create: { Args: Record<string, unknown>; Returns: Json };
       customer_account_profile: { Args: Record<string, unknown>; Returns: Json };
@@ -3783,6 +3900,16 @@ export type Database = {
       restaurant_intake_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotions_apply: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotion_save: { Args: Record<string, unknown>; Returns: Json };
+      inventory_threshold_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_reorder_suggestions: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_po_generate: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_po_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_po_set_status: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_po_receive: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_supplier_save: { Args: Record<string, unknown>; Returns: Json };
+      inventory_item_set_supplier: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_recipe_costs: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_menu_engineering: { Args: Record<string, unknown>; Returns: Json };
       restaurant_order_print_track: { Args: Record<string, unknown>; Returns: Json };
       restaurant_drawer_open: { Args: Record<string, unknown>; Returns: Json };
       restaurant_refund_payment: { Args: Record<string, unknown>; Returns: Json };
