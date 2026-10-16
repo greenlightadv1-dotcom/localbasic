@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Minus, Trash2, Search, ReceiptText, X, ChevronDown } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, ReceiptText, X, ChevronDown, Printer, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/field';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,11 @@ import { STATUS_LABELS, STATUS_TONES } from '@/modules/restaurant/orders/schemas
 import {
   createOrderAction, payOrderAction, checkCouponAction, setOrderStatusAction, verifyGuestOrderAction,
 } from '../restaurant-actions';
+import { applyPromotionsAction, chargeAccountAction, listChargeAccountsAction } from './settle-actions';
+import { openDrawerAction, trackPrintAction } from '../risk-actions';
+import { buildBillHtml, buildNoSaleHtml } from '@/lib/print/bill-html';
+import { printHtml } from '@/lib/print/print-html';
+import type { ApprovalAction } from '@/modules/restaurant/approvals/schema';
 
 const CHANNEL_LABELS: Record<string, string> = {
   qr: 'رمز QR', waiter: 'الكابتن', cashier: 'الكاشير', online: 'أونلاين',
@@ -67,6 +72,9 @@ export function CashierTerminal({
   currency,
   canDiscount,
   canCancel,
+  canCharge = false,
+  businessName = '',
+  cashierName = '',
   branchId,
   organizationSlug,
   branchSlug,
@@ -78,6 +86,11 @@ export function CashierTerminal({
   currency: string;
   canDiscount: boolean;
   canCancel: boolean;
+  /** restaurant.account.charge: settle onto a house account (0107). */
+  canCharge?: boolean;
+  /** For the pre-bill and no-sale slips. */
+  businessName?: string;
+  cashierName?: string;
   branchId: string;
   organizationSlug: string;
   branchSlug: string;
@@ -314,7 +327,62 @@ export function CashierTerminal({
     setCouponCode('');
     setCoupon(null);
     setCouponError(null);
+    setPromoCode('');
+    setPromoApplied(null);
+    setChargeTo('');
   }, [settling?.id]);
+
+  // Promotions change the order's total on the server: keep the open dialog
+  // on the refreshed copy, not the one it was opened with.
+  useEffect(() => {
+    if (!settling) return;
+    const fresh = openOrders.find((o) => o.id === settling.id);
+    if (fresh && (fresh.totalCents !== settling.totalCents || fresh.paidCents !== settling.paidCents)) setSettling(fresh);
+  }, [openOrders, settling]);
+
+  // Promotions (happy hour, buy X get Y, and an optional promo code).
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplied, setPromoApplied] = useState<{ name: string; amountCents: number }[] | null>(null);
+
+  function applyPromotions() {
+    if (!settling) return;
+    startTransition(async () => {
+      const r = await applyPromotionsAction({ organizationSlug, branchSlug }, { orderId: settling.id, code: promoCode.trim() || undefined });
+      if (!r.ok) { toast.error(r.error); return; }
+      setPromoApplied(r.data.applied);
+      toast.success(r.data.applied.length ? `تم تطبيق ${r.data.applied.length} عرض` : 'لا توجد عروض سارية على هذا الطلب');
+      router.refresh();
+    });
+  }
+
+  // House accounts (credit sales).
+  const [accounts, setAccounts] = useState<{ customerId: string; name: string; limitCents: number; balanceCents: number }[] | null>(null);
+  const [chargeTo, setChargeTo] = useState('');
+  useEffect(() => {
+    if (!settling || !canCharge || accounts) return;
+    void listChargeAccountsAction({ organizationSlug, branchSlug }, {}).then((r) => setAccounts(r.ok ? r.data : []));
+  }, [settling, canCharge, accounts, organizationSlug, branchSlug]);
+
+  async function runCharge(): Promise<void> {
+    if (!settling || !chargeTo) return;
+    const r = await chargeAccountAction({ organizationSlug, branchSlug }, { orderId: settling.id, customerId: chargeTo });
+    if (!r.ok) {
+      // Over the credit limit: a manager's PIN for the excess.
+      if (r.code === 'approval_required') {
+        const account = accounts?.find((a) => a.customerId === chargeTo);
+        const due = settling.totalCents - settling.paidCents;
+        const excess = account ? Math.max(account.balanceCents + due - account.limitCents, 1) : due;
+        approval.request('account.overlimit', chargeTo, excess, runCharge);
+        return;
+      }
+      toast.error(r.error);
+      return;
+    }
+    toast.success(`سُجّل على الحساب — الرصيد الآن ${formatMoney(r.data.balanceCents, currency)}`);
+    setSettling(null);
+    setAccounts(null);
+    router.refresh();
+  }
 
   function checkCoupon() {
     if (!settling || couponCode.trim().length < 4) return;
@@ -355,7 +423,10 @@ export function CashierTerminal({
       if (!result.ok) {
         // A manual discount needs a manager's PIN (0103): ask, then pay again.
         if (result.code === 'approval_required') {
-          approval.request('order.discount', settling.id, parseAmount(discount), runSettle);
+          // The per-order discount PIN (0103) or the cashier's daily cap
+          // (0108): the database names the gate and the amount it needs.
+          const gate = (result.approval?.action ?? 'order.discount') as ApprovalAction;
+          approval.request(gate, settling.id, result.approval?.amount ?? parseAmount(discount), runSettle);
           return;
         }
         toast.error(result.error);
@@ -387,6 +458,39 @@ export function CashierTerminal({
       setCouponError(null);
       router.refresh();
     }
+  }
+
+  // Pre-bill: counted before it prints, so a second copy says it is a copy (0108).
+  async function printBill(order: CashierOrder): Promise<void> {
+    const tracked = await trackPrintAction({ organizationSlug, branchSlug }, { orderId: order.id, kind: 'bill' });
+    if (!tracked.ok) { toast.error(tracked.error); return; }
+    const printed = await printHtml(buildBillHtml({
+      businessName, orderNumber: order.number, tableName: order.tableName, currency,
+      lines: order.lines.map((l) => ({
+        quantity: l.quantity,
+        name: `${l.productName}${l.variantName && l.variantName !== l.productName && l.variantName !== 'default' ? ` — ${l.variantName}` : ''}${l.modifiers.length ? ` (${l.modifiers.map((m) => m.name).join('، ')})` : ''}`,
+        note: l.note,
+      })),
+      totalCents: order.totalCents, paidCents: order.paidCents, copy: tracked.data.printCount, printedAt: new Date(),
+    }));
+    if (!printed.ok) { toast.error(printed.error); return; }
+    if (tracked.data.printCount > 1) toast.success(`نسخة رقم ${tracked.data.printCount} — إعادة الطباعة تُسجَّل للمراجعة`);
+    router.refresh();
+  }
+
+  // "No sale": the drawer opens only with a reason, and it is scored (0108).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerReason, setDrawerReason] = useState('');
+  function openDrawer() {
+    if (drawerReason.trim().length < 2) return;
+    startTransition(async () => {
+      const r = await openDrawerAction({ organizationSlug, branchSlug }, { reason: drawerReason.trim() });
+      if (!r.ok) { toast.error(r.error); return; }
+      await printHtml(buildNoSaleHtml({ businessName, cashier: cashierName || '—', reason: drawerReason.trim(), at: new Date() }));
+      toast.success('سُجّل فتح الدرج');
+      setDrawerOpen(false);
+      setDrawerReason('');
+    });
   }
 
   function cancelOrder() {
@@ -426,7 +530,12 @@ export function CashierTerminal({
         <Card>
           <CardHeader className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>الطلبات المفتوحة</CardTitle>
-            <Badge tone={openOrders.length ? 'info' : 'neutral'}>{openOrders.length}</Badge>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setDrawerOpen(true)} data-testid="open-drawer">
+                <Wallet className="h-4 w-4" aria-hidden="true" /> فتح الدرج
+              </Button>
+              <Badge tone={openOrders.length ? 'info' : 'neutral'}>{openOrders.length}</Badge>
+            </div>
           </CardHeader>
           <CardBody className="p-0">
             {openOrders.length === 0 ? (
@@ -469,6 +578,11 @@ export function CashierTerminal({
                         </div>
                       </button>
                       <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+                      {order.printCount > 0 && (
+                        <Badge tone={order.printCount > 1 ? 'warn' : 'neutral'} title="عدد مرات طباعة الفاتورة/الإيصال">
+                          <Printer className="me-1 inline h-3 w-3" aria-hidden="true" />×{order.printCount}
+                        </Badge>
+                      )}
                       {order.status === 'pending_verification' && (
                         <Button size="sm" variant="outline" disabled={isPending} onClick={() => verifyOnly(order)}>
                           تأكيد عبر واتساب
@@ -485,6 +599,12 @@ export function CashierTerminal({
                           branchSlug={branchSlug}
                           invoiceId={order.invoiceId}
                         />
+                      )}
+                      {order.paidCents < order.totalCents && order.status !== 'pending_verification' && (
+                        <Button size="sm" variant="ghost" disabled={isPending} onClick={() => startTransition(() => printBill(order))}
+                          data-testid="print-bill">
+                          <Printer className="h-4 w-4" aria-hidden="true" /> الفاتورة
+                        </Button>
                       )}
                       {order.paidCents < order.totalCents && (
                         <Button
@@ -959,6 +1079,43 @@ export function CashierTerminal({
               {couponError ? <p className="mt-1 text-sm text-danger" role="alert">{couponError}</p> : null}
             </div>
           )}
+          <div className="rounded border border-line p-2">
+            <p className="mb-1 text-sm font-medium">العروض</p>
+            <div className="flex gap-2">
+              <Input
+                aria-label="كود العرض"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                dir="ltr"
+                placeholder="كود خصم (اختياري)"
+                maxLength={32}
+                data-testid="promo-code-input"
+              />
+              <Button type="button" variant="outline" onClick={applyPromotions} disabled={isPending} data-testid="apply-promotions">
+                تطبيق العروض
+              </Button>
+            </div>
+            {promoApplied && promoApplied.length > 0 && (
+              <ul className="mt-1 text-sm text-success" role="status">
+                {promoApplied.map((a) => <li key={a.name}>✓ {a.name}: {formatMoney(a.amountCents, currency)}</li>)}
+              </ul>
+            )}
+          </div>
+          {canCharge && accounts && accounts.length > 0 && (
+            <div className="rounded border border-line p-2">
+              <p className="mb-1 text-sm font-medium">على الحساب (آجل)</p>
+              <div className="flex gap-2">
+                <Select aria-label="الحساب" value={chargeTo} onChange={(e) => setChargeTo(e.target.value)} data-testid="charge-account">
+                  <option value="">— اختر الحساب —</option>
+                  {accounts.map((a) => <option key={a.customerId} value={a.customerId}>{a.name}</option>)}
+                </Select>
+                <Button type="button" variant="secondary" disabled={isPending || !chargeTo} onClick={() => startTransition(() => runCharge())} data-testid="charge-submit">
+                  تسجيل آجل
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-muted">يُصدر فاتورة على العميل ويُغلق الطلب دون تحصيل نقدي.</p>
+            </div>
+          )}
         </div>
       </ConfirmDialog>
 
@@ -986,7 +1143,12 @@ export function CashierTerminal({
         }}
         onConfirm={cancelOrder}
       >
-        <div>
+        <div className="space-y-2">
+          {cancelling && cancelling.printCount > 0 && (
+            <Alert tone="warn">
+              طُبعت فاتورة هذا الطلب ({cancelling.printCount} مرة). إلغاؤه بعد الطباعة يُسجَّل كحدث مخاطرة على حسابك ويظهر للمالك.
+            </Alert>
+          )}
           <label htmlFor="cancel-reason" className="mb-1 block text-sm font-medium">
             سبب الإلغاء
           </label>
@@ -998,6 +1160,21 @@ export function CashierTerminal({
             maxLength={300}
           />
         </div>
+      </ConfirmDialog>
+
+      {/* No sale */}
+      <ConfirmDialog
+        open={drawerOpen}
+        title="فتح الدرج بدون بيع"
+        description="يُسجَّل كل فتح للدرج بدون بيع باسمك مع السبب، ويُطبع إيصال «بدون بيع»."
+        confirmLabel="فتح الدرج"
+        tone="primary"
+        busy={isPending}
+        onCancel={() => { setDrawerOpen(false); setDrawerReason(''); }}
+        onConfirm={openDrawer}
+      >
+        <Input aria-label="سبب فتح الدرج" placeholder="السبب: فكة، تصحيح باقي…" value={drawerReason}
+          onChange={(e) => setDrawerReason(e.target.value)} maxLength={300} data-testid="drawer-reason" />
       </ConfirmDialog>
 
       {/* Receipt */}

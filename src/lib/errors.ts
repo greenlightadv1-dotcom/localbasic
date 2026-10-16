@@ -39,21 +39,26 @@ const PUBLIC_MESSAGE: Record<AppErrorCode, string> = {
   internal: 'حدث خطأ غير متوقع. تمت المحاولة وتسجيل المشكلة.',
 };
 
+/** Which manager-PIN gate refused, and for how much (LB403's HINT, 0108). */
+export type ApprovalNeeded = { action: string; amount: number | null };
+
 export class AppError extends Error {
   readonly code: AppErrorCode;
   readonly status: number;
   readonly fieldErrors?: Record<string, string[]>;
+  readonly approval?: ApprovalNeeded;
 
   constructor(
     code: AppErrorCode,
     message?: string,
-    options?: { cause?: unknown; fieldErrors?: Record<string, string[]> },
+    options?: { cause?: unknown; fieldErrors?: Record<string, string[]>; approval?: ApprovalNeeded },
   ) {
     super(message ?? PUBLIC_MESSAGE[code], { cause: options?.cause });
     this.name = 'AppError';
     this.code = code;
     this.status = STATUS[code];
     this.fieldErrors = options?.fieldErrors;
+    this.approval = options?.approval;
   }
 }
 
@@ -70,7 +75,7 @@ export const conflict = (message: string) => new AppError('conflict', message);
 export function toAppError(error: unknown, context: string): AppError {
   if (error instanceof AppError) return error;
   if (isRateLimitedDbError(error)) return rateLimited(error as { message?: string });
-  if (isApprovalRequiredDbError(error)) return new AppError('approval_required');
+  if (isApprovalRequiredDbError(error)) return approvalRequired(error);
   console.error(`[localbasic] ${context}`, error);
   return new AppError('internal', undefined, { cause: error });
 }
@@ -163,14 +168,26 @@ function isApprovalRequiredDbError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === DB_APPROVAL_REQUIRED;
 }
 
+/** "order.discount:1500" → { action, amount }; anything else → undefined. */
+export function parseApprovalHint(hint: unknown): ApprovalNeeded | undefined {
+  if (typeof hint !== 'string') return undefined;
+  const m = /^([a-z]+\.[a-z_]+):(\d*)$/.exec(hint.trim());
+  if (!m) return undefined;
+  return { action: m[1]!, amount: m[2] ? Number(m[2]) : null };
+}
+
+function approvalRequired(error: unknown): AppError {
+  return new AppError('approval_required', undefined, { approval: parseApprovalHint((error as { hint?: unknown }).hint) });
+}
+
 /**
  * For staff-facing database calls whose functions raise their own Arabic
  * reasons ("الرصيد غير كافٍ في المخزن"). Those reach the screen; anything
  * Postgres generated is logged and replaced; approval and rate limits keep
  * their own codes.
  */
-export function staffDbError(error: { code?: string; message?: string }, context: string): AppError {
-  if (error.code === DB_APPROVAL_REQUIRED) return new AppError('approval_required');
+export function staffDbError(error: { code?: string; message?: string; hint?: string }, context: string): AppError {
+  if (error.code === DB_APPROVAL_REQUIRED) return approvalRequired(error);
   if (error.code === DB_RATE_LIMITED) return rateLimited(error);
   const message = error.message ?? '';
   // A refusal the function explained ("لا يمكن لنفس الشخص الصرف والاستلام")

@@ -8,11 +8,14 @@ const h = vi.hoisted(() => ({
   calls: [] as { fn: string; args: Record<string, unknown> }[],
   payFails: false,
   redeemFails: false,
+  promos: [] as { amount_cents: number }[],
 }));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServerClient: () => ({
+    // Promotions applied to the order (0107): restaurant_order_promotions.
+    from: () => ({ select: () => ({ eq: async () => ({ data: h.promos, error: null }) }) }),
     rpc: (fn: string, args: Record<string, unknown>) => {
       h.calls.push({ fn, args });
       let res: { data: unknown; error: unknown } = { data: null, error: null };
@@ -44,6 +47,7 @@ beforeEach(() => {
   h.calls.length = 0;
   h.payFails = false;
   h.redeemFails = false;
+  h.promos = [];
 });
 
 describe('payOrder with a reward coupon', () => {
@@ -75,5 +79,12 @@ describe('payOrder with a reward coupon', () => {
     await payOrder(ctx, base);
     expect(h.calls.map((c) => c.fn)).toEqual(['restaurant_pay_order']);
     expect(h.calls[0]!.args.p_discount_cents).toBe(500);
+  });
+
+  it('counts promotions already applied to the order as discount', async () => {
+    h.promos = [{ amount_cents: 1200 }, { amount_cents: 300 }];
+    const { payOrder } = await import('./service');
+    await payOrder(ctx, { ...base, couponCode: 'LB-ABCDEF' });
+    expect(h.calls[1]!.args.p_discount_cents).toBe(500 + 2000 + 1500);
   });
 });

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Money } from '@/components/patterns/money';
 import { PrintReceiptButton } from '../../print-receipt-button';
 import { RECEIPT_DISCLAIMER_AR } from '@/modules/core/legal/receipt';
+import { RefundPanel } from './refund-panel';
 
 export const metadata = { title: 'إيصال' };
 export const dynamic = 'force-dynamic';
@@ -191,6 +192,15 @@ export default async function ReceiptPage({
           )}
         </footer>
       </article>
+
+      {ctx.enabledModules.includes('restaurant') && can(ctx, 'payment.refund') && receipt.paid_cents > 0 && receipt.status !== 'void' && (
+        <RefundPanel
+          scope={{ organizationSlug: ctx.organizationSlug, branchSlug: ctx.branchSlug }}
+          invoiceId={receipt.id}
+          paidCents={receipt.paid_cents}
+          currency={receipt.currency}
+        />
+      )}
     </div>
   );
 }

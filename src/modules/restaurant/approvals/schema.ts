@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 /** Sensitive actions that a manager approves with a PIN (0103). */
-export const APPROVAL_ACTIONS = ['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve'] as const;
+export const APPROVAL_ACTIONS = ['order.cancel', 'order.discount', 'inventory.adjust', 'inventory.resolve', 'table.merge', 'check.split',
+  'driver.payout', 'driver.shortage', 'driver.adjust', 'account.adjust', 'account.overlimit', 'loyalty.adjust',
+  'refund.daily_limit', 'discount.daily_limit'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
 export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
@@ -9,6 +11,16 @@ export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
   'order.discount': 'خصم على الطلب',
   'inventory.adjust': 'تسوية يدوية للمخزون',
   'inventory.resolve': 'تسوية فرق استلام',
+  'table.merge': 'دمج طاولات في فاتورة واحدة',
+  'check.split': 'تقسيم فاتورة',
+  'driver.payout': 'صرف عمولة مندوب',
+  'driver.shortage': 'قبول عجز في عهدة مندوب',
+  'driver.adjust': 'تعديل عمولة مندوب',
+  'account.adjust': 'تسوية حساب آجل',
+  'account.overlimit': 'تجاوز حد الحساب الآجل',
+  'loyalty.adjust': 'تعديل نقاط الولاء',
+  'refund.daily_limit': 'تجاوز حد الاسترداد اليومي',
+  'discount.daily_limit': 'تجاوز حد الخصم اليومي',
 };
 
 export const grantSchema = z.object({

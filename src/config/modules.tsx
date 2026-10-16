@@ -78,6 +78,7 @@ export const SETTINGS_NAVIGATION: NavItem[] = [
   { href: '/settings/payments', label: 'المدفوعات', icon: 'CreditCard', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/loyalty', label: 'المكافآت', icon: 'Gift', permission: 'settings.manage', modules: ['restaurant'] },
   { href: '/settings/receipt', label: 'بيانات الإيصال', icon: 'Receipt', permission: 'settings.manage', modules: ['restaurant'] },
+  { href: '/settings/integrations', label: 'تكامل الطلبات', icon: 'Plug', permission: 'restaurant.integration.manage', modules: ['restaurant'] },
   { href: '/settings/approval-pin', label: 'رمز الموافقة', icon: 'KeyRound', permission: 'approval.grant', modules: ['restaurant'] },
   { href: '/settings/cashier-zones', label: 'مناطق الكاشير', icon: 'MapPinned', permission: 'member.manage', modules: ['restaurant'] },
   { href: '/settings/features', label: 'الخدمات التشغيلية', icon: 'ToggleLeft', permission: 'organization.manage' },
@@ -102,11 +103,32 @@ export const MODULES: Record<string, ModuleDefinition> = {
       // tickets, rather than one shared board with a client-side filter tab.
       { href: '/kitchen', label: 'المطبخ (الشيف)', icon: 'ChefHat', permission: 'restaurant.kitchen.use' },
       { href: '/barista', label: 'الباريستا', icon: 'Coffee', permission: 'restaurant.bar.use' },
+      { href: '/kitchen/analytics', label: 'أداء المطبخ', icon: 'Timer', permission: 'restaurant.kitchen.analytics' },
       { href: '/service', label: 'الصالة', icon: 'ConciergeBell', permission: 'restaurant.service.use' },
+      // Live floor plan: colour-coded tables, transfer / merge / split, waiting list (0105).
+      { href: '/floor', label: 'مخطط الصالة', icon: 'Map', permission: 'restaurant.table.read' },
       { href: '/tables', label: 'الطاولات', icon: 'LayoutGrid', permission: 'restaurant.table.read' },
+      // Delivery & fleet, call center, CRM (0106/0107).
+      { href: '/call-center', label: 'الكول سنتر', icon: 'PhoneCall', permission: 'restaurant.callcenter.use' },
+      {
+        href: '/delivery', label: 'التوصيل والمناديب', icon: 'Bike',
+        permission: ['restaurant.delivery.manage', 'restaurant.driver.manage', 'restaurant.driver.settle'],
+      },
+      { href: '/my-deliveries', label: 'رحلاتي', icon: 'Navigation', permission: 'restaurant.driver.use' },
+      { href: '/promotions', label: 'العروض والولاء', icon: 'BadgePercent', permission: ['restaurant.promotion.manage', 'restaurant.loyalty.manage'] },
+      { href: '/accounts', label: 'الحسابات الآجلة', icon: 'Building2', permission: 'restaurant.account.manage' },
+      // Fraud prevention: risk scores per cashier, flagged staff, resets (0108).
+      { href: '/audit/cashier-risk', label: 'مخاطر الكاشير', icon: 'ShieldAlert', permission: 'restaurant.audit.risk_view' },
       { href: '/menu', label: 'المنيو', icon: 'BookOpen', permission: 'restaurant.menu.read' },
       // Raw materials: warehouse, recipes, issues to the kitchen/bar (0102).
       { href: '/stock', label: 'المخزن والخامات', icon: 'Warehouse', permission: 'inventory.read' },
+      // Costing, wastage, purchasing and menu engineering (0109), over the 0102 stock.
+      { href: '/inventory/recipes', label: 'الوصفات والتكلفة', icon: 'ChefHat', permission: 'inventory.read' },
+      { href: '/inventory/wastage', label: 'الهالك', icon: 'Trash2', permission: ['inventory.read', 'inventory.waste'] },
+      { href: '/inventory/purchasing', label: 'المشتريات والتنبيهات', icon: 'ShoppingCart', permission: ['inventory.read', 'inventory.purchase'] },
+      // Executive command center: profit, basket, speed of service, RFM, campaigns (0110).
+      { href: '/analytics/executive-dashboard', label: 'مركز القيادة', icon: 'LayoutDashboard', permission: 'restaurant.analytics.executive' },
+      { href: '/analytics/menu-matrix', label: 'هندسة المنيو', icon: 'ScatterChart', permission: 'report.read' },
       // Writes the catalog, so it lives under the menu rather than under the
       // Site Engine: a site's menu section reads these same tables live.
       { href: '/menu/import', label: 'استيراد الأصناف', icon: 'Upload', permission: 'restaurant.menu.manage' },

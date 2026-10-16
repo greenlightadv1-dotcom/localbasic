@@ -12,13 +12,16 @@ export type Station = {
   printerPort: number;
   isActive: boolean;
   sortOrder: number;
+  /** Ticket timer: amber after this many minutes, red after lateAfterMin (0105). */
+  warnAfterMin: number;
+  lateAfterMin: number;
 };
 
 export async function listStations(ctx: TenantContext): Promise<Station[]> {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from('restaurant_stations')
-    .select('id, name, kind, printer_ip, printer_port, is_active, sort_order')
+    .select('id, name, kind, printer_ip, printer_port, is_active, sort_order, warn_after_min, late_after_min')
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
     .order('sort_order')
@@ -33,6 +36,8 @@ export async function listStations(ctx: TenantContext): Promise<Station[]> {
     printerPort: s.printer_port,
     isActive: s.is_active,
     sortOrder: s.sort_order,
+    warnAfterMin: s.warn_after_min,
+    lateAfterMin: s.late_after_min,
   }));
 }
 

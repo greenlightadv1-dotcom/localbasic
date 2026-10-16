@@ -42,6 +42,8 @@ export type OrderSummary = {
   guestVerified: boolean;
   locationStatus: 'inside' | 'nearby' | 'far' | 'unknown';
   locationDistanceM: number | null;
+  /** How many times its bill/receipt has been printed (0108); a printed order that is cancelled is a risk event. */
+  printCount: number;
 };
 
 const ACTIVE: OrderStatus[] = ['pending_verification', 'new', 'confirmed', 'preparing', 'ready', 'served'];
@@ -60,7 +62,7 @@ export async function listOrders(
   let query = supabase
     .from('restaurant_orders')
     .select(
-      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id, guest_verified, location_status, location_distance_m',
+      'id, number, status, channel, type, table_id, guest_name, guest_phone, total_cents, note, placed_at, invoice_id, guest_verified, location_status, location_distance_m, print_count',
     )
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
@@ -133,6 +135,7 @@ export async function listOrders(
     guestVerified: o.guest_verified,
     locationStatus: o.location_status as OrderSummary['locationStatus'],
     locationDistanceM: o.location_distance_m,
+    printCount: o.print_count ?? 0,
   }));
 }
 
@@ -269,6 +272,8 @@ export type KitchenTicket = {
     tableName: string | null;
     note: string | null;
     placedAt: string;
+    /** When it reached the kitchen — the prep timer's zero. */
+    confirmedAt: string | null;
   };
   lines: {
     id: string;
@@ -281,6 +286,10 @@ export type KitchenTicket = {
     prepNotes: string | null;
     stationId: string | null;
     stationKind: string | null;
+    /** Per-line preparation state (0105): each station finishes its own lines. */
+    prepStatus: 'queued' | 'preparing' | 'ready';
+    prepStartedAt: string | null;
+    seatNo: number | null;
   }[];
 };
 
@@ -300,7 +309,7 @@ export async function listKitchenTickets(
 
   const { data: rows, error } = await supabase
     .from('restaurant_orders')
-    .select('id, number, status, table_id, note, placed_at')
+    .select('id, number, status, table_id, note, placed_at, confirmed_at')
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
     .in('status', statuses)
@@ -319,7 +328,7 @@ export async function listKitchenTickets(
   const [{ data: items }, { data: tables }] = await Promise.all([
     supabase
       .from('restaurant_order_items')
-      .select('id, order_id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind')
+      .select('id, order_id, variant_id, product_name, variant_name, quantity, note, station_id, station_kind, prep_status, prep_started_at, seat_no')
       .in('order_id', orderIds)
       .order('position'),
     tableIds.length
@@ -371,6 +380,9 @@ export async function listKitchenTickets(
       prepNotes: i.variant_id ? (prepNotesByVariant.get(i.variant_id) ?? null) : null,
       stationId: i.station_id,
       stationKind: i.station_kind,
+      prepStatus: i.prep_status as KitchenTicket['lines'][number]['prepStatus'],
+      prepStartedAt: i.prep_started_at,
+      seatNo: i.seat_no,
     });
     linesByOrder.set(i.order_id, list);
   }
@@ -383,6 +395,7 @@ export async function listKitchenTickets(
       tableName: o.table_id ? (tableName.get(o.table_id) ?? null) : null,
       note: o.note,
       placedAt: o.placed_at,
+      confirmedAt: o.confirmed_at,
     },
     lines: linesByOrder.get(o.id) ?? [],
   }));
@@ -584,8 +597,16 @@ export async function payOrder(
     if (redeemError) throw mapOrderError(redeemError, 'payOrder coupon');
     couponValue = Number(redeemed);
   }
+  // Promotions applied to this order (0107) are part of its discount too;
+  // the database counts them, with coupons, as approved — only a manual
+  // amount on top asks for a manager's PIN.
+  const { data: promos } = await supabase
+    .from('restaurant_order_promotions')
+    .select('amount_cents')
+    .eq('order_id', input.orderId);
+  const promoValue = (promos ?? []).reduce((sum, p) => sum + Number(p.amount_cents), 0);
   try {
-    return await payOrderCore(ctx, { ...input, discountCents: input.discountCents + couponValue });
+    return await payOrderCore(ctx, { ...input, discountCents: input.discountCents + couponValue + promoValue });
   } catch (error) {
     if (input.couponCode) {
       await supabase.rpc('restaurant_coupon_release', {

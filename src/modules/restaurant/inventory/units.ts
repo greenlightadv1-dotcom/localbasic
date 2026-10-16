@@ -63,8 +63,10 @@ export const LOCATION_LABELS: Record<string, string> = {
 
 export const WASTE_REASONS: { key: string; label: string }[] = [
   { key: 'spoiled', label: 'تالف' },
-  { key: 'expired', label: 'منتهي الصلاحية' },
+  { key: 'burnt', label: 'محروق' },
   { key: 'dropped', label: 'وقع / انسكب' },
+  { key: 'tasting', label: 'تذوق' },
+  { key: 'expired', label: 'منتهي الصلاحية' },
   { key: 'overcooked', label: 'خطأ تحضير' },
   { key: 'returned_by_guest', label: 'مرتجع من العميل' },
   { key: 'staff_meal', label: 'وجبة موظفين' },

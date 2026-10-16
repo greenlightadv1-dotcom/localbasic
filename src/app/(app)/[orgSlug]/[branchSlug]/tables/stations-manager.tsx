@@ -14,6 +14,7 @@ import {
   setStationActiveAction,
   deleteStationAction,
 } from '../restaurant-actions';
+import { saveStationTimersAction } from '../kitchen/kds-actions';
 
 const KIND_LABELS: Record<'kitchen' | 'bar', string> = { kitchen: 'مطبخ', bar: 'بار' };
 
@@ -114,6 +115,9 @@ export function StationsManager({
                   <span className="text-xs text-muted">بدون طابعة</span>
                 )}
                 {!s.isActive && <Badge tone="neutral">معطّلة</Badge>}
+                <StationTimers station={s} canManage={canManage} disabled={isPending}
+                  onSave={(warnAfterMin, lateAfterMin) =>
+                    run(saveStationTimersAction(scope, { stationId: s.id, warnAfterMin, lateAfterMin }), 'تم حفظ أوقات التنبيه')} />
                 {canManage && (
                   <span className="ms-auto flex gap-1.5">
                     <Button
@@ -155,5 +159,34 @@ export function StationsManager({
         }}
       />
     </Card>
+  );
+}
+
+/** Ticket timer colours on this station's display: amber after «تنبيه», red after «تأخير». */
+function StationTimers({ station, canManage, disabled, onSave }: {
+  station: Station; canManage: boolean; disabled: boolean; onSave: (warn: number, late: number) => void;
+}) {
+  const [warn, setWarn] = useState(String(station.warnAfterMin));
+  const [late, setLate] = useState(String(station.lateAfterMin));
+  const dirty = warn !== String(station.warnAfterMin) || late !== String(station.lateAfterMin);
+  if (!canManage) {
+    return <span className="text-xs text-muted lb-numeric">تنبيه {station.warnAfterMin}د · تأخير {station.lateAfterMin}د</span>;
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs text-muted">
+      <label className="flex items-center gap-1">
+        <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" /> تنبيه
+        <input aria-label={`دقائق التنبيه — ${station.name}`} type="number" min={1} max={240} value={warn} onChange={(e) => setWarn(e.target.value)}
+          className="h-7 w-12 rounded border border-line bg-elevated px-1 text-center lb-numeric" dir="ltr" />
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="h-2 w-2 rounded-full bg-red-600" aria-hidden="true" /> تأخير
+        <input aria-label={`دقائق التأخير — ${station.name}`} type="number" min={2} max={480} value={late} onChange={(e) => setLate(e.target.value)}
+          className="h-7 w-12 rounded border border-line bg-elevated px-1 text-center lb-numeric" dir="ltr" />
+      </label>
+      {dirty && (
+        <Button size="sm" variant="secondary" disabled={disabled} onClick={() => onSave(Number(warn), Number(late))}>حفظ</Button>
+      )}
+    </span>
   );
 }

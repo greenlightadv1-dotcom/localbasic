@@ -208,7 +208,7 @@ export const requestSchema = z.object({ kind: stationSchema, lines, note: z.stri
 export const requestIdSchema = z.object({ requestId: z.string().uuid() });
 export const wasteSchema = z.object({
   kind: kindSchema, itemId: z.string().uuid(), qty,
-  reason: z.enum(['expired', 'spoiled', 'dropped', 'overcooked', 'returned_by_guest', 'staff_meal', 'other']),
+  reason: z.enum(['expired', 'spoiled', 'burnt', 'dropped', 'tasting', 'overcooked', 'returned_by_guest', 'staff_meal', 'other']),
   note: z.string().trim().max(300).optional(),
 });
 export const adjustSchema = z.object({

@@ -74,6 +74,9 @@ export default async function CashierPage({
       currency={ctx.currency}
       canDiscount={can(ctx, 'restaurant.pos.discount')}
       canCancel={can(ctx, 'restaurant.order.cancel')}
+      canCharge={can(ctx, 'restaurant.account.charge')}
+      businessName={ctx.organizationName}
+      cashierName={ctx.fullName ?? ''}
       branchId={ctx.branchId}
       organizationSlug={ctx.organizationSlug}
       branchSlug={ctx.branchSlug}
