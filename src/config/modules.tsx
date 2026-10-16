@@ -126,6 +126,8 @@ export const MODULES: Record<string, ModuleDefinition> = {
       { href: '/inventory/recipes', label: 'الوصفات والتكلفة', icon: 'ChefHat', permission: 'inventory.read' },
       { href: '/inventory/wastage', label: 'الهالك', icon: 'Trash2', permission: ['inventory.read', 'inventory.waste'] },
       { href: '/inventory/purchasing', label: 'المشتريات والتنبيهات', icon: 'ShoppingCart', permission: ['inventory.read', 'inventory.purchase'] },
+      // Executive command center: profit, basket, speed of service, RFM, campaigns (0110).
+      { href: '/analytics/executive-dashboard', label: 'مركز القيادة', icon: 'LayoutDashboard', permission: 'restaurant.analytics.executive' },
       { href: '/analytics/menu-matrix', label: 'هندسة المنيو', icon: 'ScatterChart', permission: 'report.read' },
       // Writes the catalog, so it lives under the menu rather than under the
       // Site Engine: a site's menu section reads these same tables live.

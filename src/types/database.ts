@@ -2413,6 +2413,85 @@ export type Database = {
         Update: { [key: string]: never };
         Relationships: [];
       };
+      restaurant_analytics_settings: {
+        Row: {
+          organization_id: string;
+          margin_floor_bp: number;
+          lapse_days: number;
+          auto_reengage: boolean;
+          reengage_channel: 'sms' | 'whatsapp';
+          reengage_discount_bp: number;
+          reengage_valid_days: number;
+          reengage_message: string | null;
+          last_reengage_run_at: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0110).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_margin_alerts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          variant_id: string;
+          status: 'open' | 'resolved';
+          price_cents: number;
+          cost_cents: number;
+          margin_bp: number;
+          floor_bp: number;
+          opened_margin_bp: number;
+          cause_item_id: string | null;
+          opened_at: string;
+          updated_at: string;
+          resolved_at: string | null;
+          acknowledged_by: string | null;
+          acknowledged_at: string | null;
+        };
+        // Written only through SECURITY DEFINER functions (0110).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_campaigns: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          segment: 'vip' | 'loyal' | 'active' | 'new' | 'at_risk' | 'lapsed' | 'custom';
+          channel: 'sms' | 'whatsapp';
+          message: string;
+          promotion_id: string | null;
+          promo_code: string | null;
+          recipients: number;
+          skipped_recent: number;
+          auto_generated: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0110).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
+      restaurant_campaign_recipients: {
+        Row: {
+          id: number;
+          campaign_id: string;
+          organization_id: string;
+          phone_key: string;
+          phone: string;
+          name: string | null;
+          notification_id: string | null;
+          created_at: string;
+        };
+        // Written only through SECURITY DEFINER functions (0110).
+        Insert: { [key: string]: never };
+        Update: { [key: string]: never };
+        Relationships: [];
+      };
       restaurant_house_accounts: {
         Row: {
           customer_id: string;
@@ -3900,6 +3979,18 @@ export type Database = {
       restaurant_intake_order: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotions_apply: { Args: Record<string, unknown>; Returns: Json };
       restaurant_promotion_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_analytics_settings_save: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_market_basket: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_food_cost_variance: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_ingredient_price_changes: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_sos_stages: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_sos_hourly: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_rfm_customers: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_executive_kpis: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_margin_alert_ack: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_margin_scan: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_campaign_send: { Args: Record<string, unknown>; Returns: Json };
+      restaurant_analytics_worker: { Args: Record<string, unknown>; Returns: Json };
       inventory_threshold_save: { Args: Record<string, unknown>; Returns: Json };
       restaurant_reorder_suggestions: { Args: Record<string, unknown>; Returns: Json };
       restaurant_po_generate: { Args: Record<string, unknown>; Returns: Json };

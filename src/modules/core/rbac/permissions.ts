@@ -81,6 +81,8 @@ export const PERMISSIONS = [
   'restaurant.account.charge',
   'restaurant.audit.risk_view',
   'restaurant.audit.risk_reset',
+  'restaurant.analytics.executive',
+  'restaurant.campaign.send',
   'approval.grant',
   'inventory.read',
   'inventory.manage',

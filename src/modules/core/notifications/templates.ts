@@ -35,6 +35,15 @@ const TEMPLATES: Record<string, Renderer> = {
     subject: 'تم إلغاء طلبك',
     text: `تم إلغاء طلبك رقم ${str(p, 'order_number', '—')}. ${str(p, 'reason')}`.trim(),
   }),
+  // 0110: a promotional / re-engagement message; the text is the shop's own.
+  'restaurant.campaign': (p) => ({
+    subject: str(p, 'organization', 'عرض خاص'),
+    text: `${str(p, 'message')}${str(p, 'code') ? ` — الكود: ${str(p, 'code')}` : ''}${str(p, 'organization') ? ` (${str(p, 'organization')})` : ''}`.trim(),
+  }),
+  'restaurant.margin.below_floor': (p) => ({
+    subject: 'هامش صنف تحت الحد',
+    text: `هامش «${str(p, 'product', 'صنف')}» نزل إلى ${str(p, 'margin_pct', '—')}% (الحد ${str(p, 'floor_pct', '—')}%) بعد ارتفاع تكلفة الخامات.`,
+  }),
   'member.invited': (p) => ({
     subject: `دعوة للانضمام إلى ${str(p, 'organization', 'فريق العمل')}`,
     text:
