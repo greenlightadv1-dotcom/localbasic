@@ -157,6 +157,17 @@ export const MODULES: Record<string, ModuleDefinition> = {
     ],
     publicLinkKinds: ['store', 'order_status'],
   },
+  // The clinic vertical. Its key stays 'medical' (organization_modules,
+  // permissions); "clinic" is the product word and the route prefix.
+  medical: {
+    key: 'medical',
+    nameAr: 'عيادة',
+    nameEn: 'Clinic',
+    navigation: [
+      { href: '/clinic-appointments', label: 'المواعيد', icon: 'CalendarDays', permission: ['clinic.appointment.read', 'clinic.emr.write'] },
+    ],
+    publicLinkKinds: [],
+  },
 };
 
 export function getModule(key: string): ModuleDefinition | undefined {

@@ -186,8 +186,15 @@ function approvalRequired(error: unknown): AppError {
  * Postgres generated is logged and replaced; approval and rate limits keep
  * their own codes.
  */
+/** SQLSTATE for "that slot, room or shift is taken" (0111/0113). */
+export const DB_SLOT_CONFLICT = 'LB409';
+
 export function staffDbError(error: { code?: string; message?: string; hint?: string }, context: string): AppError {
   if (error.code === DB_APPROVAL_REQUIRED) return approvalRequired(error);
+  if (error.code === DB_SLOT_CONFLICT) {
+    const message = error.message ?? '';
+    return new AppError('conflict', /[\u0600-\u06FF]/.test(message) && !INTERNAL_DETAIL.test(message) ? message : 'هذا الموعد محجوز بالفعل.');
+  }
   if (error.code === DB_RATE_LIMITED) return rateLimited(error);
   const message = error.message ?? '';
   // A refusal the function explained ("لا يمكن لنفس الشخص الصرف والاستلام")

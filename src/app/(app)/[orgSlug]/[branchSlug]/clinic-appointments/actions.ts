@@ -114,3 +114,9 @@ export const payCommissionAction = defineTenantAction({
     return done(ctx, { paidCents });
   },
 });
+
+export const searchPatientsAction = defineTenantAction({
+  schema: schemas.patientSearchSchema, permission: 'clinic.patient.read',
+  rateLimit: { limit: 300, windowMs: 60_000 },
+  handler: async ({ ctx, input }) => clinic.searchPatients(ctx, input.query),
+});

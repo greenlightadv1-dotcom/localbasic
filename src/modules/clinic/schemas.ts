@@ -208,3 +208,5 @@ export type EmrInput = z.infer<typeof emrSchema>;
 export type PrescriptionIssueInput = z.infer<typeof prescriptionIssueSchema>;
 export type VisitPayInput = z.infer<typeof visitPaySchema>;
 export type CommissionSummaryInput = z.infer<typeof commissionSummarySchema>;
+
+export const patientSearchSchema = z.object({ query: z.string().trim().min(2, 'اكتب حرفين على الأقل').max(60) });

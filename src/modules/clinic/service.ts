@@ -298,3 +298,101 @@ export async function payCommission(ctx: TenantContext, doctorId: string, until?
     p_org: ctx.organizationId, p_branch: ctx.branchId, p_doctor: doctorId, p_until: until ?? new Date().toISOString(),
   }, 'clinic.payCommission'));
 }
+
+// ---------------------------------------------------------------------------
+// Calendar reads (0115)
+// ---------------------------------------------------------------------------
+export type AppointmentStatus = 'booked' | 'checked_in' | 'in_session' | 'completed' | 'cancelled' | 'no_show';
+
+export type ClinicWorkspace = {
+  branchModule: string | null;
+  timezone: string;
+  myDoctorId: string | null;
+  settings: { opensAt: string; closesAt: string; workDays: number[]; slotMinutes: number; enforceShifts: boolean };
+  doctors: { id: string; name: string; specialty: string | null; color: string | null; feeCents: number; isMe: boolean }[];
+  rooms: { id: string; name: string; kind: string }[];
+  services: { id: string; name: string; category: string | null; priceCents: number; durationMinutes: number }[];
+  shifts: { id: string; doctorId: string; roomId: string | null; weekday: number; startsAt: string; endsAt: string; slotMinutes: number }[];
+};
+
+export type CalendarAppointment = {
+  id: string;
+  doctorId: string;
+  roomId: string | null;
+  startsAt: string;
+  endsAt: string;
+  status: AppointmentStatus;
+  source: string;
+  reason: string | null;
+  checkedInAt: string | null;
+  sessionStartedAt: string | null;
+  completedAt: string | null;
+  cancelReason: string | null;
+  patient: { id: string; name: string; fileNumber: string; phone: string | null; allergies: string | null };
+  services: { lineId: string; serviceId: string; name: string; doctorId: string; quantity: number; unitPriceCents: number; discountCents: number; consumed: boolean }[];
+  invoice: { id: string; number: string; totalCents: number; paidCents: number; status: string } | null;
+};
+
+export type PatientHit = {
+  id: string; fileNumber: string; name: string; phone: string | null;
+  gender: string | null; dateOfBirth: string | null; allergies: string | null;
+};
+
+const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
+
+export async function getWorkspace(ctx: TenantContext): Promise<ClinicWorkspace> {
+  const w = (await call('clinic_workspace', { p_org: ctx.organizationId, p_branch: ctx.branchId }, 'clinic.workspace')) as Row;
+  const s = (w.settings ?? {}) as Row;
+  return {
+    branchModule: str(w.branch_module),
+    timezone: str(w.timezone) ?? ctx.timezone,
+    myDoctorId: str(w.my_doctor_id),
+    settings: {
+      opensAt: String(s.opens_at ?? '09:00'), closesAt: String(s.closes_at ?? '21:00'),
+      workDays: ((s.work_days as number[]) ?? []).map(Number), slotMinutes: num(s.slot_minutes) || 15,
+      enforceShifts: Boolean(s.enforce_shifts),
+    },
+    doctors: ((w.doctors as Row[]) ?? []).map((d) => ({
+      id: String(d.id), name: String(d.display_name), specialty: str(d.specialty), color: str(d.color),
+      feeCents: num(d.consultation_fee_cents), isMe: Boolean(d.is_me),
+    })),
+    rooms: ((w.rooms as Row[]) ?? []).map((r) => ({ id: String(r.id), name: String(r.name), kind: String(r.kind) })),
+    services: ((w.services as Row[]) ?? []).map((x) => ({
+      id: String(x.id), name: String(x.name), category: str(x.category), priceCents: num(x.price_cents), durationMinutes: num(x.duration_minutes),
+    })),
+    shifts: ((w.shifts as Row[]) ?? []).map((x) => ({
+      id: String(x.id), doctorId: String(x.doctor_id), roomId: str(x.room_id), weekday: num(x.weekday),
+      startsAt: String(x.starts_at), endsAt: String(x.ends_at), slotMinutes: num(x.slot_minutes) || 15,
+    })),
+  };
+}
+
+export async function getCalendar(ctx: TenantContext, from: Date, to: Date): Promise<CalendarAppointment[]> {
+  const data = await call('clinic_calendar', {
+    p_org: ctx.organizationId, p_branch: ctx.branchId, p_from: from.toISOString(), p_to: to.toISOString(),
+  }, 'clinic.calendar');
+  return ((data as Row[]) ?? []).map((a) => {
+    const p = (a.patient ?? {}) as Row;
+    const inv = a.invoice as Row | null;
+    return {
+      id: String(a.id), doctorId: String(a.doctor_id), roomId: str(a.room_id),
+      startsAt: String(a.starts_at), endsAt: String(a.ends_at), status: a.status as AppointmentStatus,
+      source: String(a.source), reason: str(a.reason), checkedInAt: str(a.checked_in_at),
+      sessionStartedAt: str(a.session_started_at), completedAt: str(a.completed_at), cancelReason: str(a.cancel_reason),
+      patient: { id: String(p.id), name: String(p.full_name), fileNumber: String(p.file_number), phone: str(p.phone), allergies: str(p.allergies) },
+      services: ((a.services as Row[]) ?? []).map((l) => ({
+        lineId: String(l.line_id), serviceId: String(l.service_id), name: String(l.name), doctorId: String(l.doctor_id),
+        quantity: num(l.quantity), unitPriceCents: num(l.unit_price_cents), discountCents: num(l.discount_cents), consumed: Boolean(l.consumed),
+      })),
+      invoice: inv ? { id: String(inv.id), number: String(inv.number), totalCents: num(inv.total_cents), paidCents: num(inv.paid_cents), status: String(inv.status) } : null,
+    };
+  });
+}
+
+export async function searchPatients(ctx: TenantContext, query: string): Promise<PatientHit[]> {
+  const data = await call('clinic_patient_search', { p_org: ctx.organizationId, p_query: query }, 'clinic.patientSearch');
+  return rows(data).map((r) => ({
+    id: String(r.id), fileNumber: String(r.file_number), name: String(r.full_name), phone: str(r.phone),
+    gender: str(r.gender), dateOfBirth: str(r.date_of_birth), allergies: str(r.allergies),
+  }));
+}
