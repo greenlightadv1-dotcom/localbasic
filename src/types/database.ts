@@ -3329,6 +3329,7 @@ export type Database = {
           organization_id: string;
           variant_id: string;
           quantity: number;
+          quantity_received: number | null;
         };
         Insert: {
           id?: string;
@@ -3336,6 +3337,7 @@ export type Database = {
           organization_id: string;
           variant_id: string;
           quantity: number;
+          quantity_received?: number | null;
         };
         Update: {
           id?: string;
@@ -3343,6 +3345,7 @@ export type Database = {
           organization_id?: string;
           variant_id?: string;
           quantity?: number;
+          quantity_received?: number | null;
         };
         Relationships: [];
       };
@@ -3355,6 +3358,20 @@ export type Database = {
           note: string | null;
           created_by: string | null;
           created_at: string;
+          status: 'requested' | 'approved' | 'in_transit' | 'received' | 'cancelled' | 'rejected';
+          number: string | null;
+          reason: string | null;
+          auto_generated: boolean;
+          requested_at: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+          dispatched_by: string | null;
+          dispatched_at: string | null;
+          received_by: string | null;
+          received_at: string | null;
+          cancelled_by: string | null;
+          cancelled_at: string | null;
+          cancel_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -3364,6 +3381,20 @@ export type Database = {
           note?: string | null;
           created_by?: string | null;
           created_at?: string;
+          status?: 'requested' | 'approved' | 'in_transit' | 'received' | 'cancelled' | 'rejected';
+          number?: string | null;
+          reason?: string | null;
+          auto_generated?: boolean;
+          requested_at?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          dispatched_by?: string | null;
+          dispatched_at?: string | null;
+          received_by?: string | null;
+          received_at?: string | null;
+          cancelled_by?: string | null;
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
         };
         Update: {
           id?: string;
@@ -3373,6 +3404,20 @@ export type Database = {
           note?: string | null;
           created_by?: string | null;
           created_at?: string;
+          status?: 'requested' | 'approved' | 'in_transit' | 'received' | 'cancelled' | 'rejected';
+          number?: string | null;
+          reason?: string | null;
+          auto_generated?: boolean;
+          requested_at?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          dispatched_by?: string | null;
+          dispatched_at?: string | null;
+          received_by?: string | null;
+          received_at?: string | null;
+          cancelled_by?: string | null;
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
         };
         Relationships: [];
       };
@@ -3433,6 +3478,9 @@ export type Database = {
           cost_cents: number;
           options: Json;
           reorder_point: number;
+          scale_code: string | null;
+          reorder_qty: number;
+          preferred_supplier_id: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -3449,6 +3497,9 @@ export type Database = {
           cost_cents?: number;
           options?: Json;
           reorder_point?: number;
+          scale_code?: string | null;
+          reorder_qty?: number;
+          preferred_supplier_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -3465,6 +3516,9 @@ export type Database = {
           cost_cents?: number;
           options?: Json;
           reorder_point?: number;
+          scale_code?: string | null;
+          reorder_qty?: number;
+          preferred_supplier_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
