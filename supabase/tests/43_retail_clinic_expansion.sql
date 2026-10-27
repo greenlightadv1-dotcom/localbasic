@@ -55,6 +55,8 @@ begin
 
   -- ---- clinic setup ----------------------------------------------------------------
   perform auth.as_admin();
+  -- Shift enforcement (0113) is tested in 45; this test books freely.
+  update public.clinic_settings set enforce_shifts = false where organization_id = org;
   insert into public.clinic_rooms (organization_id, branch_id, name, kind) values (org, br, 'غرفة 1', 'procedure') returning id into room;
   insert into public.clinic_doctors (organization_id, member_id, display_name, specialty, commission_mode, commission_percent)
   values (org, m_doc, 'د. سارة', 'جلدية', 'percent', 30) returning id into doc;

@@ -15,6 +15,7 @@ do $$
 declare
   bad text;
   allowed text[] := array[
+    'clinic_prescription_public(text)',
     'customer_claim_reward(text,text,text)',
     'customer_claim_reward_by_token(text,text,text)',
     'customer_profile(text,text,text)',

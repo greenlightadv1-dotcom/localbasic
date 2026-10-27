@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { AppError, toAppError } from '@/lib/errors';
+import { AppError, staffDbError, toAppError } from '@/lib/errors';
 import { requirePermission, type TenantContext } from '@/modules/core/tenancy/context';
 
 /**
@@ -96,4 +96,22 @@ export async function getBranchLimitInfo(ctx: TenantContext): Promise<BranchLimi
   const limit = typeof rawLimit === 'number' ? rawLimit : null;
 
   return { used: count ?? 0, limit, planName: plan?.name_ar ?? null };
+}
+
+/**
+ * A branch's operating mode (0111): restaurant, retail or clinic ('medical').
+ * null hands it back to the organization's primary module. The database only
+ * accepts a module the organization has enabled.
+ */
+export const setBranchModuleInput = z.object({
+  branchId: z.string().uuid(),
+  module: z.enum(['restaurant', 'retail', 'medical', 'workshop']).nullable(),
+});
+
+export async function setBranchModule(ctx: TenantContext, input: z.infer<typeof setBranchModuleInput>): Promise<void> {
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.rpc('branch_set_module' as never, {
+    p_org: ctx.organizationId, p_branch: input.branchId, p_module: input.module,
+  } as never);
+  if (error) throw staffDbError(error, 'setBranchModule');
 }
