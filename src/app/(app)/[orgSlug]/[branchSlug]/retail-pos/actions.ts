@@ -50,3 +50,15 @@ export const storeCreditBalanceAction = defineTenantAction({
   schema: schemas.storeCreditBalanceSchema, permission: 'retail.pos.use',
   handler: async ({ ctx, input }) => ({ balanceCents: await retail.getStoreCreditBalance(ctx, input.customerId) }),
 });
+
+export const lookupCustomerAction = defineTenantAction({
+  schema: schemas.customerLookupSchema, permission: 'retail.pos.use',
+  rateLimit: { limit: 120, windowMs: 60_000 },
+  handler: async ({ ctx, input }) => retail.lookupCustomer(ctx, input.phone),
+});
+
+export const lookupReceiptAction = defineTenantAction({
+  schema: schemas.receiptLookupSchema, permission: 'retail.return.manage',
+  rateLimit: { limit: 120, windowMs: 60_000 },
+  handler: async ({ ctx, input }) => retail.lookupReceipt(ctx, input.number),
+});

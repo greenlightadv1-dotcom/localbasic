@@ -147,6 +147,7 @@ export const MODULES: Record<string, ModuleDefinition> = {
     nameEn: 'Retail',
     navigation: [
       { href: '/pos', label: 'نقطة البيع', icon: 'ScanBarcode', permission: 'retail.pos.use' },
+      { href: '/retail-pos', label: 'كاشير التجزئة', icon: 'ScanBarcode', permission: 'retail.pos.use' },
       { href: '/products', label: 'المنتجات', icon: 'Package', permission: 'retail.product.read' },
       { href: '/inventory', label: 'المخزون', icon: 'Boxes', permission: 'retail.inventory.read' },
       { href: '/purchases', label: 'المشتريات', icon: 'Truck', permission: 'retail.purchase.read' },

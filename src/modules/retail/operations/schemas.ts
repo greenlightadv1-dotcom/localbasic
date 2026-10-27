@@ -16,6 +16,8 @@ const method = z.enum(['cash', 'card', 'transfer', 'wallet', 'online', 'other'])
 const reason = z.string().trim().max(300);
 
 export const barcodeLookupSchema = z.object({ code: z.string().trim().min(1).max(64) });
+export const customerLookupSchema = z.object({ phone: z.string().trim().min(7, 'أدخل رقم الهاتف').max(30) });
+export const receiptLookupSchema = z.object({ number: z.string().trim().min(1, 'أدخل رقم الفاتورة').max(40) });
 
 // ---- transfers ---------------------------------------------------------------
 export const transferRequestSchema = z.object({

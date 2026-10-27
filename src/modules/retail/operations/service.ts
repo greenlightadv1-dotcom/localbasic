@@ -205,3 +205,117 @@ export async function generateReorderDrafts(
     supplierId: (r.out_supplier_id as string) ?? null, lines: num(r.out_lines),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Till reads: catalog, customer, receipt
+// ---------------------------------------------------------------------------
+export type RetailPosItem = {
+  variantId: string;
+  productId: string;
+  productName: string;
+  variantName: string;
+  categoryId: string | null;
+  sku: string | null;
+  barcode: string | null;
+  priceCents: number;
+  taxRateBp: number;
+  /** piece | kg | gram | litre | metre | box | pack — fractional quantities for the weighed ones. */
+  unit: string;
+  stock: number;
+};
+
+export type RetailPosCatalog = { items: RetailPosItem[]; categories: { id: string; name: string }[] };
+
+/**
+ * Everything sellable at this branch with live stock, loaded once: at the
+ * till a round trip per keystroke is the difference between fast and
+ * unusable. Prices here are for display only; retail_checkout re-reads them.
+ */
+export async function listRetailPosCatalog(ctx: TenantContext): Promise<RetailPosCatalog> {
+  const supabase = createSupabaseServerClient();
+  const [{ data: variants, error }, { data: categories, error: catError }] = await Promise.all([
+    supabase
+      .from('retail_variants')
+      .select('id, name, sku, barcode, price_cents, product_id, retail_products!inner(name, unit, tax_rate_bp, is_active, category_id, deleted_at)')
+      .eq('organization_id', ctx.organizationId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .limit(3000),
+    supabase
+      .from('retail_categories')
+      .select('id, name, sort_order')
+      .eq('organization_id', ctx.organizationId)
+      .eq('is_active', true)
+      .order('sort_order')
+      .limit(200),
+  ]);
+  if (error) throw staffDbError(error, 'listRetailPosCatalog');
+  if (catError) throw staffDbError(catError, 'listRetailPosCatalog.categories');
+
+  const ids = (variants ?? []).map((v) => v.id);
+  const stock = new Map<string, number>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data: levels, error: levelError } = await supabase
+      .from('retail_stock_levels')
+      .select('variant_id, quantity')
+      .eq('branch_id', ctx.branchId)
+      .in('variant_id', ids.slice(i, i + 500));
+    if (levelError) throw staffDbError(levelError, 'listRetailPosCatalog.stock');
+    for (const l of levels ?? []) stock.set(l.variant_id, Number(l.quantity));
+  }
+
+  const items: RetailPosItem[] = [];
+  for (const v of variants ?? []) {
+    const p = v.retail_products as unknown as {
+      name: string; unit: string; tax_rate_bp: number; is_active: boolean; category_id: string | null; deleted_at: string | null;
+    } | null;
+    if (!p?.is_active || p.deleted_at) continue;
+    items.push({
+      variantId: v.id, productId: v.product_id, productName: p.name, variantName: v.name,
+      categoryId: p.category_id, sku: v.sku, barcode: v.barcode, priceCents: v.price_cents,
+      taxRateBp: p.tax_rate_bp, unit: p.unit, stock: stock.get(v.id) ?? 0,
+    });
+  }
+  items.sort((a, b) => a.productName.localeCompare(b.productName, 'ar'));
+  return { items, categories: (categories ?? []).map((c) => ({ id: c.id, name: c.name })) };
+}
+
+export type PosCustomer = {
+  customerId: string; name: string; phone: string | null;
+  storeCreditCents: number; loyaltyPoints: number; loyaltyEnabled: boolean;
+};
+
+export async function lookupCustomer(ctx: TenantContext, phone: string): Promise<PosCustomer[]> {
+  const data = await call('retail_customer_lookup', { p_org: ctx.organizationId, p_phone: phone }, 'lookupCustomer');
+  return rows(data).map((r) => ({
+    customerId: String(r.customer_id), name: String(r.name), phone: (r.phone as string) ?? null,
+    storeCreditCents: num(r.store_credit_cents), loyaltyPoints: num(r.loyalty_points), loyaltyEnabled: Boolean(r.loyalty_enabled),
+  }));
+}
+
+export type ReceiptLine = {
+  variantId: string; description: string; quantity: number; returned: number; unitRefundCents: number;
+};
+
+export type Receipt = {
+  invoiceId: string; number: string; issuedAt: string | null; totalCents: number; paidCents: number; status: string;
+  customer: { id: string; name: string; phone: string | null } | null;
+  lines: ReceiptLine[];
+};
+
+export async function lookupReceipt(ctx: TenantContext, number: string): Promise<Receipt | null> {
+  const data = (await call('retail_receipt_lookup', {
+    p_org: ctx.organizationId, p_branch: ctx.branchId, p_number: number,
+  }, 'lookupReceipt')) as Row | null;
+  if (!data) return null;
+  const customer = data.customer as Row | null;
+  return {
+    invoiceId: String(data.invoice_id), number: String(data.number), issuedAt: (data.issued_at as string) ?? null,
+    totalCents: num(data.total_cents), paidCents: num(data.paid_cents), status: String(data.status),
+    customer: customer ? { id: String(customer.id), name: String(customer.name), phone: (customer.phone as string) ?? null } : null,
+    lines: ((data.lines as Row[]) ?? []).map((l) => ({
+      variantId: String(l.variant_id), description: String(l.description), quantity: num(l.quantity),
+      returned: num(l.returned), unitRefundCents: num(l.unit_refund_cents),
+    })),
+  };
+}
