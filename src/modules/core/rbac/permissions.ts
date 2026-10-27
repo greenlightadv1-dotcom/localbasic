@@ -51,6 +51,10 @@ export const PERMISSIONS = [
   'retail.order.read',
   'retail.order.manage',
   'retail.store.manage',
+  'retail.transfer.approve',
+  'retail.return.manage',
+  'retail.promotion.manage',
+  'retail.credit.manage',
   'restaurant.menu.read',
   'restaurant.menu.manage',
   'restaurant.table.read',
@@ -93,6 +97,17 @@ export const PERMISSIONS = [
   'inventory.request',
   'inventory.waste',
   'inventory.adjust',
+  'clinic.appointment.read',
+  'clinic.appointment.manage',
+  'clinic.patient.read',
+  'clinic.patient.manage',
+  'clinic.emr.read',
+  'clinic.emr.write',
+  'clinic.prescription.write',
+  'clinic.service.manage',
+  'clinic.doctor.manage',
+  'clinic.billing.use',
+  'clinic.commission.read',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
