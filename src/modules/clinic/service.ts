@@ -239,7 +239,7 @@ export async function sharePrescription(
 
 export type PublicPrescription = {
   number: string; issued_at: string; expires_at: string; notes: string | null;
-  clinic: string; branch: string; branch_phone: string | null; branch_address: string | null;
+  clinic: string; timezone: string | null; branch: string; branch_phone: string | null; branch_address: string | null;
   doctor: string; specialty: string | null; license: string | null;
   patient: string; file_number: string; age: number | null;
   items: { drug_name: string; strength: string | null; dosage_form: string | null; dose: string | null;
@@ -395,4 +395,126 @@ export async function searchPatients(ctx: TenantContext, query: string): Promise
     id: String(r.id), fileNumber: String(r.file_number), name: String(r.full_name), phone: str(r.phone),
     gender: str(r.gender), dateOfBirth: str(r.date_of_birth), allergies: str(r.allergies),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Patient chart (0116)
+// ---------------------------------------------------------------------------
+export type Vitals = {
+  temperatureC: number | null; pulseBpm: number | null; systolicMmhg: number | null; diastolicMmhg: number | null;
+  respiratoryRate: number | null; spo2Percent: number | null; weightKg: number | null; heightCm: number | null; glucoseMgDl: number | null;
+};
+
+export type EmrRecordType = 'note' | 'diagnosis' | 'vitals' | 'history' | 'attachment' | 'amendment';
+
+export type EmrRecord = {
+  id: string; type: EmrRecordType; title: string | null; body: string | null; diagnosisCode: string | null;
+  vitals: Vitals;
+  attachment: { path: string; mime: string | null; bytes: number | null; url: string | null } | null;
+  amendsId: string | null; appointmentId: string | null; doctorId: string | null; author: string; createdAt: string;
+};
+
+export type PrescriptionItemView = {
+  drugName: string; strength: string | null; dosageForm: string | null; dose: string | null;
+  route: string | null; frequency: string | null; duration: string | null; instructions: string | null;
+};
+
+export type PrescriptionView = {
+  id: string; number: string; status: 'issued' | 'cancelled'; notes: string | null; issuedAt: string; expiresAt: string;
+  doctorId: string; appointmentId: string | null; cancelReason: string | null; items: PrescriptionItemView[];
+};
+
+export type ChartVisit = {
+  id: string; branchId: string; doctorId: string; startsAt: string; status: AppointmentStatus; reason: string | null;
+  services: { lineId: string; serviceId: string; name: string; quantity: number; unitPriceCents: number; discountCents: number; consumed: boolean }[];
+  invoice: { number: string; totalCents: number; paidCents: number; status: string } | null;
+};
+
+export type PatientProfile = {
+  id: string; branchId: string; fileNumber: string; fullName: string; phone: string | null; nationalId: string | null;
+  gender: 'male' | 'female' | null; dateOfBirth: string | null; age: number | null;
+  bloodType: string | null; allergies: string | null; chronicConditions: string | null;
+  emergencyContactName: string | null; emergencyContactPhone: string | null; notes: string | null; createdAt: string;
+};
+
+export type PatientChart = {
+  patient: PatientProfile;
+  records: EmrRecord[];
+  prescriptions: PrescriptionView[];
+  visits: ChartVisit[];
+  activeVisitId: string | null;
+  serviceSupplies: Record<string, { itemName: string; qty: number; unit: string }[]>;
+};
+
+const numOrNull = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+
+/**
+ * The whole chart in one read. Attachments come back with short-lived signed
+ * URLs from the private bucket, minted under the caller's own session, so the
+ * storage policy (clinic.emr.read) is checked again per file.
+ */
+export async function getPatientChart(ctx: TenantContext, patientId: string): Promise<PatientChart | null> {
+  const data = (await call('clinic_patient_chart', { p_org: ctx.organizationId, p_patient: patientId }, 'clinic.chart')) as Row | null;
+  if (!data) return null;
+  const p = data.patient as Row;
+
+  const records: EmrRecord[] = ((data.records as Row[]) ?? []).map((r) => ({
+    id: String(r.id), type: r.type as EmrRecordType, title: str(r.title), body: str(r.body), diagnosisCode: str(r.diagnosis_code),
+    vitals: {
+      temperatureC: numOrNull(r.temperature_c), pulseBpm: numOrNull(r.pulse_bpm), systolicMmhg: numOrNull(r.systolic_mmhg),
+      diastolicMmhg: numOrNull(r.diastolic_mmhg), respiratoryRate: numOrNull(r.respiratory_rate), spo2Percent: numOrNull(r.spo2_percent),
+      weightKg: numOrNull(r.weight_kg), heightCm: numOrNull(r.height_cm), glucoseMgDl: numOrNull(r.glucose_mg_dl),
+    },
+    attachment: r.attachment_path
+      ? { path: String(r.attachment_path), mime: str(r.attachment_mime), bytes: numOrNull(r.attachment_bytes), url: null }
+      : null,
+    amendsId: str(r.amends_id), appointmentId: str(r.appointment_id), doctorId: str(r.doctor_id),
+    author: String(r.author), createdAt: String(r.created_at),
+  }));
+
+  const paths = records.flatMap((r) => (r.attachment ? [r.attachment.path] : []));
+  if (paths.length) {
+    const supabase = createSupabaseServerClient();
+    const { data: signed, error } = await supabase.storage.from('clinic-records').createSignedUrls(paths, 60 * 60);
+    if (error) console.error('[localbasic] clinic.chart.signedUrls', error);
+    const urls = new Map((signed ?? []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl]));
+    for (const r of records) if (r.attachment) r.attachment.url = urls.get(r.attachment.path) ?? null;
+  }
+
+  return {
+    patient: {
+      id: String(p.id), branchId: String(p.branch_id), fileNumber: String(p.file_number), fullName: String(p.full_name),
+      phone: str(p.phone), nationalId: str(p.national_id), gender: (str(p.gender) as PatientProfile['gender']),
+      dateOfBirth: str(p.date_of_birth), age: numOrNull(p.age), bloodType: str(p.blood_type),
+      allergies: str(p.allergies), chronicConditions: str(p.chronic_conditions),
+      emergencyContactName: str(p.emergency_contact_name), emergencyContactPhone: str(p.emergency_contact_phone),
+      notes: str(p.notes), createdAt: String(p.created_at),
+    },
+    records,
+    prescriptions: ((data.prescriptions as Row[]) ?? []).map((x) => ({
+      id: String(x.id), number: String(x.number), status: x.status as PrescriptionView['status'], notes: str(x.notes),
+      issuedAt: String(x.issued_at), expiresAt: String(x.expires_at), doctorId: String(x.doctor_id),
+      appointmentId: str(x.appointment_id), cancelReason: str(x.cancel_reason),
+      items: ((x.items as Row[]) ?? []).map((i) => ({
+        drugName: String(i.drug_name), strength: str(i.strength), dosageForm: str(i.dosage_form), dose: str(i.dose),
+        route: str(i.route), frequency: str(i.frequency), duration: str(i.duration), instructions: str(i.instructions),
+      })),
+    })),
+    visits: ((data.visits as Row[]) ?? []).map((v) => {
+      const inv = v.invoice as Row | null;
+      return {
+        id: String(v.id), branchId: String(v.branch_id), doctorId: String(v.doctor_id), startsAt: String(v.starts_at),
+        status: v.status as AppointmentStatus, reason: str(v.reason),
+        services: ((v.services as Row[]) ?? []).map((l) => ({
+          lineId: String(l.line_id), serviceId: String(l.service_id), name: String(l.name), quantity: num(l.quantity),
+          unitPriceCents: num(l.unit_price_cents), discountCents: num(l.discount_cents), consumed: Boolean(l.consumed),
+        })),
+        invoice: inv ? { number: String(inv.number), totalCents: num(inv.total_cents), paidCents: num(inv.paid_cents), status: String(inv.status) } : null,
+      };
+    }),
+    activeVisitId: str(data.active_visit_id),
+    serviceSupplies: Object.fromEntries(Object.entries((data.service_supplies as Record<string, Row[]>) ?? {}).map(([k, list]) => [
+      k, list.map((s) => ({ itemName: String(s.item_name), qty: num(s.qty), unit: String(s.unit) })),
+    ])),
+  };
 }

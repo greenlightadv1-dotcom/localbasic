@@ -165,6 +165,7 @@ export const MODULES: Record<string, ModuleDefinition> = {
     nameEn: 'Clinic',
     navigation: [
       { href: '/clinic-appointments', label: 'المواعيد', icon: 'CalendarDays', permission: ['clinic.appointment.read', 'clinic.emr.write'] },
+      { href: '/clinic-emr', label: 'الملف الطبي', icon: 'FileHeart', permission: 'clinic.emr.read' },
     ],
     publicLinkKinds: [],
   },
