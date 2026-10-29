@@ -22,7 +22,7 @@ const ROLES: { key: RoleKey; label: string; blurb: string }[] = [
 ];
 
 /** Chrome that frames each preview so it reads as a screen, not a card. */
-function Screen({ title, children }: { title: string; children: React.ReactNode }) {
+export function Screen({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-elevated shadow-card">
       <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-2.5">
@@ -38,7 +38,7 @@ function Screen({ title, children }: { title: string; children: React.ReactNode 
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded border border-line bg-surface p-3">
       <p className="text-xs text-muted">{label}</p>
@@ -48,7 +48,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function Pill({ tone, children }: { tone: 'new' | 'prep' | 'ready' | 'paid'; children: React.ReactNode }) {
+export function Pill({ tone, children }: { tone: 'new' | 'prep' | 'ready' | 'paid'; children: React.ReactNode }) {
   const tones = {
     new: 'bg-primary-soft text-primary',
     prep: 'bg-warn/15 text-warn',
@@ -60,7 +60,7 @@ function Pill({ tone, children }: { tone: 'new' | 'prep' | 'ready' | 'paid'; chi
   );
 }
 
-function OwnerPreview() {
+export function OwnerPreview() {
   return (
     <Screen title="لوحة المالك — فرع المعادي">
       <div className="grid gap-3 sm:grid-cols-4">
@@ -97,7 +97,7 @@ function OwnerPreview() {
   );
 }
 
-function CashierPreview() {
+export function CashierPreview() {
   return (
     <Screen title="نقطة البيع — كاشير">
       <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
@@ -156,7 +156,7 @@ function CashierPreview() {
   );
 }
 
-function KitchenPreview() {
+export function KitchenPreview() {
   return (
     <Screen title="شاشة المطبخ">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -184,7 +184,7 @@ function KitchenPreview() {
   );
 }
 
-function WaiterPreview() {
+export function WaiterPreview() {
   return (
     <Screen title="الصالة — كابتن">
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -214,7 +214,7 @@ function WaiterPreview() {
   );
 }
 
-function CustomerPreview() {
+export function CustomerPreview() {
   return (
     <Screen title="منيو الضيف — من الجوال">
       <div className="mx-auto max-w-sm">

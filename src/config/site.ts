@@ -40,7 +40,10 @@ export const ACCOUNT_WHATSAPP_MESSAGES = {
 export const WHATSAPP_MESSAGES = {
   general: 'السلام عليكم، أرغب في معرفة المزيد عن Local Basic.',
   restaurant: 'السلام عليكم، مهتم بنظام إدارة المطاعم والكافيهات من Local Basic.',
-  demo: 'السلام عليكم، أرغب في حجز عرض توضيحي لنظام المطاعم.',
+  demo: 'السلام عليكم، أرغب في حجز عرض توضيحي لنظام Local Basic.',
+  restaurantDemo: 'السلام عليكم، أرغب في حجز عرض توضيحي لنظام المطاعم والكافيهات.',
+  retail: 'السلام عليكم، مهتم بنظام المتاجر والتجزئة من Local Basic (نقطة بيع، باركود، مخزون).',
+  clinic: 'السلام عليكم، مهتم بنظام العيادات من Local Basic (مواعيد، ملف المريض، روشتات).',
 } as const;
 
 export const SITE_NAV = [
