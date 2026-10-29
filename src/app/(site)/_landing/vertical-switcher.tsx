@@ -117,7 +117,7 @@ export function VerticalSwitcher() {
 
               <div className="flex flex-wrap gap-2">
                 <WhatsAppCta message={s.whatsapp} className="h-11 flex-1 px-4 text-sm">{s.cta}</WhatsAppCta>
-                {s.detailsHref && (
+                {(
                   <Link href={s.detailsHref}
                     className="inline-flex h-11 items-center justify-center gap-1.5 rounded border border-line bg-elevated px-4 text-sm font-semibold text-fg hover:bg-surface">
                     التفاصيل <ArrowLeft className="h-4 w-4" aria-hidden="true" />

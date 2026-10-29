@@ -27,7 +27,7 @@ export type Sector = {
   stats: [string, string][];
   whatsapp: string;
   cta: string;
-  detailsHref?: string;
+  detailsHref: `/services/${SectorKey}`;
   accent: {
     /** Selected tab / solid chip. */
     solid: string;
@@ -88,6 +88,7 @@ export const SECTORS: Sector[] = [
     flow: ['الكاشير يمسح الباركود ويطبّق العروض', 'المخزون ينقص من الفرع لحظيًا', 'تحويل بضاعة من فرع لفرع', 'اقتراح إعادة الطلب للمورد'],
     stats: [['ثانية', 'لكل صنف على الكاشير'], ['٤', 'مراحل لتحويل البضاعة'], ['تلقائي', 'اقتراح إعادة الطلب']],
     whatsapp: WHATSAPP_MESSAGES.retail,
+    detailsHref: '/services/retail',
     cta: 'اطلب عرضًا لمتجرك',
     accent: {
       solid: 'bg-emerald-600 text-white',
@@ -115,6 +116,7 @@ export const SECTORS: Sector[] = [
     flow: ['الاستقبال يحجز في موعد متاح', 'المريض يصل ويدخل قائمة الانتظار', 'الطبيب يكتب الكشف والروشتة', 'الروشتة على واتساب والفاتورة للخزينة'],
     stats: [['٠', 'حجز مزدوج لنفس الطبيب'], ['واتساب', 'للروشتة برابط آمن'], ['سجل', 'طبي لا يُحذف']],
     whatsapp: WHATSAPP_MESSAGES.clinic,
+    detailsHref: '/services/clinic',
     cta: 'اطلب عرضًا لعيادتك',
     accent: {
       solid: 'bg-sky-600 text-white',

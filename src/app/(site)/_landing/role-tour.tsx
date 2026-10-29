@@ -6,9 +6,10 @@ import {
   CashierPreview, KitchenPreview, OwnerPreview, WaiterPreview,
 } from '../services/restaurant/preview-tabs';
 import {
-  ClinicOwnerPreview, DoctorPreview, InventoryManagerPreview, ReceptionistPreview, RetailCashierPreview, RetailOwnerPreview,
+  ClinicOwnerPreview, DoctorPreview, InventoryManagerPreview, PatientRxPreview, ReceptionistPreview,
+  RetailCashierPreview, RetailOwnerPreview,
 } from './sector-previews';
-import { SECTORS, type SectorKey } from './sectors';
+import { SECTORS, SECTOR_BY_KEY, type SectorKey } from './sectors';
 import { useSector } from './use-sector';
 
 type Role = { key: string; label: string; blurb: string; Panel: () => JSX.Element };
@@ -16,7 +17,7 @@ type Role = { key: string; label: string; blurb: string; Panel: () => JSX.Elemen
 /**
  * "A screen for every role", per sector: the owner's view (the same treasury
  * and reports underneath, shown with that trade's numbers) and the sector's
- * own staff. Follows the sector picked anywhere on the page.
+ * own staff. Every panel is hard-coded presentation data.
  */
 const ROLES: Record<SectorKey, Role[]> = {
   restaurant: [
@@ -34,32 +35,23 @@ const ROLES: Record<SectorKey, Role[]> = {
     { key: 'owner', label: 'المالك', blurb: 'إيراد العيادة وعمولات الأطباء والخزينة.', Panel: ClinicOwnerPreview },
     { key: 'reception', label: 'الاستقبال', blurb: 'الحجز في المواعيد المتاحة وقائمة الانتظار.', Panel: ReceptionistPreview },
     { key: 'doctor', label: 'الطبيب', blurb: 'ملف المريض والعلامات الحيوية والروشتة.', Panel: DoctorPreview },
+    { key: 'patient', label: 'المريض', blurb: 'الروشتة على موبايله من رابط واتساب، بدون حساب.', Panel: PatientRxPreview },
   ],
 };
 
-export function RoleTour() {
-  const [sector, setSector] = useSector();
+/** The role tabs and panel for one sector, opening on its first front-line role. */
+function RoleTabs({ sector, leading }: { sector: SectorKey; leading?: React.ReactNode }) {
   const roles = ROLES[sector];
   const [role, setRole] = useState(roles[1]!.key);
   const baseId = useId();
-
-  // A new sector opens on its first front-line role, not the shared owner view.
   useEffect(() => { setRole(ROLES[sector][1]!.key); }, [sector]);
   const current = roles.find((r) => r.key === role) ?? roles[0]!;
-  const accent = SECTORS.find((s) => s.key === sector)!.accent;
+  const accent = SECTOR_BY_KEY[sector].accent;
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 rounded-full border border-line bg-elevated p-1" aria-label="النشاط">
-          {SECTORS.map((s) => (
-            <button key={s.key} type="button" onClick={() => setSector(s.key)} aria-pressed={s.key === sector}
-              className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors',
-                s.key === sector ? s.accent.solid : 'text-muted hover:text-fg')}>
-              <s.icon className="h-3.5 w-3.5" aria-hidden="true" /> {s.short}
-            </button>
-          ))}
-        </div>
+      <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-center', leading ? 'sm:justify-between' : 'sm:justify-center')}>
+        {leading}
         <div role="tablist" aria-label="معاينة حسب الدور" className="flex flex-wrap gap-2">
           {roles.map((r) => {
             const selected = r.key === current.key;
@@ -76,7 +68,7 @@ export function RoleTour() {
         </div>
       </div>
 
-      <p className="mt-4 flex items-center gap-2 text-sm text-muted">
+      <p className={cn('mt-4 flex items-center gap-2 text-sm text-muted', !leading && 'justify-center')}>
         <span className={cn('h-2 w-2 rounded-full', accent.dot)} aria-hidden /> {current.blurb}
       </p>
       <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-tab-${current.key}`}
@@ -85,5 +77,28 @@ export function RoleTour() {
       </div>
       <p className="mt-3 text-center text-xs text-muted">بيانات العرض توضيحية بالكامل ولا تمثل أي منشأة حقيقية.</p>
     </div>
+  );
+}
+
+/** One sector's tour, for its own service page. */
+export function SectorRoleTabs({ sector }: { sector: SectorKey }) {
+  return <RoleTabs sector={sector} />;
+}
+
+/** The landing page's tour: follows the sector picked anywhere on the page. */
+export function RoleTour() {
+  const [sector, setSector] = useSector();
+  return (
+    <RoleTabs sector={sector} leading={
+      <div className="flex gap-1 self-start rounded-full border border-line bg-elevated p-1" aria-label="النشاط">
+        {SECTORS.map((s) => (
+          <button key={s.key} type="button" onClick={() => setSector(s.key)} aria-pressed={s.key === sector}
+            className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors',
+              s.key === sector ? s.accent.solid : 'text-muted hover:text-fg')}>
+            <s.icon className="h-3.5 w-3.5" aria-hidden="true" /> {s.short}
+          </button>
+        ))}
+      </div>
+    } />
   );
 }

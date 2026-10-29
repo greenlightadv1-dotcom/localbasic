@@ -41,7 +41,7 @@ export default function ServicesPage() {
                 ))}
               </ul>
               <div className="mt-6 flex flex-wrap gap-3">
-                {sector.detailsHref && (
+                {(
                   <Link href={sector.detailsHref}
                     className="inline-flex h-11 items-center justify-center rounded bg-primary px-5 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary/90">
                     تفاصيل الخدمة

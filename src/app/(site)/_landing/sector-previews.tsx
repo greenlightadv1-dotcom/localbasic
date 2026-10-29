@@ -200,7 +200,35 @@ export function RetailOwnerPreview() {
 export function ClinicOwnerPreview() {
   return (
     <OwnerBoard title="لوحة المالك — العيادة"
-      stats={[['إيراد اليوم', '١٢٬٦٠٠ ج.م', '+٥٪ عن أمس'], ['كشوفات', '٣٨'], ['نسبة الحضور', '٩١٪'], ['عمولات مستحقة', '٣٬٤٠٠ ج.م']]}
+      stats={[['إيراد اليوم', '١٢٬٦٠٠ ج.م', '+٥٪ عن أمس'], ['كشوفات', '٣٨'], ['مواعيد الغد', '٢٤'], ['عمولات مستحقة', '٣٬٤٠٠ ج.م']]}
       topTitle="الأطباء اليوم" top={[['د. منى — باطنة', '١٦'], ['د. هاني — أطفال', '١٤'], ['د. سارة — جلدية', '٨']]} unit="كشف" />
+  );
+}
+
+export function PatientRxPreview() {
+  return (
+    <Screen title="المريض — الروشتة من رابط واتساب">
+      <div className="mx-auto max-w-sm space-y-3">
+        <div className="rounded border border-line bg-surface p-3">
+          <p className="text-sm font-bold text-fg">عيادات الشفاء — فرع الدقي</p>
+          <p className="mt-0.5 text-xs text-muted">د. منى عبد الله · باطنة · ترخيص 12345</p>
+        </div>
+        <dl className="grid grid-cols-3 gap-2 text-center text-xs">
+          {[['المريض', 'كريم سعيد'], ['السن', '٤١ سنة'], ['التاريخ', '١٢ أكتوبر']].map(([l, v]) => (
+            <div key={l} className="rounded border border-line p-2"><dt className="text-muted">{l}</dt><dd className="mt-0.5 font-semibold text-fg">{v}</dd></div>
+          ))}
+        </dl>
+        <ol className="space-y-2 text-sm">
+          {[['ميتفورمين ٥٠٠ مجم', 'قرص مرتين يوميًا بعد الأكل · ٣٠ يوم'], ['أتورفاستاتين ٢٠ مجم', 'قرص مساءً · ٣٠ يوم']].map(([d, h], i) => (
+            <li key={d} className="rounded border border-line p-3">
+              <p className="font-semibold text-fg">{i + 1}. {d}</p>
+              <p className="mt-0.5 text-xs text-muted">{h}</p>
+            </li>
+          ))}
+        </ol>
+        <div className="rounded bg-primary px-4 py-2.5 text-center text-sm font-bold text-primary-fg">طباعة الروشتة</div>
+        <p className="text-center text-[11px] text-muted">رابط بصلاحية محددة، بدون حساب، ولا يظهر في محركات البحث</p>
+      </div>
+    </Screen>
   );
 }

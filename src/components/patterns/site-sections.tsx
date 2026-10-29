@@ -43,15 +43,18 @@ export function FeatureCard({
   title,
   children,
   icon,
+  iconClassName,
 }: {
   title: string;
   children: React.ReactNode;
   icon?: React.ReactNode;
+  /** Recolours the icon tile, e.g. with a sector's accent. */
+  iconClassName?: string;
 }) {
   return (
     <div className="rounded-lg border border-line bg-elevated p-5 shadow-card transition-shadow hover:shadow-md">
       {icon ? (
-        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded bg-primary-soft text-primary">
+        <div className={cn('mb-3 inline-flex h-10 w-10 items-center justify-center rounded bg-primary-soft text-primary', iconClassName)}>
           {icon}
         </div>
       ) : null}

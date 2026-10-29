@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
 import { cn } from '@/lib/cn';
-import { SITE_NAV, WHATSAPP_MESSAGES, CONTACT_EMAIL, whatsappLink } from '@/config/site';
+import { SITE_SERVICES, WHATSAPP_MESSAGES, CONTACT_EMAIL, whatsappLink } from '@/config/site';
+import { SiteDesktopNav, SiteMobileNav } from './site-nav';
 
 /** WhatsApp glyph. Inline so the marketing pages pull no icon dependency. */
 export function WhatsAppIcon({ className }: { className?: string }) {
@@ -52,17 +53,7 @@ function SiteHeader() {
           <Logo className="h-8" />
         </Link>
 
-        <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
-          {SITE_NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <SiteDesktopNav />
 
         <div className="ms-auto flex items-center gap-2 lg:ms-0">
           <Link
@@ -83,18 +74,9 @@ function SiteHeader() {
       </div>
 
       {/* Nav collapses to a scrollable strip rather than a hamburger: five
-          links fit, and a menu button would be one more tap for no gain. */}
-      <nav className="flex gap-1 overflow-x-auto border-t border-line/60 px-4 py-2 lg:hidden">
-        {SITE_NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="whitespace-nowrap rounded px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg"
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+          links fit, and a menu button would be one more tap for no gain.
+          The sector pages sit inline on it rather than in a dropdown. */}
+      <SiteMobileNav />
     </header>
   );
 }
@@ -106,8 +88,8 @@ function SiteFooter() {
         <div className="space-y-4">
           <Logo className="h-9" />
           <p className="max-w-sm text-sm leading-relaxed text-muted">
-            منصة تشغيل للأعمال المحلية — نظام متكامل لإدارة المطاعم والكافيهات من نقطة البيع
-            حتى التقارير، بالعربية وبالكامل.
+            منصة تشغيل للأعمال المحلية — نظام واحد للمطاعم والكافيهات والمتاجر والعيادات، من
+            نقطة البيع حتى التقارير، بالعربية وبالكامل.
           </p>
           <WhatsAppCta className="h-11 px-5 text-sm" />
         </div>
@@ -118,11 +100,11 @@ function SiteFooter() {
             <li>
               <Link href="/services" className="hover:text-primary">كل الخدمات</Link>
             </li>
-            <li>
-              <Link href="/services/restaurant" className="hover:text-primary">
-                المطاعم والكافيهات
-              </Link>
-            </li>
+            {SITE_SERVICES.map((x) => (
+              <li key={x.href}>
+                <Link href={x.href} className="hover:text-primary">{x.label}</Link>
+              </li>
+            ))}
           </ul>
         </div>
 

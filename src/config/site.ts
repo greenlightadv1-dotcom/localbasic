@@ -46,10 +46,23 @@ export const WHATSAPP_MESSAGES = {
   clinic: 'السلام عليكم، مهتم بنظام العيادات من Local Basic (مواعيد، ملف المريض، روشتات).',
 } as const;
 
-export const SITE_NAV = [
+/** The sector service pages, in the order every menu lists them. */
+export const SITE_SERVICES = [
+  { href: '/services/restaurant', key: 'restaurant', label: 'المطاعم والكافيهات', description: 'الطاولات، شاشة المطبخ، الدليفري، الإضافات' },
+  { href: '/services/retail', key: 'retail', label: 'المتاجر والتجزئة', description: 'باركود وميزان، عروض، تحويل بين الفروع، إعادة الطلب' },
+  { href: '/services/clinic', key: 'clinic', label: 'العيادات الطبية', description: 'المواعيد، ملف المريض، الروشتة على واتساب' },
+] as const;
+
+export type SiteNavItem = {
+  href: string;
+  label: string;
+  /** A group: shown as a dropdown on desktop and inline on the mobile strip. */
+  children?: readonly { href: string; key: string; label: string; description: string }[];
+};
+
+export const SITE_NAV: readonly SiteNavItem[] = [
   { href: '/', label: 'الرئيسية' },
-  { href: '/services', label: 'الخدمات' },
-  { href: '/services/restaurant', label: 'المطاعم والكافيهات' },
+  { href: '/services', label: 'الخدمات', children: SITE_SERVICES },
   { href: '/about', label: 'من نحن' },
   { href: '/contact', label: 'تواصل معنا' },
-] as const;
+];
