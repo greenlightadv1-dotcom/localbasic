@@ -270,10 +270,14 @@ export type KitchenTicket = {
     number: string;
     status: OrderStatus;
     tableName: string | null;
+    /** dine_in, takeaway or delivery — the pass needs to know where it goes. */
+    type: string;
     note: string | null;
     placedAt: string;
     /** When it reached the kitchen — the prep timer's zero. */
     confirmedAt: string | null;
+    /** When it left the pass; only a served ticket has one. */
+    servedAt: string | null;
   };
   lines: {
     id: string;
@@ -309,7 +313,7 @@ export async function listKitchenTickets(
 
   const { data: rows, error } = await supabase
     .from('restaurant_orders')
-    .select('id, number, status, table_id, note, placed_at, confirmed_at')
+    .select('id, number, status, type, table_id, note, placed_at, confirmed_at, served_at')
     .eq('organization_id', ctx.organizationId)
     .eq('branch_id', ctx.branchId)
     .in('status', statuses)
@@ -393,9 +397,11 @@ export async function listKitchenTickets(
       number: o.number,
       status: o.status as OrderStatus,
       tableName: o.table_id ? (tableName.get(o.table_id) ?? null) : null,
+      type: o.type,
       note: o.note,
       placedAt: o.placed_at,
       confirmedAt: o.confirmed_at,
+      servedAt: o.served_at,
     },
     lines: linesByOrder.get(o.id) ?? [],
   }));

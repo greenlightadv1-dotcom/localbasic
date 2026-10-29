@@ -95,6 +95,12 @@ export const MODULES: Record<string, ModuleDefinition> = {
     nameAr: 'مطعم / كافيه',
     nameEn: 'Restaurant',
     navigation: [
+      // The hub (0117): floor & POS, KDS and the modifier builder on one
+      // screen; each tab shows only to the roles that can use it.
+      {
+        href: '/restaurant', label: 'المطعم والمطبخ', icon: 'UtensilsCrossed',
+        permission: ['restaurant.table.read', 'restaurant.kitchen.use', 'restaurant.bar.use', 'restaurant.menu.manage'],
+      },
       { href: '/cashier', label: 'الكاشير', icon: 'ScanBarcode', permission: 'restaurant.pos.use' },
       { href: '/orders', label: 'الطلبات', icon: 'ClipboardList', permission: 'restaurant.order.read' },
       // Chef and barista are separate roles/permissions (0080) with separate
