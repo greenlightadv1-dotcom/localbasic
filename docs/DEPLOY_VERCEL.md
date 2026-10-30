@@ -1,6 +1,7 @@
-# Restaurant launch on Vercel
+# Production launch on Vercel
 
-Covers the Restaurant module and the shared Core it needs. Scope is Vercel
+Covers the shared Core and all three verticals — Restaurant, Retail and
+Clinic (migrations through `0117`). Scope is Vercel
 only — no other host is configured, and nothing here assumes one.
 
 For a throwaway preview, `DEPLOY_PREVIEW.md` is shorter and enough. This
@@ -24,9 +25,9 @@ Every tenant screen already declares `export const dynamic = 'force-dynamic'`,
 which is correct — they read cookies and must never be served from the CDN.
 Only the marketing pages are prerendered.
 
-Node **20** is what CI builds and tests on. Set the same on Vercel
-(**Settings → General → Node.js Version**). `package.json` pins no `engines`
-field, so Vercel picks its own default otherwise, and that default moves.
+Node **24** is what CI builds and tests on, and `package.json` pins
+`"engines": { "node": "24.x" }`, which Vercel honours. Keep
+**Settings → General → Node.js Version** on 24.x so the two never disagree.
 
 ## 2. Environment variables
 
@@ -67,8 +68,11 @@ public origin only — no secret, key, cookie or header value.
 
 | Name | Scope | Enables |
 |---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server only** | Creating an owner account from Platform Admin → `/admin/onboard`, and background workers |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server only** | Creating an owner account from Platform Admin → `/admin/onboard`, the analytics and notification workers, and the WhatsApp verification webhook |
+| `PAYMENT_CREDENTIALS_KEY` | Server only | Saving a store's payment-gateway credentials (AES-256-GCM, 32+ chars). Unset: the payments page refuses to save. **Losing it makes saved credentials unreadable** — store it in a password manager too |
+| `WHATSAPP_WEBHOOK_SECRET` | Server only | `/api/webhooks/whatsapp-verify` (guest WhatsApp verification). Without it every call is rejected |
 | `NOTIFICATION_WORKER_SECRET` | Server only | `/api/worker/notifications`. Without it the route answers 503 to everyone — closed by default |
+| `ANALYTICS_WORKER_SECRET` | Server only | `/api/worker/analytics` (executive dashboard refresh). Falls back to `NOTIFICATION_WORKER_SECRET`; 404 without either |
 | `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL` | Server only | The email channel. Both together or neither |
 | `ADMIN_BOOTSTRAP_SECRET` | Server only | `/api/admin-bootstrap`, a break-glass recovery link. The route 404s without it |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_CONTACT_EMAIL` | Public | Override the defaults in `src/config/site.ts` |
@@ -99,6 +103,21 @@ For preview deployments the host changes per push, so add the project wildcard
 as well.
 
 ## 4. Database migrations
+
+**How this project's production database has actually been migrated: by hand,
+file by file, in the Supabase SQL editor.** SQL run that way is not recorded
+in `supabase_migrations.schema_migrations`, so `supabase db push` against that
+project would try to re-run every file from `0001`. Do not run `db push`
+(or let `.github/workflows/supabase-db-push.yml` run) against production until
+the history is reconciled with `supabase migration repair --status applied
+<version>` for each file already applied. That workflow triggers on `main`,
+which is not this repository's production branch, so today it never fires.
+
+For the multi-vertical release, production needs `0111` → `0117` in order
+(retail & clinic schema, retail operations, clinic operations, POS lookups,
+clinic calendar reads, patient chart, restaurant hub). `0111` also creates the
+private `clinic-records` storage bucket; `0117` adds order lines to the
+`supabase_realtime` publication.
 
 Migrations are plain SQL in `supabase/migrations/`, applied **in filename
 order**, and are **append-only**: never edit one that has shipped.
@@ -132,6 +151,12 @@ Nothing writes to the filesystem, holds a long-running process, or keeps
 in-process state that has to survive a request — with the one exception in §7.
 
 ## 6. Scheduled work
+
+`/api/worker/analytics` refreshes the executive dashboard's aggregates and is
+also unscheduled. Until something calls it, that dashboard shows whatever was
+last computed. A daily Vercel Cron entry (Hobby allows one per day) is enough;
+it sends `Authorization: Bearer $CRON_SECRET`, which the route accepts, so set
+`CRON_SECRET` equal to `ANALYTICS_WORKER_SECRET`.
 
 `/api/worker/notifications` expects a scheduler. **No `vercel.json` exists, so
 nothing calls it today.** That is currently harmless: the notification queue
@@ -177,7 +202,8 @@ implementation is not written, and this document does not pretend otherwise.
 
 Run in order. Each line is either verified or it is not; do not infer.
 
-- [ ] Node.js version set to 20 in Vercel project settings
+- [ ] Node.js version 24.x in Vercel project settings
+- [ ] Production branch in Vercel = `claude/localbasic-saas-foundation-8h4zya`, and the release merged into it
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set, build green
 - [ ] `NEXT_PUBLIC_APP_URL` set to the real origin, **and redeployed after setting it**
 - [ ] `LOCALBASIC_LOCAL_DB=0`
@@ -185,9 +211,14 @@ Run in order. Each line is either verified or it is not; do not infer.
 - [ ] Supabase **Site URL** set
 - [ ] Both `/callback` **and** `/callback/recovery` in the redirect allow-list
 - [ ] Email confirmation switched back **on** for a real project
-- [ ] Migrations applied to the target project, in order, before the deploy
+- [ ] Migrations applied to the target project, in order, before the deploy (`0111` → `0117` for the multi-vertical release)
+- [ ] `clinic-records` bucket exists and is **private**; `restaurant_order_items` is in the `supabase_realtime` publication
+- [ ] `PAYMENT_CREDENTIALS_KEY`, `WHATSAPP_WEBHOOK_SECRET`, worker secrets set (Production scope), key backed up
 - [ ] `GET /api/diagnostics/app-origin` reports `source: NEXT_PUBLIC_APP_URL` and `isLoopback: false`
 - [ ] Sign in, take one payment, print one table QR, scan it, place one guest order
+- [ ] `/restaurant`: mark a KDS line ready on one device and see it on another without reload
+- [ ] Retail: one barcode sale and one return; Clinic: book one slot, issue one prescription, open its WhatsApp link logged out
+- [ ] `/`, `/services/restaurant`, `/services/retail`, `/services/clinic` load on the production domain
 - [ ] Confirm the scanned QR opens **your** domain, not `.vercel.app` or localhost
 - [ ] Password reset end to end, on the real domain
 - [ ] Reports screen loads and its revenue matches a direct SQL sum for the same window
